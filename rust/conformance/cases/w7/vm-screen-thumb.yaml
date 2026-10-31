@@ -1,0 +1,9 @@
+name: vm-agent GET /screen/thumb on a box without the capture tools
+agent: vm-agent
+steps:
+  - name: a 503 that says why
+    request: {method: GET, path: /screen/thumb, token: {signer: console}}
+    expect: {status: 503, json: {error: This agent has no tools to capture its screen with. Update the agent., code: unsupported}}
+  - name: the console's token only
+    request: {method: GET, path: /screen/thumb}
+    expect: {status: 401, json: {error: Unauthorized}}

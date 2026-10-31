@@ -1,0 +1,78 @@
+name: vm-agent logs (the log page, its snapshot, redaction, and the console's /logs)
+agent: vm-agent
+env: {OPENCLAW_LOG_DIR: $ROOT/oclog}
+files:
+  keys/session_secret: "0909090909090909090909090909090909090909090909090909090909090909\n"
+  keys/openclaw_gateway_token: "gw-supersecret-token-1234\n"
+  oclog/other.log: |
+    {"time":"2026-10-27T08:00:00.000Z","message":"not OpenClaw's","_meta":{"logLevelName":"INFO"}}
+  oclog/openclaw-2026-10-28.log: |
+    {"time":"2026-10-28T09:30:41.000Z","message":"gateway listening","_meta":{"logLevelName":"INFO","name":"{\"subsystem\":\"gateway\"}"}}
+    not json
+    {"time":"2026-10-28T09:30:43.000Z","message":"token gw-supersecret-token-1234 used with Bearer abc.def.ghi","_meta":{"logLevelName":"WARN","name":"agent"}}
+    {"time":"2026-10-28T09:30:44.000Z","message":"module line","_meta":{"name":"{\"module\":\"cron\"}"}}
+    {"message":"no time"}
+shims:
+  - argv: [sudo, journalctl, -u, openclaw]
+    stdout: |
+      {"MESSAGE":"Started openclaw.service.","SYSLOG_IDENTIFIER":"systemd","__REALTIME_TIMESTAMP":"1793179840000000"}
+      {"MESSAGE":"TypeError: x is not a function","SYSLOG_IDENTIFIER":"node","__REALTIME_TIMESTAMP":"1793179842500000"}
+      {"MESSAGE":"an ordinary line of tool output","SYSLOG_IDENTIFIER":"node","__REALTIME_TIMESTAMP":"1793179842600000"}
+  - argv: [sudo, -n, journalctl, -u, controlclaw-agent]
+    stdout: |
+      {"MESSAGE":"[phone] setup failed: no number","__REALTIME_TIMESTAMP":"1793179842000000"}
+      {"MESSAGE":"[gateway] up","__REALTIME_TIMESTAMP":"1793179842000000"}
+  - argv: [systemctl, show, openclaw]
+    stdout: "ActiveState=active\nSubState=running\nResult=success\nExecMainStatus=0\nExecMainStartTimestamp=Wed 2026-10-28 09:30:40 UTC\nNRestarts=2\n"
+steps:
+  - name: the log page without a session
+    request: {method: GET, path: /__cc/logs}
+    expect:
+      status: 401
+      headers: {x-frame-options: DENY, content-security-policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"}
+      body_file: golden/denied-logs.html
+  - name: the log page
+    request: {method: GET, path: /__cc/logs, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 200, body_file: golden/logs.html}
+  - name: the snapshot from another box's page
+    request: {method: GET, path: /__cc/logs/snapshot, headers: {origin: "https://other.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 403, headers: {cache-control: $absent}, json: {error: "Not from this agent's own page."}}
+  - name: the snapshot is not for a navigation from elsewhere either
+    request:
+      method: GET
+      path: /__cc/logs/snapshot
+      headers: {sec-fetch-site: cross-site, sec-fetch-mode: navigate, sec-fetch-dest: document}
+      token: {signer: session, cookie: __Host-cc_session}
+    expect: {status: 403}
+  - name: the snapshot without a session
+    request: {method: GET, path: /__cc/logs/snapshot, headers: {origin: "https://box.example"}}
+    expect: {status: 401, json: {error: Your session on this agent has expired.}}
+  - name: the snapshot, merged and redacted
+    request: {method: GET, path: "/__cc/logs/snapshot?lines=500", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect:
+      status: 200
+      headers: {content-type: application/json, cache-control: no-store}
+      body_file: golden/logs-snapshot.json
+  - name: the last two
+    request: {method: GET, path: "/__cc/logs/snapshot?lines=2", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect:
+      status: 200
+      json_subset: {lines: [{message: "token [redacted] used with Bearer [redacted]"}, {message: module line}]}
+  - name: the live tail sends the backlog and the unit's state
+    request: {method: GET, path: /__cc/logs/stream, read_until: "event: service", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect:
+      status: 200
+      headers: {content-type: text/event-stream; charset=utf-8, cache-control: "no-cache, no-transform", x-accel-buffering: "no"}
+      body_contains:
+        - 'data: {"time":"2026-10-28T09:30:44.000Z","level":"info","subsystem":"cron","message":"module line"}'
+        - 'event: service'
+        - '"since":"2026-10-28T09:30:40.000Z","restarts":2}'
+  - name: the live tail from another box's page
+    request: {method: GET, path: /__cc/logs/stream, headers: {origin: "https://other.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 403}
+  - name: the console's /logs is not on an agent box's list
+    request: {method: GET, path: /logs, token: {signer: console}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: nor its stream
+    request: {method: GET, path: /logs/stream, token: {signer: console}}
+    expect: {status: 401}

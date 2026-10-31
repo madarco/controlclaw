@@ -1,0 +1,93 @@
+name: "panel API: egress rules one by one, a model key and the AI review with no code, and the activity"
+agent: mitm-agent
+skip:
+  ts: "the panel API is in the Rust build only"
+ports:
+  panel: CC_PANEL_PORT
+env:
+  MITM_MODE: standalone
+  SYNC_INTERVAL_MS: "60000"
+  ACTIVITY_POLL_MS: "200"
+  FIREWALL_URL: ""
+  STORE_URL: ""
+  RULES_URL: ""
+  IDENTITIES_URL: ""
+  PERMISSION_URL: ""
+  CA_URL: ""
+  ACTIVITY_URL: ""
+  WEBHOOKS_URL: ""
+  ORG_ID: ""
+  BOX_ID: ""
+  LOCAL_PANEL_BIND: "127.0.0.1:$PORT_PANEL"
+  LOCAL_PANEL_SECURE_COOKIE: "0"
+  # The stores default to /opt/controlclaw/state, not STATE_DIR (backlog).
+  LLM_STORE_PATH: "$ROOT/state/llm.enc"
+  CHANNEL_STORE_PATH: "$ROOT/state/channels.enc"
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+steps:
+  - name: no session, no rules
+    request: {method: GET, path: /api/egress/rules, port: panel}
+    expect: {status: 401}
+  - name: the admin is set up; a fresh firewall has the block-all rule
+    panel_login: panel
+    request: {method: GET, path: /api/egress/rules, port: panel, jar: true}
+    expect:
+      status: 200
+      json:
+        - {id: block-all, name: Block everything until you add rules, matchDomain: "*", matchPath: null, matchMethod: null, matchPort: null, effect: block, exit: firewall, exitCountry: null, priority: 100000, enabled: true, vmId: null, aiReview: false, aiPolicy: null, createdAt: $string, updatedAt: $string}
+  - name: a write without the CSRF token is refused
+    request: {method: POST, path: /api/egress/rules, port: panel, jar: true, json: {name: GitHub, matchDomain: api.github.com}}
+    expect: {status: 403}
+  - name: a bad rule is a 400
+    request: {method: POST, path: /api/egress/rules, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {name: "", matchDomain: api.github.com}}
+    expect: {status: 400, json_subset: {error: $string}}
+  - name: a rule is added, and the proxy has it at once (no sync tick for a minute)
+    request: {method: POST, path: /api/egress/rules, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {name: GitHub, matchDomain: api.github.com, priority: 10}}
+    keep: {rule: id}
+    expect: {status: 200, json_subset: {name: GitHub, effect: allow, exit: firewall}}
+    files:
+      run/rules.json:
+        within_ms: 3000
+        json:
+          - {id: $string, name: GitHub, match_domain: api.github.com, effect: allow, priority: 10}
+          - {id: block-all, name: Block everything until you add rules, match_domain: "*", effect: block, priority: 100000}
+  - name: its effect cycles to ask
+    request: {method: POST, path: /api/egress/rules/$rule/cycle, port: panel, jar: true, headers: {x-csrf-token: $csrf}}
+    expect: {status: 200, json_subset: {effect: require_permission}}
+  - name: and it is deleted
+    request: {method: DELETE, path: /api/egress/rules/$rule, port: panel, jar: true, headers: {x-csrf-token: $csrf}}
+    expect: {status: 200}
+    files:
+      run/rules.json:
+        within_ms: 3000
+        json:
+          - {id: block-all, name: Block everything until you add rules, match_domain: "*", effect: block, priority: 100000}
+  - name: a model key is taken by the firewall with no code to type (nobody is set to get codes)
+    request: {method: POST, path: /api/llm/keys, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {provider: vercel_gateway, key: vck_conformance_key_0123456789}}
+    keep: {key: keys.0.id}
+    expect: {status: 200, json_subset: {result: {ok: true, status: applied}, keys: [{provider: vercel_gateway, hint: "…6789", state: active}]}}
+  - name: the AI review is switched on with it
+    request: {method: PUT, path: /api/egress/ai, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {enabled: true, credentialId: $key, model: typesafe-ai/jev, dailyCallCap: 5000, scanIntervalHours: 6, autoApprovePerHour: 30}}
+    expect: {status: 200, json_subset: {active: true, settings: {enabled: true, model: typesafe-ai/jev}}}
+  - name: the traffic log is shipped into the firewall's own database
+    # A time far ahead is taken as now + 5 minutes (the SaaS's clamp), so the overview counts it.
+    write:
+      run/traffic.jsonl: |
+        {"flow_id":"f1","ts":9999999999,"host":"api.github.com","effect":"allow","method":"GET","path":"/","duration_ms":80}
+        {"flow_id":"f2","ts":9999999999,"host":"paste.example","effect":"block","method":"POST","path":"/"}
+    files:
+      run/traffic.jsonl.cursor: {json: {inode: $number, offset: $number}}
+  - name: and the activity page lists it with the counts
+    request: {method: GET, path: "/api/activity?source=network", port: panel, jar: true}
+    expect:
+      status: 200
+      json_subset:
+        counts: {all: 2, allow: 1, ask: 0, block: 1}
+        total: 2
+  - name: the blocked tab
+    request: {method: GET, path: "/api/activity?verdict=block", port: panel, jar: true}
+    expect: {status: 200, json_subset: {total: 1, rows: [{verdict: blocked, source: egress, message: POST paste.example/}]}}
+  - name: the overview counts it too
+    request: {method: GET, path: "/api/overview?range=1h", port: panel, jar: true}
+    expect: {status: 200, json_subset: {topHosts: [{total: 1}, {total: 1}], shields: {siteRules: 1, aiKeys: 1}}}

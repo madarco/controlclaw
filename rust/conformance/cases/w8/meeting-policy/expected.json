@@ -1,0 +1,3316 @@
+[
+ {
+  "ok": "realtime"
+ },
+ {
+  "ok": "realtime"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "live"
+ },
+ {
+  "ok": "live"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "realtime"
+ },
+ {
+  "ok": "live"
+ },
+ {
+  "ok": "realtime"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "live"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "openai/gpt-live-1"
+ },
+ {
+  "ok": "gpt-live-1"
+ },
+ {
+  "ok": "gpt-realtime"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": {
+   "provider": "gateway",
+   "credentialId": "included",
+   "model": "openai/gpt-realtime-1.5",
+   "maxMinutes": 30
+  }
+ },
+ {
+  "ok": {
+   "provider": "gateway",
+   "credentialId": "included",
+   "model": "openai/gpt-realtime-1.5",
+   "maxMinutes": 5
+  }
+ },
+ {
+  "error": "Choose a supported speech model and a call limit from 5 to 60 minutes"
+ },
+ {
+  "error": "Choose a supported speech model and a call limit from 5 to 60 minutes"
+ },
+ {
+  "error": "Choose a supported speech model and a call limit from 5 to 60 minutes"
+ },
+ {
+  "error": "Choose a supported speech model and a call limit from 5 to 60 minutes"
+ },
+ {
+  "ok": {
+   "provider": "openai",
+   "credentialId": "key_1",
+   "model": "gpt-live-1",
+   "maxMinutes": 30
+  }
+ },
+ {
+  "error": "Choose a supported speech model and a call limit from 5 to 60 minutes"
+ },
+ {
+  "error": "Choose a supported speech model and a call limit from 5 to 60 minutes"
+ },
+ {
+  "ok": {
+   "provider": [
+    "gateway"
+   ],
+   "credentialId": "k",
+   "model": "openai/gpt-realtime-1.5",
+   "maxMinutes": 30
+  }
+ },
+ {
+  "error": "Invalid speech settings"
+ },
+ {
+  "error": "Invalid speech settings"
+ },
+ {
+  "error": "Invalid speech settings"
+ },
+ {
+  "error": "Choose a supported speech model and a call limit from 5 to 60 minutes"
+ },
+ {
+  "error": "Invalid speech settings"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "Too common: people say it all the time"
+ },
+ {
+  "ok": "Too common: people say it all the time"
+ },
+ {
+  "ok": "Too common: people say it all the time"
+ },
+ {
+  "ok": "Too common: people say it all the time"
+ },
+ {
+  "ok": "Use 3 to 32 characters"
+ },
+ {
+  "ok": "Use 3 to 32 characters"
+ },
+ {
+  "ok": "Use letters, numbers, spaces, hyphens or apostrophes"
+ },
+ {
+  "ok": "Use at most 3 words"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "Use at least 3 letters"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "Use letters, numbers, spaces, hyphens or apostrophes"
+ },
+ {
+  "ok": "Enter a name"
+ },
+ {
+  "ok": "Enter a name"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "A short name is easy to hear by mistake"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "A short name is easy to hear by mistake"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "A short name is easy to hear by mistake"
+ },
+ {
+  "ok": "A short name is easy to hear by mistake"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "words": [
+    "Jev"
+   ]
+  }
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "words": [
+    "Jev Two"
+   ]
+  }
+ },
+ {
+  "error": "Use one to five names"
+ },
+ {
+  "error": "Use one to five names"
+ },
+ {
+  "error": "Each name only once"
+ },
+ {
+  "error": "5: Enter a name"
+ },
+ {
+  "error": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx: Use 3 to 32 characters"
+ },
+ {
+  "error": "Invalid wake words"
+ },
+ {
+  "error": "Invalid wake words"
+ },
+ {
+  "error": "Invalid wake words"
+ },
+ {
+  "error": "Invalid wake words"
+ },
+ {
+  "error": "null: Enter a name"
+ },
+ {
+  "error": "Hey,you: Enter a name"
+ },
+ {
+  "error": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀: Use 3 to 32 characters"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "mode": "transcript",
+   "email": true,
+   "calendar": "off",
+   "maxPerDay": 5
+  }
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "mode": "bidi",
+   "email": true,
+   "calendar": "all",
+   "maxPerDay": 20
+  }
+ },
+ {
+  "error": "Choose where invites come from and 1 to 20 joins a day"
+ },
+ {
+  "error": "Choose where invites come from and 1 to 20 joins a day"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "mode": "transcript",
+   "email": true,
+   "calendar": "off",
+   "maxPerDay": 2
+  }
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "mode": [
+    "bidi"
+   ],
+   "email": true,
+   "calendar": "off",
+   "maxPerDay": 5
+  }
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "mode": "transcript",
+   "email": true,
+   "calendar": [
+    "all"
+   ],
+   "maxPerDay": 5
+  }
+ },
+ {
+  "error": "Choose where invites come from and 1 to 20 joins a day"
+ },
+ {
+  "error": "Choose where invites come from and 1 to 20 joins a day"
+ },
+ {
+  "error": "Invalid automatic joining settings"
+ },
+ {
+  "error": "Invalid automatic joining settings"
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": "Let the agent join meetings by itself, in Transcript, at most 5 a day: invites emailed to it by your allowed senders."
+ },
+ {
+  "ok": "Let the agent join meetings by itself, in Transcript, at most 5 a day: no source chosen yet."
+ },
+ {
+  "ok": "Let the agent join meetings by itself, in Bidi, at most 5 a day: invites emailed to it by your allowed senders; events on the connected Google Calendar that invite it."
+ },
+ {
+  "ok": "Let the agent join meetings by itself, in Transcript, at most 12 a day: every event with a Meet link on the connected Google Calendar."
+ },
+ {
+  "ok": {
+   "enabled": true
+  }
+ },
+ {
+  "ok": {
+   "enabled": false
+  }
+ },
+ {
+  "error": "Invalid after-meeting setting"
+ },
+ {
+  "error": "Invalid after-meeting setting"
+ },
+ {
+  "error": "Invalid after-meeting setting"
+ },
+ {
+  "error": "Invalid after-meeting setting"
+ },
+ {
+  "error": "Invalid after-meeting setting"
+ },
+ {
+  "error": "Invalid after-meeting setting"
+ },
+ {
+  "ok": {
+   "enabled": true
+  }
+ },
+ {
+  "ok": {
+   "enabled": false
+  }
+ },
+ {
+  "error": "Invalid Full agent setting"
+ },
+ {
+  "error": "Invalid Full agent setting"
+ },
+ {
+  "error": "Invalid Full agent setting"
+ },
+ {
+  "error": "Invalid Full agent setting"
+ },
+ {
+  "error": "Invalid Full agent setting"
+ },
+ {
+  "error": "Invalid Full agent setting"
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": "Full agent in meetings: anyone in a meeting the agent was sent to can ask it to do anything it can do (files, packages, messages), and names in a meeting can be faked. This applies to meetings joined from the console and to events organized by the agent's own Google account. Firewall rules and confirmation codes still apply."
+ },
+ {
+  "ok": "Let the agent present its own browser in meetings: everyone in the meeting sees the page it shows, including sites it is signed in to. Saved website logins stay on the firewall."
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": 40
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": 0
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": 40
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": 0
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": 0
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": 40
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": null
+  }
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": {
+    "provider": "gateway",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 30
+   }
+  }
+ },
+ {
+  "error": "Bidi needs a speech provider"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "bidi",
+   "invokers": "owner-browser",
+   "speech": {
+    "provider": "gateway",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 30
+   }
+  }
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": [
+    "bidi"
+   ],
+   "invokers": "owner-browser",
+   "speech": null
+  }
+ },
+ {
+  "error": "Invalid owner-browser Google Meet settings"
+ },
+ {
+  "error": "Invalid owner-browser Google Meet settings"
+ },
+ {
+  "error": "Invalid owner-browser Google Meet settings"
+ },
+ {
+  "error": "Invalid owner-browser Google Meet settings"
+ },
+ {
+  "error": "Invalid owner-browser Google Meet settings"
+ },
+ {
+  "error": "Invalid owner-browser Google Meet settings"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": null,
+   "always": true,
+   "reminders": false,
+   "present": true
+  }
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": null,
+   "consultModel": "main"
+  }
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": null,
+   "consultModel": "controlclaw/anthropic/claude-haiku-4.5"
+  }
+ },
+ {
+  "error": "Invalid owner-browser Google Meet settings"
+ },
+ {
+  "error": "Invalid owner-browser Google Meet settings"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": null,
+   "wake": {
+    "enabled": true,
+    "words": [
+     "Jev"
+    ]
+   }
+  }
+ },
+ {
+  "error": "hey: Too common: people say it all the time"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": null,
+   "autoJoin": {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  }
+ },
+ {
+  "error": "Bidi needs a speech provider"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": null,
+   "autoJoin": {
+    "enabled": false,
+    "mode": "bidi",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  }
+ },
+ {
+  "error": "Choose where invites come from and 1 to 20 joins a day"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": null,
+   "followUp": {
+    "enabled": true
+   }
+  }
+ },
+ {
+  "error": "Invalid after-meeting setting"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": null,
+   "fullAgent": {
+    "enabled": true
+   }
+  }
+ },
+ {
+  "error": "Invalid Full agent setting"
+ },
+ {
+  "error": "Choose a supported speech model and a call limit from 5 to 60 minutes"
+ },
+ {
+  "error": "Invalid owner-browser Google Meet settings"
+ },
+ {
+  "error": "Invalid meetings settings"
+ },
+ {
+  "error": "Invalid meetings settings"
+ },
+ {
+  "ok": {
+   "enabled": true,
+   "platforms": [
+    "google-meet"
+   ],
+   "defaultMode": "transcript",
+   "invokers": "owner-browser",
+   "speech": {
+    "provider": "gateway",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 30
+   },
+   "wake": {
+    "enabled": false,
+    "words": [
+     "Jev"
+    ]
+   },
+   "autoJoin": {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   },
+   "followUp": {
+    "enabled": false
+   },
+   "always": false,
+   "reminders": true,
+   "fullAgent": {
+    "enabled": false
+   },
+   "present": false,
+   "consultModel": "main"
+  }
+ },
+ {
+  "error": "Choose where invites come from and 1 to 20 joins a day"
+ },
+ {
+  "error": "Choose a supported speech model and a call limit from 5 to 60 minutes"
+ },
+ {
+  "error": "Invalid meetings settings"
+ },
+ {
+  "ok": "https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "error": "Use a link like https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "error": "Use a link like https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "error": "Use a link like https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "error": "Enter a Google Meet link"
+ },
+ {
+  "error": "Enter a Google Meet link"
+ },
+ {
+  "error": "Enter a Google Meet link"
+ },
+ {
+  "ok": "https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "ok": "https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "error": "Use a link like https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "ok": "https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "error": "Use a link like https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "error": "Use a link like https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "error": "Enter a Google Meet link"
+ },
+ {
+  "error": "Enter a Google Meet link"
+ },
+ {
+  "ok": "https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "error": "Enter a Google Meet link"
+ },
+ {
+  "error": "Use a link like https://meet.google.com/abc-defg-hij"
+ },
+ {
+  "ok": {
+   "source": "email",
+   "organizer": "boss@example.com"
+  }
+ },
+ {
+  "ok": {
+   "source": "calendar",
+   "organizer": "a@b"
+  }
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "ok": {
+   "source": "email",
+   "organizer": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@b.c"
+  }
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "ok": {
+   "source": "email",
+   "organizer": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀@b.c"
+  }
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "error": "Invalid automatic join"
+ },
+ {
+  "ok": [
+   {
+    "ref": "openai/gpt-6-luna",
+    "name": "GPT-6 Luna"
+   },
+   {
+    "ref": "openai/gpt-5.4-mini",
+    "name": "GPT-5.4 mini"
+   },
+   {
+    "ref": "controlclaw/openai/gpt-5.4-mini",
+    "name": "GPT-5.4 mini"
+   }
+  ]
+ },
+ {
+  "ok": []
+ },
+ {
+  "ok": []
+ },
+ {
+  "ok": [
+   {
+    "ref": "controlclaw/anthropic/claude-haiku-4.5",
+    "name": "Claude Haiku 4.5"
+   }
+  ]
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "openai/gpt-5.4-mini"
+ },
+ {
+  "ok": "controlclaw/openai/gpt-5.4-mini"
+ },
+ {
+  "ok": "openai/gpt-5.4-mini"
+ },
+ {
+  "ok": "openai/gpt-5.4-mini"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "/chat/main/subagent/google-meet/meet_d81611be-3c2d-41d2-8aa3-f59bcbb0087f"
+ },
+ {
+  "ok": "/chat/main/~key/meeting-565ba65b-task-1"
+ },
+ {
+  "ok": "/chat/main"
+ },
+ {
+  "ok": "/chat/main/telegram/12345"
+ },
+ {
+  "ok": "/chat/main/a/~dotdot/~~b/x%20y%2Fz"
+ },
+ {
+  "ok": "/chat/main/~dot/x"
+ },
+ {
+  "ok": "/chat/Main/~key/x"
+ },
+ {
+  "ok": "/chat/main/%C3%BC/%C3%A9"
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": null
+ },
+ {
+  "ok": "/chat/main/~key/(it's)*!"
+ },
+ {
+  "ok": "agent:main:subagent:google-meet:meet_x"
+ },
+ {
+  "ok": {
+   "id": "00000001-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "durationSeconds": 3690,
+   "mode": "transcript",
+   "meetingCode": null,
+   "state": "complete",
+   "notes": "ready",
+   "captions": 1,
+   "failed": false
+  }
+ },
+ {
+  "ok": {
+   "id": "00000002-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "durationSeconds": 3690,
+   "mode": "transcript",
+   "meetingCode": null,
+   "state": "complete",
+   "notes": "pending",
+   "captions": 1,
+   "failed": false
+  }
+ },
+ {
+  "ok": {
+   "id": "00000003-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": null,
+   "durationSeconds": null,
+   "mode": "transcript",
+   "meetingCode": null,
+   "state": "active",
+   "notes": "pending",
+   "captions": 1,
+   "failed": false
+  }
+ },
+ {
+  "ok": {
+   "id": "00000004-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "durationSeconds": 3690,
+   "mode": "transcript",
+   "meetingCode": null,
+   "state": "complete",
+   "notes": "none",
+   "captions": 1,
+   "failed": true
+  }
+ },
+ {
+  "ok": {
+   "id": "00000005-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "durationSeconds": 3690,
+   "mode": "transcript",
+   "meetingCode": null,
+   "state": "failed",
+   "notes": "none",
+   "captions": 0,
+   "failed": true
+  }
+ },
+ {
+  "ok": {
+   "id": "00000006-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "durationSeconds": 3690,
+   "mode": "bidi",
+   "meetingCode": "abc-defg-hij",
+   "state": "complete",
+   "notes": "pending",
+   "captions": 1,
+   "failed": false
+  }
+ },
+ {
+  "ok": {
+   "id": "00000007-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "bad",
+   "durationSeconds": null,
+   "mode": "transcript",
+   "meetingCode": null,
+   "state": "complete",
+   "notes": "pending",
+   "captions": 1,
+   "failed": false
+  }
+ },
+ {
+  "ok": {
+   "id": "00000008-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T09:00:00.000Z",
+   "durationSeconds": 0,
+   "mode": "transcript",
+   "meetingCode": null,
+   "state": "complete",
+   "notes": "pending",
+   "captions": 1,
+   "failed": false
+  }
+ },
+ {
+  "ok": {
+   "id": "00000009-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T10:00:00.500Z",
+   "durationSeconds": 1,
+   "mode": "transcript",
+   "meetingCode": null,
+   "state": "complete",
+   "notes": "pending",
+   "captions": 1,
+   "failed": false
+  }
+ },
+ {
+  "ok": {
+   "id": "00000010-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "durationSeconds": null,
+   "mode": "transcript",
+   "meetingCode": null,
+   "state": "leaving",
+   "notes": "pending",
+   "captions": 1,
+   "failed": false
+  }
+ },
+ {
+  "ok": {
+   "id": "00000011-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "durationSeconds": 3690,
+   "mode": "transcript",
+   "meetingCode": null,
+   "state": "complete",
+   "notes": "pending",
+   "captions": 1,
+   "failed": false
+  }
+ },
+ {
+  "ok": {
+   "id": "00000001-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "state": "complete",
+   "transcript": [
+    {
+     "at": "2026-10-08T10:01:00.000Z",
+     "speaker": "Ada",
+     "text": "Hi"
+    }
+   ],
+   "mode": "transcript",
+   "summary": {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "durationSeconds": 3690,
+    "mode": "transcript",
+    "meetingCode": null,
+    "state": "complete",
+    "notes": "pending",
+    "captions": 1,
+    "failed": false
+   }
+  }
+ },
+ {
+  "ok": {
+   "id": "00000001-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "state": "complete",
+   "transcript": [
+    {
+     "at": "2026-10-08T10:01:00.000Z",
+     "speaker": "Ada",
+     "text": "Hi"
+    }
+   ],
+   "followUp": {
+    "state": "done",
+    "startedAt": "2026-10-10T10:00:00.000Z"
+   },
+   "mode": "transcript",
+   "summary": {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "durationSeconds": 3690,
+    "mode": "transcript",
+    "meetingCode": null,
+    "state": "complete",
+    "notes": "pending",
+    "captions": 1,
+    "failed": false
+   }
+  }
+ },
+ {
+  "ok": {
+   "id": "00000001-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "state": "complete",
+   "transcript": [
+    {
+     "at": "2026-10-08T10:01:00.000Z",
+     "speaker": "Ada",
+     "text": "Hi"
+    }
+   ],
+   "mode": "bidi",
+   "summary": {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "durationSeconds": 3690,
+    "mode": "bidi",
+    "meetingCode": null,
+    "state": "complete",
+    "notes": "pending",
+    "captions": 1,
+    "failed": false
+   },
+   "lookupSessions": [
+    {
+     "key": "agent:main:subagent:google-meet:meet_d81611be-3c2d-41d2-8aa3-f59bcbb0087f",
+     "path": "/chat/main/subagent/google-meet/meet_d81611be-3c2d-41d2-8aa3-f59bcbb0087f"
+    }
+   ]
+  }
+ },
+ {
+  "ok": {
+   "id": "00000001-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "state": "complete",
+   "transcript": [
+    {
+     "at": "2026-10-08T10:01:00.000Z",
+     "speaker": "Ada",
+     "text": "Hi"
+    }
+   ],
+   "mode": "transcript",
+   "summary": {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "durationSeconds": 3690,
+    "mode": "transcript",
+    "meetingCode": null,
+    "state": "complete",
+    "notes": "pending",
+    "captions": 1,
+    "failed": false
+   }
+  }
+ },
+ {
+  "ok": {
+   "id": "00000001-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "state": "complete",
+   "transcript": [
+    {
+     "at": "2026-10-08T10:01:00.000Z",
+     "speaker": "Ada",
+     "text": "Hi"
+    }
+   ],
+   "mode": "bidi",
+   "summary": {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "durationSeconds": 3690,
+    "mode": "bidi",
+    "meetingCode": null,
+    "state": "complete",
+    "notes": "pending",
+    "captions": 1,
+    "failed": false
+   },
+   "lookupSessions": []
+  }
+ },
+ {
+  "ok": {
+   "id": "00000001-1111-4111-8111-111111111111",
+   "startedAt": "2026-10-08T10:00:00.000Z",
+   "endedAt": "2026-10-08T11:01:30.000Z",
+   "gaps": [
+    {
+     "startedAt": "x",
+     "from": "transcript",
+     "to": "bidi"
+    }
+   ],
+   "state": "complete",
+   "transcript": [
+    {
+     "at": "2026-10-08T10:01:00.000Z",
+     "speaker": "Ada",
+     "text": "Hi"
+    }
+   ],
+   "voiceSeconds": 12,
+   "tasks": [],
+   "mode": "transcript",
+   "summary": {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "durationSeconds": 3690,
+    "mode": "transcript",
+    "meetingCode": null,
+    "state": "complete",
+    "notes": "pending",
+    "captions": 1,
+    "failed": false
+   }
+  }
+ },
+ {
+  "ok": {
+   "meetings": [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    }
+   ],
+   "page": 1,
+   "pageSize": 20,
+   "total": 45
+  }
+ },
+ {
+  "ok": {
+   "meetings": [
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    }
+   ],
+   "page": 2,
+   "pageSize": 20,
+   "total": 45
+  }
+ },
+ {
+  "ok": {
+   "meetings": [
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    }
+   ],
+   "page": 3,
+   "pageSize": 20,
+   "total": 45
+  }
+ },
+ {
+  "ok": {
+   "meetings": [
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    }
+   ],
+   "page": 3,
+   "pageSize": 20,
+   "total": 45
+  }
+ },
+ {
+  "ok": {
+   "meetings": [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    }
+   ],
+   "page": 1,
+   "pageSize": 20,
+   "total": 45
+  }
+ },
+ {
+  "ok": {
+   "meetings": [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    }
+   ],
+   "page": 1,
+   "pageSize": 20,
+   "total": 45
+  }
+ },
+ {
+  "ok": {
+   "meetings": [
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    }
+   ],
+   "page": 2,
+   "pageSize": 20,
+   "total": 45
+  }
+ },
+ {
+  "ok": {
+   "meetings": [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    }
+   ],
+   "page": 1,
+   "pageSize": 20,
+   "total": 45
+  }
+ },
+ {
+  "ok": {
+   "meetings": [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "durationSeconds": 3690,
+     "mode": "transcript",
+     "meetingCode": null,
+     "state": "complete",
+     "notes": "pending",
+     "captions": 1,
+     "failed": false
+    }
+   ],
+   "page": 1,
+   "pageSize": 20,
+   "total": 45
+  }
+ },
+ {
+  "ok": {
+   "meetings": [],
+   "page": 1,
+   "pageSize": 20,
+   "total": 0
+  }
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": true
+ },
+ {
+  "ok": false
+ },
+ {
+  "ok": false
+ }
+]

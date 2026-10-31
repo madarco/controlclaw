@@ -1,0 +1,332 @@
+{
+  "name": "k6 mcp: tool calls go to the admission service and its answer is obeyed; tools/list rewritten; results checked",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "not a tool call: passes, nothing asked",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {}
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "initialize"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "no_loopback": [
+          "mcp"
+        ]
+      }
+    },
+    {
+      "name": "answered by the service: its answer, nothing sent",
+      "loopback": {
+        "mcp": {
+          "/call": [
+            {
+              "status": 200,
+              "json": {
+                "action": "answer",
+                "status": 200,
+                "content_type": "application/json",
+                "body": "{\"jsonrpc\":\"2.0\",\"id\":7,\"result\":{\"isError\":true}}"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "method": "tools/call",
+          "params": {
+            "name": "delete_doc",
+            "arguments": {
+              "id": "x"
+            }
+          }
+        },
+        "headers": {
+          "Authorization": "Bearer agents-own-key"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "body": "{\"jsonrpc\":\"2.0\",\"id\":7,\"result\":{\"isError\":true}}",
+        "loopback": {
+          "mcp": {
+            "/call": [
+              {
+                "vm_id": "vm_test",
+                "host": "mcp.example.com",
+                "url": "https://mcp.example.com/mcp",
+                "headers": {
+                  "authorization": "Bearer agents-own-key",
+                  "host": "$absent"
+                }
+              }
+            ]
+          }
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "integrations",
+            "status": 200
+          }
+        ]
+      }
+    },
+    {
+      "name": "allowed and read: the result goes to the service, its replacement to the agent",
+      "loopback": {
+        "mcp": {
+          "/call": [
+            {
+              "status": 200,
+              "json": {
+                "action": "allow",
+                "ticket": "t2",
+                "read_result": true
+              }
+            }
+          ],
+          "/result": [
+            {
+              "status": 200,
+              "json": {
+                "action": "replace",
+                "body": "{\"replaced\":true}"
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "body": "secret result",
+        "headers": {
+          "Content-Type": "text/plain"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "method": "tools/call",
+          "params": {
+            "name": "delete_doc",
+            "arguments": {
+              "id": "x"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": "{\"replaced\":true}",
+        "upstream": {
+          "json": {
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "tools/call",
+            "params": {
+              "name": "delete_doc",
+              "arguments": {
+                "id": "x"
+              }
+            }
+          }
+        },
+        "loopback": {
+          "mcp": {
+            "/result": [
+              {
+                "ticket": "t2",
+                "status": 200,
+                "body": "secret result",
+                "content_type": "text/plain"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "allowed, not read: the row closed",
+      "loopback": {
+        "mcp": {
+          "/call": [
+            {
+              "status": 200,
+              "json": {
+                "action": "allow",
+                "ticket": "t1",
+                "read_result": false
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": 1
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "method": "tools/call",
+          "params": {
+            "name": "delete_doc",
+            "arguments": {
+              "id": "x"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": 1
+        },
+        "loopback": {
+          "mcp": {
+            "/done": [
+              {
+                "ticket": "t1",
+                "status": 200,
+                "ok": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "tools/list rewritten",
+      "loopback": {
+        "mcp": {
+          "/tools": [
+            {
+              "status": 200,
+              "json": {
+                "action": "replace",
+                "body": "{\"tools\":[]}"
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "result": {
+            "tools": [
+              {
+                "name": "delete_doc"
+              }
+            ]
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "method": "tools/list"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": "{\"tools\":[]}",
+        "loopback": {
+          "mcp": {
+            "/tools": [
+              {
+                "vm_id": "vm_test",
+                "host": "mcp.example.com"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the service fails: refused",
+      "loopback": {
+        "mcp": {
+          "/call": [
+            {
+              "status": 500,
+              "json": {}
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "method": "tools/call",
+          "params": {
+            "name": "delete_doc",
+            "arguments": {
+              "id": "x"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 503,
+        "upstream": "none",
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "error": {
+            "code": -32001,
+            "message": "The firewall could not check this tool call, so it did not send it. Try again in a minute."
+          }
+        }
+      }
+    }
+  ],
+  "addon_has": "_mcp_odd_keys"
+}

@@ -1,0 +1,108 @@
+# The Rust builds of the box software: the vm-agent, the firewall agent and the egress proxy.
+# Plan: docs/plans/rust-rewrite.md. Workstreams: docs/plans/rust-workstreams/.
+[workspace]
+resolver = "3"
+members = ["crates/*", "bins/*"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "AGPL-3.0-only"
+publish = false
+rust-version = "1.90"
+
+[workspace.dependencies]
+# Ours
+cc-auth = { path = "crates/cc-auth" }
+cc-client = { path = "crates/cc-client" }
+cc-contracts = { path = "crates/cc-contracts" }
+cc-crypto = { path = "crates/cc-crypto" }
+cc-http = { path = "crates/cc-http" }
+cc-llm = { path = "crates/cc-llm" }
+cc-local = { path = "crates/cc-local" }
+cc-meetings = { path = "crates/cc-meetings" }
+cc-openclaw = { path = "crates/cc-openclaw" }
+cc-origin = { path = "crates/cc-origin" }
+cc-proc = { path = "crates/cc-proc" }
+cc-redact = { path = "crates/cc-redact" }
+cc-store = { path = "crates/cc-store" }
+cc-testkit = { path = "crates/cc-testkit" }
+
+# Runtime and HTTP
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+futures-util = "0.3"
+hyper = { version = "1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
+http = "1"
+http-body = "1"
+http-body-util = "0.1"
+bytes = "1"
+axum = { version = "0.8", features = ["ws"] }
+tower = "0.5"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+# ring rather than aws-lc-rs for rustls: no cmake for the crates that use it. cc-proxy's BoringSSL needs cmake
+# anyway (its Cargo.toml).
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+rustls-pemfile = "2"
+rustls-native-certs = "0.8"
+webpki-roots = "1"
+zeroize = "1"
+tokio-tungstenite = "0.27"
+url = "2"
+
+# Data
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml = "0.9"
+serde_urlencoded = "0.7"
+# JSON Schema from the types, for the local panel API's OpenAPI document (cc-local).
+schemars = { version = "1", features = ["preserve_order"] }
+
+# SQLite built in (the plan allows it): OpenClaw's own databases, read-only, and the
+# voice-call plugin's call records.
+rusqlite = { version = "0.37", features = ["bundled"] }
+
+# Crypto
+ed25519-dalek = { version = "2", features = ["pkcs8", "pem", "rand_core"] }
+aes-gcm = "0.10"
+argon2 = "0.5"
+dryoc = "0.7"
+sha2 = "0.10"
+sha1 = "0.10"
+hmac = "0.12"
+subtle = "2"
+rand = "0.8"
+base64 = "0.22"
+hex = "0.4"
+
+# Plumbing
+# The allocator for the box binaries: musl's own is slow under contention.
+mimalloc = { version = "0.1", default-features = false }
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["v4"] }
+tempfile = "3"
+rustix = { version = "1", features = ["fs"] }
+clap = { version = "4", features = ["derive", "env"] }
+regex = "1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+
+# Argon2id at 64 MiB is slow unoptimised; the secret-store tests derive keys many times.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

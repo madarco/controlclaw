@@ -1,0 +1,58 @@
+name: vm-agent /backup (who may ask, what is checked, the plan)
+agent: vm-agent
+env: {BACKUP_SPOOL_DIR: $ROOT/spool}
+files:
+  home/.openclaw/workspace/notes/a.md: "12345"
+  home/.openclaw/workspace/big/b.bin: "1234567890"
+  home/.openclaw/workspace/node_modules/x/i.js: "123"
+  home/.openclaw/openclaw.json: "{}"
+  home/.openclaw/openclaw_gateway_token: "token-token"
+steps:
+  - name: the console's token can read a plan
+    request: {method: GET, path: "/backup/plan?kind=workspace", token: {signer: console}}
+    expect: {status: 200, json_subset: {ok: true, kind: workspace, plainBytes: 15}}
+  - name: the console's token never starts one
+    request: {method: POST, path: /backup/run, json: {}, token: {signer: console}}
+    expect: {status: 401, json: {error: backups must come from the org firewall}}
+  - name: a firewall token for another purpose
+    request: {method: POST, path: /backup/run, json: {}, token: {signer: firewall, bind: true, claims: {purpose: disk}}}
+    expect: {status: 401}
+  - name: a plan of an unknown kind
+    request: {method: GET, path: "/backup/plan?kind=firewall", token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 400, json: {ok: false, error: kind must be workspace or state}}
+  - name: the workspace plan, its shape only
+    request: {method: GET, path: "/backup/plan?kind=workspace", token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect:
+      status: 200
+      json:
+        ok: true
+        kind: workspace
+        plainBytes: 15
+        # The TS build's meetings service makes workspace/meetings at start (W8's, not here yet).
+        entries: $number
+        largest: [{path: big, bytes: 10}, {path: notes, bytes: 5}]
+        excluded: [{path: node_modules, bytes: 3}]
+  - name: the state plan leaves out the workspace and the gateway token
+    request: {method: GET, path: "/backup/plan?kind=state", token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 200, json_subset: {ok: true, kind: state, plainBytes: 2, entries: 1}}
+  - name: a body that is not JSON
+    request: {method: POST, path: /backup/run, body: "nope", token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 400, json: {ok: false, error: Invalid JSON body}}
+  - name: a run without a data key
+    request: {method: POST, path: /backup/run, json: {orgId: org_1, vmId: vm_1, backupId: bk_1, kind: workspace, uploadUrl: "https://s.example/p"}, token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 400, json: {ok: false, error: dataKey is required}}
+  - name: a run to a plain-http store
+    request: {method: POST, path: /backup/run, json: {orgId: org_1, vmId: vm_1, backupId: bk_1, kind: workspace, dataKey: "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=", uploadUrl: "http://s.example/p"}, token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 400, json: {ok: false, error: uploadUrl must be an https URL}}
+  - name: a restore without a header
+    request: {method: POST, path: /backup/restore, json: {orgId: org_1, vmId: vm_1, backupId: bk_1, kind: state, dataKey: "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=", downloadUrl: "https://s.example/g", manifestHash: "0000000000000000000000000000000000000000000000000000000000000000"}, token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 400, json: {ok: false, error: header is required}}
+  - name: a restore from a box id that is not one
+    request: {method: POST, path: /backup/restore, json: {orgId: org_1, vmId: vm_1, backupId: bk_1, kind: state, dataKey: "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=", downloadUrl: "https://s.example/g", header: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", manifestHash: "0000000000000000000000000000000000000000000000000000000000000000", sourceVmId: "a b"}, token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 400, json: {ok: false, error: sourceVmId must be a vm id}}
+  - name: an unknown backup route
+    request: {method: POST, path: /backup/other, json: {}, token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 404, json: {error: Not found}}
+  - name: GET on run
+    request: {method: GET, path: /backup/run, token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 404, json: {error: Not found}}

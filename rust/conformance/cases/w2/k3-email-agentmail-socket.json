@@ -1,0 +1,239 @@
+{
+  "name": "k3 email: AgentMail websocket events reach the agent only when the rules keep them",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "in",
+          "channels": [
+            "email"
+          ],
+          "patterns": [
+            "salary"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "salary reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "kept, hidden, unauthenticated, other events, a subscribe from the agent",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "actions": [
+                  {
+                    "action": "keep"
+                  }
+                ]
+              }
+            },
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "actions": [
+                  {
+                    "action": "hide"
+                  }
+                ]
+              }
+            },
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "actions": [
+                  {
+                    "action": "keep"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "ws": {
+        "host": "ws.agentmail.to",
+        "path": "/v0",
+        "frames": [
+          {
+            "type": "subscribe",
+            "event_types": [
+              "message.received"
+            ]
+          }
+        ]
+      },
+      "upstream_ws": {
+        "frames": [
+          {
+            "type": "event",
+            "event_type": "message.received",
+            "message": {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m1",
+              "from": "bob@y.com",
+              "labels": [
+                "received"
+              ],
+              "text": "hi"
+            }
+          },
+          {
+            "type": "event",
+            "event_type": "message.received",
+            "message": {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m2",
+              "from": "bob@y.com",
+              "labels": [
+                "received"
+              ],
+              "text": "hi"
+            }
+          },
+          {
+            "type": "event",
+            "event_type": "message.received.unauthenticated",
+            "message": {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m1",
+              "from": "bob@y.com",
+              "labels": [
+                "received"
+              ],
+              "text": "hi"
+            }
+          },
+          {
+            "type": "event",
+            "event_type": "message.sent",
+            "message": {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m1",
+              "from": "bob@y.com",
+              "labels": [
+                "received"
+              ],
+              "text": "hi"
+            }
+          },
+          {
+            "type": "event",
+            "event_type": "message.received",
+            "message": {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m3",
+              "from": "bob@y.com",
+              "labels": [
+                "received"
+              ],
+              "text": "about my salary"
+            }
+          },
+          "not json",
+          {
+            "type": "hello"
+          }
+        ]
+      },
+      "expect": {
+        "client_received": [
+          {
+            "type": "event",
+            "event_type": "message.received",
+            "message": {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m1",
+              "from": "bob@y.com",
+              "labels": [
+                "received"
+              ],
+              "text": "hi"
+            }
+          },
+          {
+            "type": "event",
+            "event_type": "message.sent",
+            "message": {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m1",
+              "from": "bob@y.com",
+              "labels": [
+                "received"
+              ],
+              "text": "hi"
+            }
+          },
+          {
+            "type": "hello"
+          }
+        ],
+        "server_received": [
+          {
+            "type": "subscribe",
+            "event_types": [
+              "message.received"
+            ]
+          }
+        ],
+        "loopback": {
+          "email": {
+            "/": [
+              {
+                "action": "email.inbound",
+                "items": [
+                  {
+                    "kind": "message",
+                    "message_id": "m1"
+                  }
+                ]
+              },
+              {
+                "items": [
+                  {
+                    "message_id": "m2"
+                  }
+                ]
+              },
+              {
+                "items": [
+                  {
+                    "message_id": "m3"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "salary",
+            "channel": "email",
+            "direction": "in",
+            "action": "block",
+            "flow_id": null
+          }
+        ]
+      }
+    }
+  ]
+}

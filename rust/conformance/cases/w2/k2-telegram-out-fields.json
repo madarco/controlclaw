@@ -1,0 +1,271 @@
+{
+  "name": "k2 telegram out: text in any field, query, form, multipart or JSON in a form field is checked",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        },
+        {
+          "id": "card",
+          "name": "card",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [],
+          "detectors": [
+            "card"
+          ],
+          "action": "block",
+          "reason": "card reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "a GET with the key in the query",
+      "request": {
+        "method": "GET",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage?chat_id=42&text=sk-proj-KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK"
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: it looks like it contains a password, key or token"
+        }
+      }
+    },
+    {
+      "name": "the query next to a clean body",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage?text=sk-proj-KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+        "json": {
+          "chat_id": 42,
+          "text": "hello"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a poll question",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendPoll",
+        "json": {
+          "chat_id": 42,
+          "question": "the customer list?",
+          "options": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: cust reason"
+        }
+      }
+    },
+    {
+      "name": "a poll option",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendPoll",
+        "json": {
+          "chat_id": 42,
+          "question": "q",
+          "options": [
+            {
+              "text": "sk-proj-KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a copied caption",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/copyMessage",
+        "json": {
+          "chat_id": 42,
+          "from_chat_id": 1,
+          "message_id": 2,
+          "caption": "customer list"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a description",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/setMyDescription",
+        "json": {
+          "description": "sk-proj-KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "every value of a repeated form key",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "body": "chat_id=42&text=sk-proj-KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK&text=hello",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "JSON inside a form field",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMediaGroup",
+        "body": "chat_id=42&media=[{\"type\": \"photo\", \"media\": \"x\", \"caption\": \"customer list\"}]",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: cust reason"
+        }
+      }
+    },
+    {
+      "name": "a multipart caption",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendPhoto",
+        "body": "--B\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n42\r\n--B\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\ncustomer list\r\n--B--\r\n",
+        "headers": {
+          "Content-Type": "multipart/form-data; boundary=B"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: cust reason"
+        }
+      }
+    },
+    {
+      "name": "a repeated JSON key is refused",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "body": "{\"chat_id\": 42, \"text\": \"the customer list\", \"text\": \"hello\"}",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: the check could not run"
+        }
+      }
+    },
+    {
+      "name": "a card number where a card number is: blocked",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "card 4111 1111 1111 1111"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "chat and message ids are not text",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 4111111111111111,
+          "text": "hi",
+          "reply_parameters": {
+            "message_id": 4111111111111111
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "json": {
+            "chat_id": 4111111111111111,
+            "text": "hi",
+            "reply_parameters": {
+              "message_id": 4111111111111111
+            }
+          }
+        },
+        "audit": []
+      }
+    }
+  ]
+}

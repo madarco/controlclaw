@@ -1,0 +1,26 @@
+name: brain box GET /health and its shorter list
+agent: vm-agent
+service: gbrain
+shims:
+  - argv: [sudo, -n, systemctl, restart, gbrain]
+  - argv: [systemctl, is-active, gbrain]
+    stdout: "active\n"
+steps:
+  - request: {method: GET, path: /health, token: {signer: console}}
+    expect:
+      status: 200
+      json:
+        status: ok
+        role: gbrain
+        uptime: $number
+        services: {gbrain: running, postgresql: not-installed}
+  - name: not on the brain box's list
+    request: {method: GET, path: /skills, token: {signer: console}}
+    expect: {status: 401}
+  - name: the lifecycle routes run the brain's own unit
+    request: {method: POST, path: /restart, token: {signer: console}}
+    expect:
+      status: 200
+      json_subset: {ok: true, action: restart}
+      calls_include:
+        - [sudo, -n, systemctl, restart, gbrain]

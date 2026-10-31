@@ -1,0 +1,17 @@
+name: cp /api/mcp/agent (the agent MCP behind the firewall)
+agent: control-plane
+endpoint: /api/mcp/agent
+scope: saas-only
+seed:
+  vms:
+    - {id: cpmc_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+steps:
+  - name: only POST
+    request: {method: GET, path: /api/mcp/agent}
+    expect: {status: 405}
+  - name: a call the firewall did not sign
+    request: {method: POST, path: /api/mcp/agent, json: {jsonrpc: "2.0", id: 1, method: tools/list}}
+    expect: {status: 401, json_subset: {jsonrpc: "2.0", error: {code: -32000}}}
+  - name: a plain box token is not a gate token
+    request: {method: POST, path: /api/mcp/agent, as: cpmc_fw, json: {jsonrpc: "2.0", id: 1, method: tools/list}}
+    expect: {status: 401, json_subset: {jsonrpc: "2.0", error: {code: -32000}}}

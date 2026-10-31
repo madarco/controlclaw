@@ -1,0 +1,13 @@
+name: firewall heartbeat and an unknown command
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+steps:
+  - beat:
+      json_subset: {proxy: inactive, agent_version: "0.1.0", uptime_s: $number}
+  - command:
+      id: cmd_1
+      action: nothing.here
+      result: {command_id: cmd_1, ok: false, status: failed, message: "unknown command nothing.here"}

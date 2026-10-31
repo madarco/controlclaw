@@ -1,0 +1,39 @@
+name: cp POST /activity
+agent: control-plane
+endpoint: /activity
+scope: both
+seed:
+  vms:
+    - {id: cpac_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+    - {id: cpac_a1, role: openclaw, name: cpac-a1, private_ip: 10.0.0.3}
+steps:
+  - name: no token
+    request: {method: POST, path: /api/vm-agent/activity, json: {records: []}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: an empty batch
+    request: {method: POST, path: /api/vm-agent/activity, as: cpac_fw, json: {records: []}}
+    expect: {status: 400, json_subset: {error: Invalid records}}
+  - name: an agent may not ship traffic
+    request:
+      method: POST
+      path: /api/vm-agent/activity
+      as: cpac_a1
+      json: {records: [{source: egress, flow_id: f0, ts: 1761800000.5, vm_id: cpac_a1, host: example.com, effect: allow}]}
+    expect: {status: 403, json: {error: $string}}
+  - name: the firewall ships one request
+    request:
+      method: POST
+      path: /api/vm-agent/activity
+      as: cpac_fw
+      json: {records: [{source: egress, flow_id: f1, ts: 1761800000.5, vm_id: cpac_a1, host: example.com, method: GET, path: /, port: 443, effect: allow, rule: Allow example, status: 200, duration_ms: 12, bytes_in: 100, bytes_out: 20}]}
+    expect: {status: 200, json: {accepted: 1, duplicates: 0}}
+  - name: the same record again is a duplicate
+    request:
+      method: POST
+      path: /api/vm-agent/activity
+      as: cpac_fw
+      json: {records: [{source: egress, flow_id: f1, ts: 1761800000.5, vm_id: cpac_a1, host: example.com, method: GET, path: /, port: 443, effect: allow, rule: Allow example, status: 200, duration_ms: 12, bytes_in: 100, bytes_out: 20}]}
+    expect: {status: 200, json: {accepted: 0, duplicates: 1}}
+  - name: it is stored once, for that agent
+    request: {method: POST, path: /__conformance/read, json: {org_id: "${org_id}", what: activity}}
+    expect: {status: 200, json_subset: {rows: [{source: egress, vmId: cpac_a1}]}}

@@ -1,0 +1,1 @@
+a fixed test vector for the minisign checks (standalone/release/SIGNING.md)

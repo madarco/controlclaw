@@ -1,0 +1,28 @@
+name: firewall start, stop and restart run sudo systemctl and report the unit's state
+agent: mitm-agent
+shims:
+  - argv: [sudo, systemctl, start, controlclaw-mitmproxy]
+  - argv: [sudo, systemctl, stop, controlclaw-mitmproxy]
+  - argv: [sudo, systemctl, restart, controlclaw-mitmproxy]
+    stderr: "sudo: a password is required\n"
+    code: 1
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "active\n"
+steps:
+  - command:
+      id: cmd_s1
+      action: start
+      result: {command_id: cmd_s1, ok: true, status: active, message: ""}
+    expect:
+      calls_include:
+        - [sudo, systemctl, start, controlclaw-mitmproxy]
+  - name: a stop the unit does not follow is reported
+    command:
+      id: cmd_s2
+      action: stop
+      result: {command_id: cmd_s2, ok: false, status: active, message: "service is active after stop"}
+  - name: a sudo refusal is the message
+    command:
+      id: cmd_s3
+      action: restart
+      result: {command_id: cmd_s3, ok: false, status: active, message: "sudo: a password is required"}

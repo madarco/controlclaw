@@ -1,0 +1,26 @@
+{
+  "name": "@controlclaw/fw-api",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "generate": "(cd ../../rust && cargo run -q -p cc-local --bin cc-local-openapi) > openapi.json && openapi-typescript openapi.json --default-non-nullable false -o src/schema.ts",
+    "check": "openapi-typescript openapi.json --default-non-nullable false -o /tmp/fw-api-schema.check.ts && diff -q /tmp/fw-api-schema.check.ts src/schema.ts",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "tsx --test 'src/**/*.test.ts'"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.0",
+    "openapi-typescript": "^7.13.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=24.16.0"
+  }
+}

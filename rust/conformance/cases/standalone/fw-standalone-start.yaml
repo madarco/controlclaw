@@ -1,0 +1,85 @@
+name: standalone firewall starts with no control plane and takes its policy from named files
+agent: mitm-agent
+skip:
+  ts: "standalone mode is in the Rust build only"
+env:
+  MITM_MODE: standalone
+  SYNC_INTERVAL_MS: "300"
+  # The runner points every one of these at its fake console; a standalone firewall takes none.
+  FIREWALL_URL: ""
+  STORE_URL: ""
+  # Named files win over the local control plane's default (local:).
+  RULES_URL: "file:$ROOT/state/egress-rules.json"
+  IDENTITIES_URL: "file:$ROOT/state/identities.json"
+  PERMISSION_URL: ""
+  CA_URL: ""
+  ACTIVITY_URL: ""
+  WEBHOOKS_URL: ""
+  ORG_ID: ""
+  BOX_ID: ""
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+  state/egress-rules.json: '{"rules": [{"id": "r1", "name": "Allow example", "match_domain": "example.com", "effect": "allow", "priority": 10}, {"id": "r2", "name": "Block the rest", "match_domain": "*", "effect": "block", "priority": 100}]}'
+  state/identities.json: '{"identities": [{"vm_id": "a1", "private_ip": "10.0.0.3", "name": "agent-1"}]}'
+steps:
+  - name: the rules and the identity map come from the state folder
+    files:
+      run/rules.json:
+        json:
+          - {id: r1, name: Allow example, match_domain: example.com, effect: allow, priority: 10}
+          - {id: r2, name: Block the rest, match_domain: "*", effect: block, priority: 100}
+      run/identities.json:
+        json:
+          - {vm_id: a1, private_ip: 10.0.0.3, name: agent-1, tailscale: false}
+      run/credentials.json: {text: "[]"}
+  - name: the local-open page sends a referrer policy under which Chrome posts the real Origin
+    request: {method: GET, path: /__cc/local/open, listener: ingress}
+    expect:
+      status: 200
+      headers: {referrer-policy: same-origin}
+  - name: a rules file that is removed keeps the last rules
+    remove: [state/egress-rules.json]
+    files:
+      run/rules.json:
+        json:
+          - {id: r1, name: Allow example, match_domain: example.com, effect: allow, priority: 10}
+          - {id: r2, name: Block the rest, match_domain: "*", effect: block, priority: 100}
+        for_ms: 1500
+  - name: a rules file that does not parse keeps the last rules
+    write: {state/egress-rules.json: '{"rules": [ not json'}
+    files:
+      run/rules.json:
+        json:
+          - {id: r1, name: Allow example, match_domain: example.com, effect: allow, priority: 10}
+          - {id: r2, name: Block the rest, match_domain: "*", effect: block, priority: 100}
+        for_ms: 1500
+  - name: a rules file with no list of rules (no rules key) keeps the last rules
+    write: {state/egress-rules.json: '{}'}
+    files:
+      run/rules.json:
+        json:
+          - {id: r1, name: Allow example, match_domain: example.com, effect: allow, priority: 10}
+          - {id: r2, name: Block the rest, match_domain: "*", effect: block, priority: 100}
+        for_ms: 1500
+  - name: rules set to null keep the last rules
+    write: {state/egress-rules.json: '{"rules": null}'}
+    files:
+      run/rules.json:
+        json:
+          - {id: r1, name: Allow example, match_domain: example.com, effect: allow, priority: 10}
+          - {id: r2, name: Block the rest, match_domain: "*", effect: block, priority: 100}
+        for_ms: 1500
+  - name: a misspelled key keeps the last rules
+    write: {state/egress-rules.json: '{"rule": [{"name": "x", "match_domain": "x.example", "effect": "allow"}]}'}
+    files:
+      run/rules.json:
+        json:
+          - {id: r1, name: Allow example, match_domain: example.com, effect: allow, priority: 10}
+          - {id: r2, name: Block the rest, match_domain: "*", effect: block, priority: 100}
+        for_ms: 1500
+  - name: a good file again is read on the next sync
+    write: {state/egress-rules.json: '{"rules": [{"id": "r3", "name": "Block org", "match_domain": "example.org", "effect": "block", "priority": 5}]}'}
+    files:
+      run/rules.json:
+        json:
+          - {id: r3, name: Block org, match_domain: example.org, effect: block, priority: 5}

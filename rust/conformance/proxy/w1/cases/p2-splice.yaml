@@ -1,0 +1,176 @@
+# P2: passthrough (Tailscale, tunnel rules; not the control plane or the backup store since the
+# owner's 2026-10-28 decision), raw TCP tunnels, the
+# kill switch on the TLS path. Ported from test_tcp_drop.py (test_tunnel, test_tls_tunnel,
+# test_tls_locked, test_locked_tunnel) and addon.py tls_clienthello / next_layer.
+name: the control plane and the backup store are not passed through for a box that trusts the firewall's CA
+files:
+  rules.json: []
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, cp_inspect: true}]
+  org.json: {org_id: rig-org}
+steps:
+  - http: {url: "https://cp.test/api/vm-agent/heartbeat", trust: origin}
+    expect: {error: true}
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: PUT, body: "ciphertext", trust: origin}
+    expect: {error: true}
+  # Intercepted: the agent refuses the firewall's certificate, so no request is sent. cc-proxy
+  # dials the site first (owner, 2026-10-28), so a connection may have been made, never a request.
+  - seen: {server: origin, requests: 0}
+---
+name: an agent not yet marked cp_inspect keeps its control plane and backup store passed through
+# The roll-out (main #564): a firewall updated before its agents must not cut them off. The firewall
+# agent marks a box once it confirms the CA; until then both are passed through by name.
+files:
+  rules.json: []
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}, {private_ip: 10.0.0.4, vm_id: stopped-agent, locked: true}]
+  org.json: {org_id: rig-org}
+steps:
+  - http: {url: "https://cp.test/api/vm-agent/heartbeat", trust: origin}
+    expect: {status: 200, json: {sni: cp.test}}
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc", method: PUT, body: "ciphertext", trust: origin}
+    expect: {status: 200, json: {sni: bucket.s3.eu-west-1.amazonaws.com}}
+  # A stopped one keeps its control-plane channel, but no backups (then intercepted and refused).
+  - http: {agent: agent2, url: "https://cp.test/api/vm-agent/disk", trust: origin}
+    expect: {status: 200}
+  - http: {agent: agent2, url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc", method: PUT, body: "x", trust: origin}
+    expect: {error: true}
+  - seen: {server: origin, requests: 3}
+  - log: {count: 0}
+---
+name: a locked agent has nothing passed through, another agent keeps its tunnels
+files:
+  rules.json: [{name: t, effect: tunnel, match_domain: origin.test, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, locked: true, tailscale: true},
+                    {private_ip: 10.0.0.4, vm_id: other-agent}]
+steps:
+  - http: {url: "https://login.tailscale.com/x", trust: origin}
+    expect: {error: true}
+  - http: {url: "https://origin.test/x", trust: origin}
+    expect: {error: true}
+  - seen: {server: origin, connections: 0}
+  - http: {agent: agent2, url: "https://origin.test/x", trust: origin}
+    expect: {status: 200, json: {sni: origin.test}}
+---
+name: Tailscale passes through only for a box on its tailnet
+files:
+  rules.json: []
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, tailscale: true},
+                    {private_ip: 10.0.0.4, vm_id: other-agent, tailscale: "true"}]
+steps:
+  - http: {url: "https://login.tailscale.com/a", trust: origin}
+    expect: {status: 200, json: {sni: login.tailscale.com}}
+  - http: {agent: agent2, url: "https://login.tailscale.com/a", trust: origin}
+    expect: {error: true}
+  - seen: {server: origin, requests: 1}
+---
+name: a TLS tunnel rule passes the connection through on its port
+files:
+  rules.json: [{name: test-tunnel, effect: tunnel, match_domain: origin.test, match_port: 7443, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:7443", tls: origin, sni: origin.test, send: "ping"}
+    expect: {recv: "<greeting>ping"}
+  - seen: {server: echo, received: ping}
+  - log: {count: 0}
+---
+name: a TLS tunnel rule on another port does not match
+files:
+  rules.json: [{name: test-tunnel, effect: tunnel, match_domain: origin.test, match_port: 443, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:7443", tls: mitm, sni: origin.test, send: "ping"}
+    expect: {closed: true}
+  - seen: {server: echo, connections: 0}
+  - log: {where: {effect: drop}, count: 1}
+---
+name: a raw TCP tunnel rule by IP and port relays the bytes both ways
+files:
+  rules.json: [{name: test-tunnel, effect: tunnel, match_domain: 203.0.113.10, match_port: 7000, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:7000", send_hex: "000100002112a442746573742d7472616e736964"}
+    expect: {recv: "<greeting>\x00\x01\x00\x00!\x12\xa4Btest-transid"}
+  - seen: {server: echo, connections: 1}
+  - log: {count: 0}
+---
+name: a raw TCP tunnel rule for another agent or port does not match
+files:
+  rules.json: [{name: a, effect: tunnel, match_domain: 203.0.113.10, match_port: 7000, vm_id: other-agent, priority: 1},
+               {name: b, effect: tunnel, match_domain: 203.0.113.10, match_port: 7001, priority: 2}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:7000", send: "hello"}
+    expect: {closed: true}
+  - seen: {server: echo, connections: 0}
+  - log: {records: [{effect: drop, vm_id: test-agent, port: 7000}]}
+---
+name: a raw TCP tunnel is closed for a locked agent
+files:
+  rules.json: [{name: test-tunnel, effect: tunnel, match_domain: 203.0.113.10, match_port: 7000, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, locked: true}]
+steps:
+  - raw: {connect: "203.0.113.10:7000", send: "hello"}
+    expect: {closed: true}
+  - seen: {server: echo, connections: 0}
+  - log: {records: [{effect: drop, vm_id: test-agent}]}
+---
+name: a TLS tunnel for a locked agent is intercepted and dropped
+files:
+  rules.json: [{name: test-tunnel, effect: tunnel, match_domain: origin.test, match_port: 7443, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, locked: true}]
+steps:
+  - raw: {connect: "203.0.113.10:7443", tls: mitm, sni: origin.test, send: "ping"}
+    expect: {closed: true}
+  - seen: {server: echo, received: ""}
+  - log: {where: {effect: drop}, count: 1}
+---
+name: a raw tunnel to a non-routable address is refused with a block record
+files:
+  rules.json: [{name: t, effect: tunnel, match_domain: "169.254.169.254", match_port: 80, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "169.254.169.254:80", send: "hello"}
+    expect: {closed: true}
+  - log:
+      records: [{effect: block, rule: non_routable_target, vm_id: test-agent, host: "169.254.169.254", port: 80,
+                 error: "169.254.169.254 is a link-local address; the firewall never connects there"}]
+---
+name: a raw TCP tunnel rule also relays bytes that look like HTTP
+files:
+  rules.json: [{name: test-tunnel, effect: tunnel, match_domain: 203.0.113.10, match_port: 7000, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:7000", send: "GET / HTTP/1.1\r\nHost: x\r\n\r\n"}
+    expect: {recv: "<greeting>GET / HTTP/1.1\r\nHost: x\r\n\r\n"}
+  - log: {count: 0}
+---
+name: a raw TCP tunnel to the firewall's own address is refused
+skip: {mitmproxy: "dialled the firewall itself before #511"}
+files:
+  rules.json: [{name: t, effect: tunnel, match_domain: 10.0.0.2, match_port: 3100, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "10.0.0.2:3100", send: "hello"}
+    expect: {closed: true}
+  - log:
+      records: [{effect: block, rule: non_routable_target, host: 10.0.0.2, port: 3100,
+                 error: "10.0.0.2 is one of the firewall's own addresses; the firewall never connects there"}]
+---
+name: a CONNECT target that is not a host name matches no tunnel rule and is dropped
+skip: {mitmproxy: "the addon matched the raw target"}
+files:
+  rules.json: [{name: t, effect: tunnel, match_domain: 203.0.113.10, match_port: 7000, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "bad_name!:7000", send: "hello"}
+    expect: {closed: true}
+  - log: {records: [{effect: drop, port: 7000, rule: $absent}]}
+---
+name: a raw TCP tunnel rule lets a server that speaks first greet a client that waits for it
+skip: {mitmproxy: "the addon waits for the client's first bytes with no limit, so the server is never dialled"}
+files:
+  rules.json: [{name: smtp-tunnel, effect: tunnel, match_domain: 203.0.113.10, match_port: 7000, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:7000", send: ""}
+    expect: {recv: "<greeting>"}
+  - seen: {server: echo, connections: 1}

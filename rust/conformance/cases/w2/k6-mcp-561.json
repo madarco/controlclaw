@@ -1,0 +1,308 @@
+{
+  "name": "k6 mcp: tool calls not in plain UTF-8 JSON are refused with their id (production #561)",
+  "addon_has": "_mcp_odd_keys",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "a BOM: refused, the call's id kept",
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body_b64": "77u/eyJqc29ucnBjIjogIjIuMCIsICJpZCI6IDQyLCAibWV0aG9kIjogInRvb2xzL2NhbGwiLCAicGFyYW1zIjogeyJuYW1lIjogImRlbGV0ZV9kb2MiLCAiYXJndW1lbnRzIjogeyJpZCI6ICJ4In19fQ=="
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "no_loopback": [
+          "mcp"
+        ],
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "error": {
+            "code": -32001,
+            "message": "The firewall could not read this tool call, so it did not send it. Send it as plain UTF-8 JSON."
+          }
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "integrations: unreadable",
+            "status": 400
+          }
+        ]
+      }
+    },
+    {
+      "name": "UTF-16: refused",
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "headers": {
+          "Content-Type": "application/json; charset=utf-16le"
+        },
+        "body_b64": "ewAiAGoAcwBvAG4AcgBwAGMAIgA6ACAAIgAyAC4AMAAiACwAIAAiAGkAZAAiADoAIAA0ADIALAAgACIAbQBlAHQAaABvAGQAIgA6ACAAIgB0AG8AbwBsAHMALwBjAGEAbABsACIALAAgACIAcABhAHIAYQBtAHMAIgA6ACAAewAiAG4AYQBtAGUAIgA6ACAAIgBkAGUAbABlAHQAZQBfAGQAbwBjACIALAAgACIAYQByAGcAdQBtAGUAbgB0AHMAIgA6ACAAewAiAGkAZAAiADoAIAAiAHgAIgB9AH0AfQA="
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "no_loopback": [
+          "mcp"
+        ],
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "error": {
+            "code": -32001,
+            "message": "The firewall could not read this tool call, so it did not send it. Send it as plain UTF-8 JSON."
+          }
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "integrations: unreadable",
+            "status": 400
+          }
+        ]
+      }
+    },
+    {
+      "name": "UTF-32 with its mark: refused",
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body_b64": "//4AAHsAAAAiAAAAagAAAHMAAABvAAAAbgAAAHIAAABwAAAAYwAAACIAAAA6AAAAIAAAACIAAAAyAAAALgAAADAAAAAiAAAALAAAACAAAAAiAAAAaQAAAGQAAAAiAAAAOgAAACAAAAA0AAAAMgAAACwAAAAgAAAAIgAAAG0AAABlAAAAdAAAAGgAAABvAAAAZAAAACIAAAA6AAAAIAAAACIAAAB0AAAAbwAAAG8AAABsAAAAcwAAAC8AAABjAAAAYQAAAGwAAABsAAAAIgAAACwAAAAgAAAAIgAAAHAAAABhAAAAcgAAAGEAAABtAAAAcwAAACIAAAA6AAAAIAAAAHsAAAAiAAAAbgAAAGEAAABtAAAAZQAAACIAAAA6AAAAIAAAACIAAABkAAAAZQAAAGwAAABlAAAAdAAAAGUAAABfAAAAZAAAAG8AAABjAAAAIgAAACwAAAAgAAAAIgAAAGEAAAByAAAAZwAAAHUAAABtAAAAZQAAAG4AAAB0AAAAcwAAACIAAAA6AAAAIAAAAHsAAAAiAAAAaQAAAGQAAAAiAAAAOgAAACAAAAAiAAAAeAAAACIAAAB9AAAAfQAAAH0AAAA="
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "no_loopback": [
+          "mcp"
+        ],
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "error": {
+            "code": -32001,
+            "message": "The firewall could not read this tool call, so it did not send it. Send it as plain UTF-8 JSON."
+          }
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "integrations: unreadable",
+            "status": 400
+          }
+        ]
+      }
+    },
+    {
+      "name": "NaN: refused",
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body_b64": "eyJqc29ucnBjIjogIjIuMCIsICJpZCI6IDQyLCAibWV0aG9kIjogInRvb2xzL2NhbGwiLCAicGFyYW1zIjogeyJuYW1lIjogImRlbGV0ZV9kb2MiLCAiYXJndW1lbnRzIjogeyJpZCI6IE5hTn19fQ=="
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "no_loopback": [
+          "mcp"
+        ],
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "error": {
+            "code": -32001,
+            "message": "The firewall could not read this tool call, so it did not send it. Send it as plain UTF-8 JSON."
+          }
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "integrations: unreadable",
+            "status": 400
+          }
+        ]
+      }
+    },
+    {
+      "name": "a byte that is not UTF-8: refused",
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body_b64": "eyJqc29ucnBjIjogIjIuMCIsICJpZCI6IDQyLCAibWV0aG9kIjogInRvb2xzL2NhbGwiLCAicGFyYW1zIjogeyJuYW1lIjogImRlbGV0ZV9kb2MiLCAiYXJndW1lbnRzIjogeyJpZCI6ICJ4/yJ9fX0="
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "no_loopback": [
+          "mcp"
+        ],
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "error": {
+            "code": -32001,
+            "message": "The firewall could not read this tool call, so it did not send it. Send it as plain UTF-8 JSON."
+          }
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "integrations: unreadable",
+            "status": 400
+          }
+        ]
+      }
+    },
+    {
+      "name": "a key in another case (Method): refused",
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body_b64": "eyJqc29ucnBjIjogIjIuMCIsICJpZCI6IDQyLCAiTWV0aG9kIjogInRvb2xzL2NhbGwiLCAicGFyYW1zIjogeyJuYW1lIjogImRlbGV0ZV9kb2MiLCAiYXJndW1lbnRzIjogeyJpZCI6ICJ4In19fQ=="
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "no_loopback": [
+          "mcp"
+        ],
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "error": {
+            "code": -32001,
+            "message": "The firewall could not read this tool call, so it did not send it. Send it as plain UTF-8 JSON."
+          }
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "integrations: unreadable",
+            "status": 400
+          }
+        ]
+      }
+    },
+    {
+      "name": "the long s in params: refused",
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body_b64": "eyJqc29ucnBjIjogIjIuMCIsICJpZCI6IDQyLCAibWV0aG9kIjogInRvb2xzL2NhbGwiLCAicGFyYW3FvyI6IHsibmFtZSI6ICJkZWxldGVfZG9jIiwgImFyZ3VtZW50cyI6IHsiaWQiOiAieCJ9fX0="
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "no_loopback": [
+          "mcp"
+        ],
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "error": {
+            "code": -32001,
+            "message": "The firewall could not read this tool call, so it did not send it. Send it as plain UTF-8 JSON."
+          }
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "integrations: unreadable",
+            "status": 400
+          }
+        ]
+      }
+    },
+    {
+      "name": "not JSON but naming an escaped call: refused, no id",
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body_b64": "eyJtZXRob2QiOiAidG9vbHNcdTAwMmZjYWxsIiwgb29wcw=="
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "no_loopback": [
+          "mcp"
+        ],
+        "json": {
+          "jsonrpc": "2.0",
+          "id": null,
+          "error": {
+            "code": -32001,
+            "message": "The firewall could not read this tool call, so it did not send it. Send it as plain UTF-8 JSON."
+          }
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "integrations: unreadable",
+            "status": 400
+          }
+        ]
+      }
+    },
+    {
+      "name": "other JSON with an odd-case key is not a call: passes",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/api",
+        "json": {
+          "Name": "x",
+          "Method": "post"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "no_loopback": [
+          "mcp"
+        ]
+      }
+    }
+  ]
+}

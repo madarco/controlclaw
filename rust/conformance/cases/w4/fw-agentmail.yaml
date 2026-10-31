@@ -1,0 +1,86 @@
+name: AgentMail with no account
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+steps:
+  - name: AgentMail with no account
+    command:
+      id: a_read
+      action: agentmail.read
+      payload: {}
+      result:
+        ok: true
+        status: applied
+        data: {orgId: null, humanEmail: null, authType: null, status: disconnected, limits: {}, canCreate: false, inboxes: []}
+  - name: a signup with a bad username
+    command:
+      id: a_bad
+      action: agentmail.signup
+      payload: {vmId: vm_1, hostname: vm1.example.com, humanEmail: owner@example.com, username: "No Spaces"}
+      result:
+        ok: false
+        status: failed
+        message: invalid_input
+        data: {orgId: null, humanEmail: null, authType: null, status: disconnected, limits: {}, canCreate: false, inboxes: [], errorCode: invalid_input}
+  - name: attaching an inbox the firewall does not have
+    command:
+      id: a_attach
+      action: agentmail.attach
+      payload: {vmId: vm_1, hostname: vm1.example.com, inboxId: x@agentmail.to}
+      result:
+        ok: false
+        status: failed
+        message: inbox_not_found
+        data: {orgId: null, humanEmail: null, authType: null, status: disconnected, limits: {}, canCreate: false, inboxes: [], errorCode: inbox_not_found}
+  - name: a check with no organisation key
+    command:
+      id: a_check
+      action: agentmail.check
+      payload: {}
+      result: {ok: false, status: "failed", message: "org_key_required"}
+  - name: a claim with no code
+    command:
+      id: a_claim
+      action: agentmail.claim
+      payload: {}
+      result: {ok: false, status: "failed", message: "invalid_code"}
+  - name: creating an inbox before the account is claimed
+    command:
+      id: a_create
+      action: agentmail.create
+      payload: {}
+      result: {ok: false, status: "failed", message: "claim_required"}
+  - name: deleting an inbox that is not there
+    command:
+      id: a_delete
+      action: agentmail.delete
+      payload: {}
+      result: {ok: false, status: "failed", message: "inbox_not_found"}
+  - name: importing with no key
+    command:
+      id: a_import
+      action: agentmail.import
+      payload: {}
+      result: {ok: false, status: "failed", message: "invalid_input"}
+  - name: the senders of an inbox that is not there
+    command:
+      id: a_senders
+      action: agentmail.senders
+      payload: {}
+      result: {ok: false, status: "failed", message: "inbox_not_found"}
+  - name: a push with nothing to push
+    command:
+      id: a_push
+      action: agentmail.push
+      payload: {}
+      result: {ok: true, status: "applied"}
+  - name: forgetting an agent with no inbox
+    command:
+      id: a_forget
+      action: agentmail.forget
+      payload: {vmId: vm_1}
+      result: {ok: true, status: "applied"}

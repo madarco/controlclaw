@@ -1,0 +1,106 @@
+name: vm-agent firewall tokens are bound to one request (rig-only route)
+agent: vm-agent
+env: {CC_CONFORMANCE_ROUTES: "1"}
+# `/__conformance/firewall` exists only in the Rust build with CC_CONFORMANCE_ROUTES=1; the TS side
+# of the same checks is covered by packages/vm-agent/src/auth-binding.test.ts until W6 ports a real
+# firewall route both builds serve.
+skip: {ts: "rig-only route"}
+steps:
+  - name: before any bound token, an older firewall's unbound token is taken
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 0}
+      token: {signer: firewall, claims: {purpose: channels}}
+    expect: {status: 200, json: {ok: true, bound: false, body: {n: 0}}}
+  - name: a bound token
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 1}
+      token: {signer: firewall, bind: true, claims: {purpose: channels}}
+    expect: {status: 200, json: {ok: true, bound: true, body: {n: 1}}}
+  - name: the same token again
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 1}
+      token: {signer: firewall, reuse: a bound token}
+    expect: {status: 401, json: {error: Unauthorized, refused: replay}}
+  - name: unbound after the latch
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 2}
+      token: {signer: firewall, claims: {purpose: channels}}
+    expect: {status: 401, json: {error: Unauthorized, refused: unbound}}
+  - name: signed for another host
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 3}
+      token: {signer: firewall, bind: true, claims: {purpose: channels, h: other.example}}
+    expect: {status: 401, json: {error: Unauthorized, refused: host}}
+  - name: signed for another path
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 4}
+      token: {signer: firewall, bind: true, claims: {purpose: channels, p: /channels/apply}}
+    expect: {status: 401, json: {error: Unauthorized, refused: path}}
+  - name: a body other than the one signed
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 5}
+      token: {signer: firewall, bind: true, body: {n: 6}, claims: {purpose: channels}}
+    expect: {status: 400, json: {error: Bad request}}
+  - name: another purpose is no token at all
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 7}
+      token: {signer: firewall, bind: true, claims: {purpose: llm}}
+    expect: {status: 401, json: {error: Unauthorized, refused: null}}
+  - name: the console's key opens nothing here
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 8}
+      token: {signer: console, claims: {purpose: channels}}
+    expect: {status: 401, json: {error: Unauthorized, refused: null}}
+  - name: after a restart, a token older than the newest taken is refused
+    restart: true
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 9}
+      token: {signer: firewall, bind: true, iat_offset: -60, lifetime: 120, claims: {purpose: channels}}
+    expect: {status: 401, json: {error: Unauthorized, refused: before-restart}}
+  - name: and the latch survived it
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 10}
+      token: {signer: firewall, claims: {purpose: channels}}
+    expect: {status: 401, json: {error: Unauthorized, refused: unbound}}
+  - name: a new bound token still works
+    request:
+      method: POST
+      path: /__conformance/firewall
+      json: {n: 11}
+      token: {signer: firewall, bind: true, iat_offset: 2, claims: {purpose: channels}}
+    expect: {status: 200, json: {ok: true, bound: true, body: {n: 11}}}
+  - name: a GET reads no body and is not a 400
+    request:
+      method: GET
+      path: /__conformance/firewall
+      # After the restart floor's second, like the step before.
+      token: {signer: firewall, bind: true, iat_offset: 3, claims: {purpose: channels}}
+    expect: {status: 200, json: {ok: true, bound: true, body: null}}
+  - name: a GET token is still bound to its method
+    request:
+      method: GET
+      path: /__conformance/firewall
+      token: {signer: firewall, bind: true, iat_offset: 3, claims: {purpose: channels, m: POST}}
+    expect: {status: 401, json: {error: Unauthorized, refused: method}}

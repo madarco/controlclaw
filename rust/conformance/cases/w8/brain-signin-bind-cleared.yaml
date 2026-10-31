@@ -1,0 +1,26 @@
+name: brain box sign-in clears the spent bind cookie when it refuses or has no landing
+agent: vm-agent
+service: gbrain
+skip:
+  ts: "TS keeps the spent bind cookie on a refusal until it expires (fixed in Rust)"
+files:
+  keys/session_secret: "0909090909090909090909090909090909090909090909090909090909090909\n"
+steps:
+  - name: the firewall says where it is
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://fw.example.com"}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 200}
+  - name: Open begin
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect: {status: 200}
+  - name: a member's ticket is refused and the binding cleared
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {}}
+    expect: {status: 403, json: {error: Only owners and admins can open the brain.}, set_cookies: ["__Host-cc_bind_*=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"]}
+  - name: Open begin again
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect: {status: 200}
+  - name: GBrain gives no sign-in link, and the binding is cleared
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {claims: {canWrite: true}}}
+    expect:
+      status: 502
+      json: {error: "The brain did not give a sign-in link. It may be starting; try Open again in a minute."}
+      set_cookies: ["__Host-cc_bind_*=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"]

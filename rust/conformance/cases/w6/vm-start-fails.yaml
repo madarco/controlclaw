@@ -1,0 +1,28 @@
+name: vm-agent POST /start that systemd refuses answers 500 with the last line of the failure
+agent: vm-agent
+shims:
+  - argv: [sudo, -n, systemctl, start, openclaw]
+    stderr: "Job for openclaw.service failed.\nSee \"systemctl status openclaw.service\" for details.\n"
+    code: 1
+  - argv: [systemctl, is-active, openclaw]
+    stdout: "failed\n"
+    code: 3
+  - argv: [systemctl, status, openclaw]
+    stdout: "openclaw.service - OpenClaw\n   Active: failed\n"
+    code: 3
+steps:
+  - request: {method: POST, path: /start, token: {signer: console}}
+    expect:
+      status: 500
+      json:
+        ok: false
+        action: start
+        active: false
+        status: failed
+        message: "See \"systemctl status openclaw.service\" for details."
+      calls_include:
+        - [sudo, -n, systemctl, start, openclaw]
+  - request: {method: POST, path: /stop, token: {signer: firewall, claims: {purpose: kill}}}
+    expect:
+      status: 401
+      json: {error: Unauthorized}

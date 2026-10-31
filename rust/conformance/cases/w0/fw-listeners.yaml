@@ -1,0 +1,20 @@
+name: firewall 3100 and ingress answers for unknown paths
+agent: mitm-agent
+steps:
+  - name: a recovery path in plain HTTP
+    request: {method: GET, path: /recovery/status}
+    expect:
+      status: 426
+      json: {error: "The recovery routes are HTTPS only. Use https:// and pin this box's certificate."}
+  - name: anything else on 3100
+    request: {method: GET, path: /health}
+    expect: {status: 404, body: '{"error":"Not found"}'}
+  - name: the ingress
+    request: {method: GET, path: /anything, listener: ingress}
+    expect: {status: 404, body: "", headers: {content-type: $absent, content-length: "0"}}
+  - name: an upgrade nobody takes on the ingress
+    request: {method: GET, path: /x, listener: ingress, headers: {connection: upgrade, upgrade: websocket}}
+    expect: {status: 403}
+  - name: an Upgrade header without Connection upgrade is a plain request
+    request: {method: GET, path: /x, listener: ingress, headers: {upgrade: websocket}}
+    expect: {status: 404, body: ""}

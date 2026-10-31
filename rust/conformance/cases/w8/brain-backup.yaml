@@ -1,0 +1,25 @@
+name: brain box /backup takes only the firewall's writes and only the brain's own kind
+agent: vm-agent
+service: gbrain
+env: {BACKUP_SPOOL_DIR: $ROOT/spool}
+# The staging helper (cc-gbrain-backup) and a real archive are covered by
+# rust/bins/vm-agent/src/gbrain/backup/tests.rs; here, who may ask and what is refused.
+steps:
+  - name: the console's token never starts one
+    request: {method: POST, path: /backup/run, json: {}, token: {signer: console}}
+    expect: {status: 401, json: {error: backups must come from the org firewall}}
+  - name: the console's token cannot read a brain's plan (not on its list for a brain)
+    request: {method: GET, path: "/backup/plan?kind=gbrain", token: {signer: console}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: no token
+    request: {method: POST, path: /backup/run, json: {}}
+    expect: {status: 401}
+  - name: an agent's kind on a brain
+    request: {method: GET, path: "/backup/plan?kind=workspace", token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 400, json: {ok: false, error: kind must be gbrain}}
+  - name: a run without a data key
+    request: {method: POST, path: /backup/run, json: {orgId: org_1, vmId: vm_1, backupId: bk_1, kind: gbrain, uploadUrl: "https://s.example/p"}, token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 400, json: {ok: false, error: dataKey is required}}
+  - name: an unknown backup route
+    request: {method: POST, path: /backup/other, json: {}, token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 404, json: {error: Not found}}

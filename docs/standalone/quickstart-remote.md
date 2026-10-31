@@ -1,0 +1,83 @@
+# Quickstart: a firewall VM and an agent on another machine
+
+A firewall on its own Ubuntu VM, and OpenClaw on another machine (another cloud, a home server) that
+reaches it over WireGuard. The two need no private network between them.
+
+You need:
+
+- **the firewall:** a fresh Ubuntu 24.04 VM (amd64 or arm64, 2 GB of RAM is enough) with a public
+  address. Open UDP 51820 and TCP 8801 to the agent's machine in its cloud firewall;
+- **the agent's machine:** Linux with systemd, root, and OpenClaw installed and running under its own
+  user (not root, not in the `docker` group), with Node 22 or newer.
+
+## 1. Install the firewall
+
+On the firewall VM:
+
+```bash
+VERSION=0.9.0   # the latest: https://github.com/madarco/controlclaw/releases
+curl -fsSLO https://github.com/madarco/controlclaw/releases/download/v$VERSION/controlclaw-install-$VERSION.tar.gz
+tar xzf controlclaw-install-$VERSION.tar.gz
+sudo ./controlclaw-install-$VERSION/install.sh --version $VERSION --wireguard
+```
+
+The script checks the release's signature, installs the firewall, and prints what it set up. Its last
+line is the CA's fingerprint; keep it to compare later.
+
+To check the download itself before running it, see
+[SIGNING.md](../../standalone/release/SIGNING.md#install-without-trusting-the-download).
+
+## 2. Set up the panel
+
+From your computer, open a tunnel to the panel:
+
+```bash
+ssh -L 8800:127.0.0.1:8800 root@<firewall address>
+```
+
+Open <http://localhost:8800> and follow [the panel's first run](quickstart-panel.md): the setup
+token, a password, the firewall's own model key (optional), and allowing your model provider. Skip
+the pairing code there (**Go to the panel**): make it in the next step, when the agent's machine is
+ready.
+
+## 3. Connect the agent's machine
+
+On the agent's machine, install the CLI:
+
+```bash
+sudo npm i -g controlclaw
+sudo controlclaw doctor
+```
+
+`doctor` should show `✓ remote`. In the panel, **Agents → Connect an agent → Make a pairing code**.
+The panel shows a command with `--mode host`; for this setup use `--mode remote`:
+
+```bash
+sudo controlclaw connect --mode remote --firewall http://<firewall address>:8801
+```
+
+It asks for the code (not shown as you type). It then:
+
+- downloads the vm-agent of its own release and checks its signature;
+- pairs with the firewall and gets a tunnel address (`10.77.0.2` for the first agent);
+- brings up WireGuard and waits for the firewall's answer;
+- installs the capture and the CA, and restarts OpenClaw.
+
+## 4. Check it works
+
+```bash
+sudo controlclaw status
+```
+
+Every line should start with ✓. Then ask OpenClaw something that needs the web. The request shows in the
+panel's **Activity**, and a site no rule allows is refused there.
+
+## Undo it
+
+```bash
+sudo controlclaw disconnect                                          # on the agent's machine
+sudo ./controlclaw-install-$VERSION/install.sh --uninstall --purge   # on the firewall
+```
+
+What this mode protects: [protection.md](protection.md). When something fails:
+[troubleshooting.md](troubleshooting.md).

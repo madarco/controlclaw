@@ -1,0 +1,54 @@
+# The firewall on its own. Agents (OpenClaw) send their traffic through the proxy on 8080 and trust
+# the CA in the volume (ca-cert.pem). See README.md.
+services:
+  firewall:
+    image: controlclaw-firewall:dev-amd64 # or -arm64; build.sh builds both
+    restart: unless-stopped
+    environment:
+      # Where DNS is published (below): the firewall starts no DNS on a public address, an open
+      # resolver, unless CC_DNS_PUBLIC=1.
+      CC_LISTEN: ${CC_LISTEN:-127.0.0.1}
+      CC_DNS_PUBLIC: ${CC_DNS_PUBLIC:-0}
+      # The name your browser reaches the pages at, on 443 (a reverse proxy in front of 8790), for
+      # the links `docker compose exec -u controlclaw firewall mitm-agent open logins` prints.
+      # Uncomment and set your own: it is written to the volume at every start.
+      # CC_HOSTNAME: fw.example.com
+      # The local panel and its API: every address in the container, since the host cannot reach the
+      # container's loopback, and published on the host's loopback only (below). This project's own
+      # network keeps containers on other networks (agents on Docker's default bridge) from reaching
+      # it. Without these, as with a plain `docker run`, the API stays on the container's loopback.
+      LOCAL_PANEL_BIND: 0.0.0.0:8800
+      LOCAL_PANEL_INSECURE: "1"
+    volumes:
+      - firewall:/opt/controlclaw
+    tmpfs:
+      # The secrets the firewall agent hands the proxy: in memory only.
+      - /run/mitm/config:uid=10001,gid=10001,mode=0700,size=16m
+    # The proxy and DNS on CC_LISTEN, the host's loopback by default. Agents need them (and 3900,
+    # 3940) on an address they reach: `CC_LISTEN=172.17.0.1 docker compose up -d` for `controlclaw
+    # connect --mode docker` on this machine, or an address on your agents' network. Never a public
+    # one: allow only your agents there. Docker's published ports go around a host firewall (ufw). When port 53 on that address is taken (a resolver of
+    # your own), set CC_DNS_PORT to another one.
+    ports:
+      - "${CC_LISTEN:-127.0.0.1}:8080:8080" # the proxy
+      - "${CC_LISTEN:-127.0.0.1}:${CC_DNS_PORT:-53}:53/udp" # DNS
+      - "${CC_LISTEN:-127.0.0.1}:${CC_DNS_PORT:-53}:53/tcp"
+      - "127.0.0.1:8790:8790" # the firewall's pages and webhooks
+      - "127.0.0.1:8800:8800" # the local panel: http://localhost:8800, or an SSH tunnel to it
+      # Pairing (`docker compose exec -u controlclaw firewall mitm-agent pair-code`): agents on other
+      # machines need it on an address they reach, with PAIR_PROXY_ADDR set to the proxy's address
+      # as they reach it (host:8080).
+      - "127.0.0.1:8801:8801"
+    # A fixed address: a paired agent's vm-agent takes the firewall's calls from this address only
+    # (its allow_from), so it must stay the same when the container is recreated.
+    networks:
+      controlclaw:
+        ipv4_address: 172.31.249.2
+
+networks:
+  controlclaw:
+    ipam:
+      config: [{ subnet: "172.31.249.0/24" }]
+
+volumes:
+  firewall:

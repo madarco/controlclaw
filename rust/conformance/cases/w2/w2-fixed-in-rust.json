@@ -1,0 +1,97 @@
+{
+  "name": "w2 gaps fixed in Rust only: AgentMail paths as the server routes them",
+  "skip": {
+    "mitmproxy": "the addon refuses a percent-encoded AgentMail send as an unknown write and passes a raw read written in capitals (fixed in Rust)"
+  },
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "in",
+          "channels": [
+            "email"
+          ],
+          "patterns": [
+            "salary"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "salary reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "an AgentMail send whose path is percent-encoded goes through the email rules",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "message_id": "m9",
+          "thread_id": "t9"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/ana%40agentmail.to/messages/%73end",
+        "json": {
+          "to": [
+            "bob@y.com"
+          ],
+          "text": "body"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "loopback": {
+          "email": {
+            "/": [
+              {
+                "action": "email.reserve",
+                "inboxId": "ana@agentmail.to",
+                "op": "send"
+              },
+              {
+                "action": "email.settle",
+                "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a raw read in capitals is refused while a rule reads mail coming in",
+      "request": {
+        "method": "GET",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/m1/RAW"
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule"
+        }
+      }
+    }
+  ]
+}

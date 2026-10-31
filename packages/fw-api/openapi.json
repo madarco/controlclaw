@@ -1,0 +1,6402 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ControlClaw firewall panel API",
+    "version": "0.1.0",
+    "description": "The local panel's API on a standalone firewall (docs/standalone/panel-api.md). Sign in with POST /api/login; every write sends the session's CSRF token as x-csrf-token."
+  },
+  "paths": {
+    "/api/setup": {
+      "post": {
+        "operationId": "postSetup",
+        "tags": [
+          "session"
+        ],
+        "summary": "Set the admin's password with the setup token from the log",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedIn"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/login": {
+      "post": {
+        "operationId": "postLogin",
+        "tags": [
+          "session"
+        ],
+        "summary": "Sign in",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedIn"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/session": {
+      "get": {
+        "operationId": "getSession",
+        "tags": [
+          "session"
+        ],
+        "summary": "Whether this browser is signed in, and its CSRF token",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInfo"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/password": {
+      "post": {
+        "operationId": "postAdmin/password",
+        "tags": [
+          "session"
+        ],
+        "summary": "Change the admin's password; every other session is signed out",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChanged"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logout": {
+      "post": {
+        "operationId": "postLogout",
+        "tags": [
+          "session"
+        ],
+        "summary": "Sign out",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkReply"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/egress-rules": {
+      "get": {
+        "operationId": "getEgress_rules",
+        "tags": [
+          "firewall"
+        ],
+        "summary": "Every egress rule, in the form the firewall reads them",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putEgress_rules",
+        "tags": [
+          "firewall"
+        ],
+        "summary": "Replace every egress rule",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RulesBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents": {
+      "get": {
+        "operationId": "getAgents",
+        "tags": [
+          "firewall"
+        ],
+        "summary": "The identity map",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putAgents",
+        "tags": [
+          "firewall"
+        ],
+        "summary": "Replace the identity map",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentsBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/permissions": {
+      "get": {
+        "operationId": "getPermissions",
+        "tags": [
+          "firewall"
+        ],
+        "summary": "The last 100 permission requests",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/permissions/answer": {
+      "post": {
+        "operationId": "postPermissionsAnswer",
+        "tags": [
+          "firewall"
+        ],
+        "summary": "Answer a permission request",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/recent": {
+      "get": {
+        "operationId": "getActivityRecent",
+        "tags": [
+          "firewall"
+        ],
+        "summary": "The latest activity rows",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            },
+            "description": "1 to 1000; 100 when left out."
+          }
+        ]
+      }
+    },
+    "/api/open": {
+      "post": {
+        "operationId": "postOpen",
+        "tags": [
+          "firewall"
+        ],
+        "summary": "A link that opens one of the firewall's own pages",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenLink"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/commands": {
+      "post": {
+        "operationId": "postCommands",
+        "tags": [
+          "firewall"
+        ],
+        "summary": "Run a firewall command by name (actions scoped \"both\")",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/egress/rules": {
+      "get": {
+        "operationId": "getEgressRules",
+        "tags": [
+          "egress"
+        ],
+        "summary": "The egress rules, in order",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EgressRule"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postEgressRules",
+        "tags": [
+          "egress"
+        ],
+        "summary": "Add an egress rule",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EgressRule"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewEgressRule"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/egress/rules/{id}": {
+      "patch": {
+        "operationId": "patchEgressRulesId",
+        "tags": [
+          "egress"
+        ],
+        "summary": "Change an egress rule",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EgressRule"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EgressRulePatch"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteEgressRulesId",
+        "tags": [
+          "egress"
+        ],
+        "summary": "Delete an egress rule",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/egress/rules/{id}/cycle": {
+      "post": {
+        "operationId": "postEgressRulesIdCycle",
+        "tags": [
+          "egress"
+        ],
+        "summary": "Move a rule to its next effect: allow, ask, block, allow",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EgressRule"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/egress/ai": {
+      "get": {
+        "operationId": "getEgressAi",
+        "tags": [
+          "egress"
+        ],
+        "summary": "The AI review settings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putEgressAi",
+        "tags": [
+          "egress"
+        ],
+        "summary": "Change the AI review settings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiSettingsInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/egress/scan": {
+      "post": {
+        "operationId": "postEgressScan",
+        "tags": [
+          "egress"
+        ],
+        "summary": "Run the AI log review's scan now",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/keys": {
+      "get": {
+        "operationId": "getLlmKeys",
+        "tags": [
+          "llm"
+        ],
+        "summary": "The model keys and the providers a key can be added for",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelKeys"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postLlmKeys",
+        "tags": [
+          "llm"
+        ],
+        "summary": "Add a provider's key, or replace it",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelKeyChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewModelKey"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/agents/{vmId}": {
+      "post": {
+        "operationId": "postLlmAgentsVmId",
+        "tags": [
+          "llm"
+        ],
+        "summary": "Give an agent a model on a provider whose key the firewall holds (its main model)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelKeyChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "vmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentModel"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/keys/{provider}": {
+      "delete": {
+        "operationId": "deleteLlmKeysProvider",
+        "tags": [
+          "llm"
+        ],
+        "summary": "Remove a provider's key",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelKeyChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity": {
+      "get": {
+        "operationId": "getActivity",
+        "tags": [
+          "activity"
+        ],
+        "summary": "Activity rows by kind and verdict, newest first, with the counts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "network",
+                "tools",
+                "runs",
+                "findings",
+                "connectors"
+              ],
+              "default": "network"
+            },
+            "description": "Which log: `network` is traffic and what the firewall decided about messages and webhooks."
+          },
+          {
+            "name": "verdict",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "allow",
+                "ask",
+                "block"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "description": "Words to find in the row's text, at most 200 characters."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64",
+              "default": null
+            },
+            "description": "1 to 100; 25 when left out."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64",
+              "default": null
+            }
+          }
+        ]
+      }
+    },
+    "/api/overview": {
+      "get": {
+        "operationId": "getOverview",
+        "tags": [
+          "activity"
+        ],
+        "summary": "The overview: the cards, the traffic chart, the live list, top hosts, agents and AI findings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "1h",
+                "24h",
+                "7d",
+                null
+              ],
+              "default": null
+            }
+          }
+        ]
+      }
+    },
+    "/api/traffic": {
+      "get": {
+        "operationId": "getTraffic",
+        "tags": [
+          "activity"
+        ],
+        "summary": "The traffic chart for a range",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Traffic"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "1h",
+                "24h",
+                "7d",
+                null
+              ],
+              "default": null
+            }
+          }
+        ]
+      }
+    },
+    "/api/live": {
+      "get": {
+        "operationId": "getLive",
+        "tags": [
+          "activity"
+        ],
+        "summary": "The newest requests (at most 50), after a cursor",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LiveRequest"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "afterId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64",
+              "default": null
+            },
+            "description": "`id` of the newest row the list holds: only rows after it."
+          }
+        ]
+      }
+    },
+    "/api/pairing/codes": {
+      "post": {
+        "operationId": "postPairingCodes",
+        "tags": [
+          "pairing"
+        ],
+        "summary": "Make a one-time pairing code for one machine",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewCode"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewCodeBody"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getPairingCodes",
+        "tags": [
+          "pairing"
+        ],
+        "summary": "The pairing codes still waiting, without the codes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingCodes"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pairing/address": {
+      "get": {
+        "operationId": "getPairingAddress",
+        "tags": [
+          "pairing"
+        ],
+        "summary": "Where agents' machines reach this firewall's pairing endpoint, when it knows",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairAddress"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pairing/codes/{id}": {
+      "delete": {
+        "operationId": "deletePairingCodesId",
+        "tags": [
+          "pairing"
+        ],
+        "summary": "Revoke a waiting pairing code",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Revoked"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/requests": {
+      "get": {
+        "operationId": "getRequests",
+        "tags": [
+          "requests"
+        ],
+        "summary": "Permission requests, newest first (at most 200)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PermissionRequest"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "pending",
+                "approved",
+                "denied",
+                "expired",
+                null
+              ],
+              "default": null
+            },
+            "description": "Only these; all when left out."
+          }
+        ]
+      }
+    },
+    "/api/requests/{id}/resolve": {
+      "post": {
+        "operationId": "postRequestsIdResolve",
+        "tags": [
+          "requests"
+        ],
+        "summary": "Approve or deny a pending request",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionRequest"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Resolve"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content-rules": {
+      "get": {
+        "operationId": "getContent_rules",
+        "tags": [
+          "rules"
+        ],
+        "summary": "The content rules, the always-on ones, held messages and the AI's state (`rules.read`), and whether the AI review is on",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content-rules/change": {
+      "post": {
+        "operationId": "postContent_rulesChange",
+        "tags": [
+          "rules"
+        ],
+        "summary": "Add or change a content rule (`{op: put, rule}`), delete one (`{op: delete, id}`), or take the AI's current state (`{op: ai}`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content-rules/try": {
+      "post": {
+        "operationId": "postContent_rulesTry",
+        "tags": [
+          "rules"
+        ],
+        "summary": "Which rule would act on a message (`rules.try`); nothing is kept",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TryBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app-rules": {
+      "get": {
+        "operationId": "getApp_rules",
+        "tags": [
+          "rules"
+        ],
+        "summary": "The app rules (`apps.read`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app-rules/change": {
+      "post": {
+        "operationId": "postApp_rulesChange",
+        "tags": [
+          "rules"
+        ],
+        "summary": "Add or change an app rule (`{op: put, rule, at?}`), delete one (`{op: delete, id}`), or move one (`{op: move, id, to}`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app-rules/mcp": {
+      "get": {
+        "operationId": "getApp_rulesMcp",
+        "tags": [
+          "rules"
+        ],
+        "summary": "The MCP servers an app rule can name (`mcpcatalog.read`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email-rules": {
+      "get": {
+        "operationId": "getEmail_rules",
+        "tags": [
+          "rules"
+        ],
+        "summary": "Who may email the agents and whom they may email, and held mail (`email.read`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email-rules/change": {
+      "post": {
+        "operationId": "postEmail_rulesChange",
+        "tags": [
+          "rules"
+        ],
+        "summary": "Change the email rules: `{action: add_sender | remove_sender | add_recipient | remove_recipient, entry}`, `{action: set_inbound_auth, requireAuth}`, `{action: set_outbound, ...}`, `{action: set_mailbox_mode, mailbox, mode}`",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kill": {
+      "get": {
+        "operationId": "getKill",
+        "tags": [
+          "controls"
+        ],
+        "summary": "Whether the agents are stopped",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kill/engage": {
+      "post": {
+        "operationId": "postKillEngage",
+        "tags": [
+          "controls"
+        ],
+        "summary": "Stop every agent, or one (`vmId`): their traffic is refused until released. Type STOP.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Engage"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kill/release": {
+      "post": {
+        "operationId": "postKillRelease",
+        "tags": [
+          "controls"
+        ],
+        "summary": "Let every agent, or one, go again",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Release"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "getSearch",
+        "tags": [
+          "controls"
+        ],
+        "summary": "The web search key, and the providers",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/key": {
+      "put": {
+        "operationId": "putSearchKey",
+        "tags": [
+          "controls"
+        ],
+        "summary": "Set the web search key for every agent (Tavily or Brave), replacing one there is",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchKey"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSearchKey",
+        "tags": [
+          "controls"
+        ],
+        "summary": "Remove the web search key; agents go back to the free search",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/exit": {
+      "get": {
+        "operationId": "getExit",
+        "tags": [
+          "controls"
+        ],
+        "summary": "The exit proxy, and what it carried",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExitView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putExit",
+        "tags": [
+          "controls"
+        ],
+        "summary": "Set the exit proxy (your own account with a proxy provider), or replace it",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExitAccount"
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchExit",
+        "tags": [
+          "controls"
+        ],
+        "summary": "Change the exit's settings: one IP per agent, a byte cap, the country",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExitSettings"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteExit",
+        "tags": [
+          "controls"
+        ],
+        "summary": "Remove the exit proxy: no traffic leaves through it",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/exit/check": {
+      "post": {
+        "operationId": "postExitCheck",
+        "tags": [
+          "controls"
+        ],
+        "summary": "Check the exit proxy now: one request through it",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channels": {
+      "get": {
+        "operationId": "getChannels",
+        "tags": [
+          "channels"
+        ],
+        "summary": "The bots, and who may get confirmation codes for agents' requests",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelsView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postChannels",
+        "tags": [
+          "channels"
+        ],
+        "summary": "Add a Telegram or Slack bot",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewChannel"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/token": {
+      "put": {
+        "operationId": "putChannelsIdToken",
+        "tags": [
+          "channels"
+        ],
+        "summary": "Replace a bot's token",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewToken"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/assign": {
+      "post": {
+        "operationId": "postChannelsIdAssign",
+        "tags": [
+          "channels"
+        ],
+        "summary": "Give the bot to an agent (from the one it had)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Assign"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/unassign": {
+      "post": {
+        "operationId": "postChannelsIdUnassign",
+        "tags": [
+          "channels"
+        ],
+        "summary": "Take the bot from its agent",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/pairing": {
+      "post": {
+        "operationId": "postChannelsIdPairing",
+        "tags": [
+          "channels"
+        ],
+        "summary": "Approve a pairing code a person got from the bot",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Pairing"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channels/{id}": {
+      "delete": {
+        "operationId": "deleteChannelsId",
+        "tags": [
+          "channels"
+        ],
+        "summary": "Remove a bot; `?force=true` removes it even when its agent cannot be told (an agent that is gone)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "default": null
+            },
+            "description": "Remove it even when its agent cannot be told. The agent keeps a stand-in that no longer works."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/connectors": {
+      "get": {
+        "operationId": "getConnectors",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "The connected apps and which agents use them (`connectors.read`, kind connections)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postConnectors",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Connect an app with a key or credential fields, for these agents",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewConnection"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/connectors/setup/{service}": {
+      "get": {
+        "operationId": "getConnectorsSetupService",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "How an app is connected: its auth kinds and fields, and an OAuth client if there is one",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "service",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/connectors/oauth": {
+      "post": {
+        "operationId": "postConnectorsOauth",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Start connecting an app with OAuth: the answer's data has the address to send the browser to",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewOauthConnection"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/connectors/{id}": {
+      "put": {
+        "operationId": "putConnectorsId",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Replace an app connection's key or credential fields",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionSecrets"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteConnectorsId",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Remove an app connection",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/connectors/{id}/reconnect": {
+      "post": {
+        "operationId": "postConnectorsIdReconnect",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Sign in to an OAuth app again",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/connectors/{id}/assign": {
+      "post": {
+        "operationId": "postConnectorsIdAssign",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Let an agent use the app, or stop it (`on: false`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp-servers": {
+      "get": {
+        "operationId": "getMcp_servers",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "The MCP servers and which agents use them (`mcpservers.read`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postMcp_servers",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Add an MCP server (no auth, a header, or OAuth) for these agents",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMcpServer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp-servers/{name}": {
+      "put": {
+        "operationId": "putMcp_serversName",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Replace a header server's credential",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpHeader"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMcp_serversName",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Remove an MCP server",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp-servers/{name}/reconnect": {
+      "post": {
+        "operationId": "postMcp_serversNameReconnect",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Sign in to an OAuth server again: the answer's data has the address to send the browser to",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpReconnect"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp-servers/{name}/assign": {
+      "post": {
+        "operationId": "postMcp_serversNameAssign",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Let an agent use the server, or stop it (`on: false`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp-servers/{name}/tools": {
+      "post": {
+        "operationId": "postMcp_serversNameTools",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Read the server's tools again (`mcpservers.tools`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oauth/callback": {
+      "post": {
+        "operationId": "postOauthCallback",
+        "tags": [
+          "integrations"
+        ],
+        "summary": "What an OAuth provider sent back to the panel's /oauth/callback page: the sign-in it belongs to finishes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OauthCallback"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/google": {
+      "get": {
+        "operationId": "getGoogle",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "The Google account, its services and the agents that have it (`google.read`), and the redirect address to register",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postGoogle",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Connect your Google OAuth client (or replace it): the answer's data has the address to send the browser to",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleConnect"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteGoogle",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Forget the Google account: every agent loses it",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/google/agents/{vmId}": {
+      "post": {
+        "operationId": "postGoogleAgentsVmId",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Give an agent the Google account, or take it away (`granted: false`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "vmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleGrant"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/google/services": {
+      "put": {
+        "operationId": "putGoogleServices",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Change which Google services the agents may use",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleServices"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/google/agents/{vmId}/push": {
+      "post": {
+        "operationId": "postGoogleAgentsVmIdPush",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Write the account to an agent again",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "vmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agentmail": {
+      "get": {
+        "operationId": "getAgentmail",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "The AgentMail account and its inboxes (`agentmail.read`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agentmail/{action}": {
+      "post": {
+        "operationId": "postAgentmailAction",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "An AgentMail action: signup, claim, check, create, import, attach, senders, forget, delete, push. The body is the action's (`cc-contracts` agentmail); `vmId` is filled in with the agent's name and address.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": true
+            }
+          }
+        }
+      }
+    },
+    "/api/logins": {
+      "get": {
+        "operationId": "getLogins",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "The website logins, never their passwords (`logins.read`), and the 1Password link",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logins/change": {
+      "post": {
+        "operationId": "postLoginsChange",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Change a login's name, sites, agents or mode (`action: update`), or delete it (`action: delete`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logins/1password/sync": {
+      "post": {
+        "operationId": "postLogins1passwordSync",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Read the logins from 1Password again",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logins/1password/disconnect": {
+      "post": {
+        "operationId": "postLogins1passwordDisconnect",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Disconnect 1Password",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "The refusal every route documents: `{error}`."
+      },
+      "SetupBody": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "description": "At least 12 characters."
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ],
+        "description": "`POST /api/setup`: the first admin, with the token from the log."
+      },
+      "SignedIn": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "csrf": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "csrf"
+        ],
+        "description": "`POST /api/setup` and `/api/login`: the session cookie is set; writes send `csrf` back."
+      },
+      "LoginBody": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "description": "`POST /api/login`."
+      },
+      "SessionInfo": {
+        "type": "object",
+        "properties": {
+          "admin": {
+            "type": "boolean",
+            "description": "Signed in."
+          },
+          "setup": {
+            "type": "boolean",
+            "description": "No admin yet: set one up with the token from the log."
+          },
+          "csrf": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The session's CSRF token, when signed in."
+          }
+        },
+        "required": [
+          "admin",
+          "setup"
+        ],
+        "description": "`GET /api/session`."
+      },
+      "PasswordBody": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "string"
+          },
+          "new": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "current",
+          "new"
+        ],
+        "description": "`POST /api/admin/password`: the current password, and a new one of at least 12 characters."
+      },
+      "PasswordChanged": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "signedOut": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0,
+            "description": "How many other sessions were ended."
+          }
+        },
+        "required": [
+          "ok",
+          "signedOut"
+        ],
+        "description": "The password is changed; every other session is ended, this one stays."
+      },
+      "OkReply": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "RulesBody": {
+        "type": "object",
+        "properties": {
+          "rules": {
+            "type": "array",
+            "items": true
+          }
+        },
+        "required": [
+          "rules"
+        ]
+      },
+      "AgentsBody": {
+        "type": "object",
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": true
+          }
+        },
+        "required": [
+          "agents"
+        ]
+      },
+      "AnswerBody": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The request's own id, from `GET /api/permissions`."
+          },
+          "resolution": {
+            "type": "string",
+            "description": "`approved` or `denied`."
+          }
+        },
+        "required": [
+          "id",
+          "resolution"
+        ]
+      },
+      "OpenLink": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "OpenBody": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "string",
+            "description": "`firewall-logs`, `logins`, ..."
+          }
+        },
+        "required": [
+          "page"
+        ]
+      },
+      "CommandAnswer": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "data": true
+        },
+        "required": [
+          "ok",
+          "status"
+        ],
+        "description": "A command handler's outcome, as the firewall gives it (`CommandOutcome`)."
+      },
+      "CommandBody": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "payload": {
+            "default": null
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "EgressRule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "matchDomain": {
+            "type": "string"
+          },
+          "matchPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "matchMethod": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "matchPort": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "effect": {
+            "$ref": "#/components/schemas/Effect"
+          },
+          "exit": {
+            "$ref": "#/components/schemas/Exit"
+          },
+          "exitCountry": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "vmId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "aiReview": {
+            "type": "boolean"
+          },
+          "aiPolicy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "matchDomain",
+          "effect",
+          "exit",
+          "priority",
+          "enabled",
+          "aiReview",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "Effect": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "block",
+          "require_permission",
+          "tunnel"
+        ]
+      },
+      "Exit": {
+        "type": "string",
+        "enum": [
+          "firewall",
+          "residential"
+        ],
+        "description": "Where a rule's traffic leaves from. `residential` goes through the exit proxy (Settings)."
+      },
+      "NewEgressRule": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "1 to 120 characters."
+          },
+          "matchDomain": {
+            "type": "string",
+            "description": "1 to 253 characters; `*.example.com` matches the subdomains."
+          },
+          "matchPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "matchMethod": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HttpMethod"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "matchPort": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Only on a `tunnel` rule.",
+            "default": null
+          },
+          "effect": {
+            "$ref": "#/components/schemas/Effect",
+            "default": "allow"
+          },
+          "exit": {
+            "$ref": "#/components/schemas/Exit",
+            "default": "firewall"
+          },
+          "exitCountry": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Two letters, for a residential exit.",
+            "default": null
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int64",
+            "description": "0 to 1,000,000; lower runs first. 1000 when left out.",
+            "default": 1000
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "vmId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One agent's rule; every agent's when left out.",
+            "default": null
+          },
+          "aiReview": {
+            "type": "boolean",
+            "default": false
+          },
+          "aiPolicy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "At most 1000 characters: instructions on an allow rule, the approval policy on an ask rule.",
+            "default": null
+          }
+        },
+        "required": [
+          "name",
+          "matchDomain"
+        ]
+      },
+      "HttpMethod": {
+        "type": "string",
+        "enum": [
+          "GET",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE",
+          "HEAD",
+          "OPTIONS"
+        ]
+      },
+      "EgressRulePatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "matchDomain": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "matchPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "matchMethod": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HttpMethod"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "matchPort": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          },
+          "effect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Effect"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Exit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exitCountry": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "priority": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "vmId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "aiReview": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "aiPolicy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "description": "Each field left out stays as it is; `null` clears one that may be empty."
+      },
+      "NoBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The `{}` body of a write that takes nothing."
+      },
+      "Deleted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "AiView": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "$ref": "#/components/schemas/AiSettings"
+          },
+          "credentials": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiCredential"
+            },
+            "description": "The model keys the review can use."
+          },
+          "active": {
+            "type": "boolean",
+            "description": "The firewall has the settings: on, with a key it holds."
+          }
+        },
+        "required": [
+          "settings",
+          "credentials",
+          "active"
+        ]
+      },
+      "AiSettings": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "The AI firewall: the check on each request, AI approval, and the content rules' AI."
+          },
+          "logReviewEnabled": {
+            "type": "boolean",
+            "description": "AI log review: the review every minute and the scan."
+          },
+          "credentialId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model key it uses (`GET /api/llm/keys`)."
+          },
+          "model": {
+            "type": "string"
+          },
+          "dailyCallCap": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "scanIntervalHours": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "autoApprovePerHour": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requestInstructions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewInstructions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "enabled",
+          "logReviewEnabled",
+          "model",
+          "dailyCallCap",
+          "scanIntervalHours",
+          "autoApprovePerHour"
+        ]
+      },
+      "AiCredential": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "defaultModel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "name",
+          "hint",
+          "defaultModel"
+        ]
+      },
+      "AiSettingsInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "logReviewEnabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Left out: unchanged.",
+            "default": null
+          },
+          "credentialId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "description": "1 to 100 characters."
+          },
+          "dailyCallCap": {
+            "type": "integer",
+            "format": "int64",
+            "description": "100 to 100000."
+          },
+          "scanIntervalHours": {
+            "type": "integer",
+            "format": "int64",
+            "description": "1 to 168."
+          },
+          "autoApprovePerHour": {
+            "type": "integer",
+            "format": "int64",
+            "description": "0 to 1000."
+          },
+          "requestInstructions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Left out: unchanged; `null` or empty: none. At most 2000 characters.",
+            "default": null
+          },
+          "reviewInstructions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "enabled",
+          "model",
+          "dailyCallCap",
+          "scanIntervalHours",
+          "autoApprovePerHour"
+        ]
+      },
+      "ModelKeys": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelKey"
+            }
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderOption"
+            }
+          }
+        },
+        "required": [
+          "keys",
+          "providers"
+        ]
+      },
+      "ModelKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The firewall's credential id; the AI review settings name it."
+          },
+          "provider": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hint": {
+            "type": "string",
+            "description": "The key's last four characters."
+          },
+          "state": {
+            "type": "string",
+            "description": "`active`, or `failed` when the firewall did not take it."
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "name",
+          "hint",
+          "state",
+          "updatedAt"
+        ]
+      },
+      "ProviderOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reviewModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The AI review can use this provider; its suggested model."
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "ModelKeyChange": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/CommandAnswer",
+            "description": "What the firewall said."
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelKey"
+            }
+          }
+        },
+        "required": [
+          "result",
+          "keys"
+        ]
+      },
+      "NewModelKey": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "`openai`, `anthropic`, `google`, `openrouter` or `vercel_gateway`."
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "replace": {
+            "type": "boolean",
+            "description": "Replace the provider's key; without it, a provider that has one is refused (409).",
+            "default": false
+          }
+        },
+        "required": [
+          "provider",
+          "key"
+        ]
+      },
+      "AgentModel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "A provider with a key here (`GET /api/llm/keys`)."
+          },
+          "model": {
+            "type": "string",
+            "description": "OpenClaw's id for the model, with its provider: `openrouter/moonshotai/kimi-k2`."
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ]
+      },
+      "ActivityPage": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityRow"
+            }
+          },
+          "counts": {
+            "$ref": "#/components/schemas/Counts",
+            "description": "For the verdict tabs, whatever the verdict filter."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Rows the filter matches."
+          }
+        },
+        "required": [
+          "rows",
+          "counts",
+          "total"
+        ]
+      },
+      "ActivityRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "source": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent's name, or null for the firewall's own."
+          },
+          "vmId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "The status as the box sent it (the rule's effect for traffic)."
+          },
+          "statusCode": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Traffic only: the upstream's HTTP status."
+          },
+          "rule": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Traffic only: the rule that decided it."
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "verdict",
+          "source",
+          "message",
+          "status"
+        ]
+      },
+      "Verdict": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "allowed",
+              "asked",
+              "blocked"
+            ]
+          },
+          {
+            "type": "string",
+            "const": "recorded",
+            "description": "Neither: a finding, a record."
+          }
+        ]
+      },
+      "Counts": {
+        "type": "object",
+        "properties": {
+          "all": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "allow": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ask": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "block": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "all",
+          "allow",
+          "ask",
+          "block"
+        ]
+      },
+      "Overview": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "hours": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The hour starts of the cards' series: the last 24, oldest first."
+          },
+          "perMinute": {
+            "$ref": "#/components/schemas/PerMinute"
+          },
+          "blocked": {
+            "$ref": "#/components/schemas/CardSeries"
+          },
+          "response": {
+            "$ref": "#/components/schemas/ResponseTime"
+          },
+          "month": {
+            "$ref": "#/components/schemas/Month"
+          },
+          "traffic": {
+            "$ref": "#/components/schemas/Traffic"
+          },
+          "live": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LiveRequest"
+            }
+          },
+          "topHosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TopHost"
+            }
+          },
+          "byAgent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentTraffic"
+            }
+          },
+          "ai": {
+            "$ref": "#/components/schemas/AiCard"
+          },
+          "shields": {
+            "$ref": "#/components/schemas/Shields"
+          }
+        },
+        "required": [
+          "generatedAt",
+          "hours",
+          "perMinute",
+          "blocked",
+          "response",
+          "month",
+          "traffic",
+          "live",
+          "topHosts",
+          "byAgent",
+          "ai",
+          "shields"
+        ]
+      },
+      "PerMinute": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Requests in the last full minute."
+          },
+          "today": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Today so far, and yesterday up to the same time."
+          },
+          "yesterday": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "One value per hour, oldest first, matching `hours`."
+          }
+        },
+        "required": [
+          "value",
+          "today",
+          "yesterday",
+          "series"
+        ]
+      },
+      "CardSeries": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Today so far, and yesterday up to the same time."
+          },
+          "yesterday": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "One value per hour, oldest first, matching `hours`."
+          }
+        },
+        "required": [
+          "today",
+          "yesterday",
+          "series"
+        ]
+      },
+      "ResponseTime": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Median ms of allowed requests in the last hour; null with none."
+          },
+          "today": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "yesterday": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        },
+        "required": [
+          "series"
+        ]
+      },
+      "Month": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Requests this calendar month (UTC)."
+          },
+          "resetsAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "resetsAt"
+        ]
+      },
+      "Traffic": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "$ref": "#/components/schemas/Range"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrafficPoint"
+            }
+          }
+        },
+        "required": [
+          "range",
+          "points"
+        ]
+      },
+      "Range": {
+        "type": "string",
+        "enum": [
+          "1h",
+          "24h",
+          "7d"
+        ]
+      },
+      "TrafficPoint": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "The bucket's start."
+          },
+          "allowed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "asked": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "blocked": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "at",
+          "allowed",
+          "asked",
+          "blocked"
+        ]
+      },
+      "LiveRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The list's cursor (`afterId`)."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string"
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "host": {
+            "type": "string"
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "long": {
+            "type": "boolean",
+            "description": "A tunnel or a request over 25 s."
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "occurredAt",
+          "host",
+          "verdict",
+          "long"
+        ]
+      },
+      "TopHost": {
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "blocked": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "host",
+          "total",
+          "blocked"
+        ]
+      },
+      "AgentTraffic": {
+        "type": "object",
+        "properties": {
+          "vmId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null for the firewall's own traffic."
+          },
+          "name": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "blocked": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hourly": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Requests per hour over the last 24 hours."
+          }
+        },
+        "required": [
+          "name",
+          "total",
+          "blocked",
+          "hourly"
+        ]
+      },
+      "AiCard": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiFinding"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "findings"
+        ]
+      },
+      "AiFinding": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "title",
+          "at"
+        ]
+      },
+      "Shields": {
+        "type": "object",
+        "properties": {
+          "siteRules": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Enabled egress rules."
+          },
+          "aiKeys": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "siteRules",
+          "aiKeys"
+        ]
+      },
+      "NewCode": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "replace": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "replace",
+          "expires_at"
+        ]
+      },
+      "NewCodeBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent's name on the firewall; the machine's own name when left out.",
+            "default": null
+          },
+          "ttl_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long the code works: 10 minutes by default, at most 60.",
+            "default": null
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The IPv4 address the proxy will see the machine at, when it is not the one pairing comes\nfrom (a NAT, a reverse proxy, a container on the firewall's machine).",
+            "default": null
+          },
+          "replace": {
+            "type": "boolean",
+            "description": "Whether the machine may take the place of an agent already at its address.",
+            "default": false
+          }
+        },
+        "description": "What the admin says about the machine the code is for."
+      },
+      "PendingCodes": {
+        "type": "object",
+        "properties": {
+          "codes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingCode"
+            }
+          }
+        },
+        "required": [
+          "codes"
+        ]
+      },
+      "PendingCode": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "replace": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "expires_at",
+          "replace"
+        ],
+        "description": "A code still waiting, without the code."
+      },
+      "PairAddress": {
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "boolean",
+            "description": "`false` with `PAIR_BIND=off`: this firewall takes no pairings."
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535,
+            "description": "The pairing port (`PAIR_BIND`'s, 8801 by default); `null` when closed."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "On the firewall's network: the proxy's host (`PAIR_PROXY_ADDR`, which install.sh writes\nfrom `--listen`) and the pairing port. `null` when the firewall does not know it."
+          },
+          "remoteUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "From another network, over WireGuard's public address (`WG_ENDPOINT`), when that differs."
+          }
+        },
+        "required": [
+          "open"
+        ],
+        "description": "The address `controlclaw connect --firewall` takes, from what the firewall was set up with."
+      },
+      "Revoked": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "PermissionRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`access`, `email_recipient`, `app_call`, `exec`, `plugin`, `system`, `meeting_request`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "description": "Label and value pairs, as the box sent them."
+          },
+          "externalId": {
+            "type": "string",
+            "description": "The box's own id for it."
+          },
+          "status": {
+            "type": "string"
+          },
+          "vmId": {
+            "type": "string"
+          },
+          "vmName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "detail",
+          "externalId",
+          "status",
+          "vmId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "Resolve": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/Decision"
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "Decision": {
+        "type": "string",
+        "enum": [
+          "approved",
+          "denied"
+        ]
+      },
+      "ChangeBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "change": {
+            "description": "The module's change, as `cc-contracts` types it."
+          }
+        },
+        "required": [
+          "change"
+        ]
+      },
+      "TryBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "At most 20,000 characters."
+          },
+          "direction": {
+            "type": "string",
+            "description": "`in` or `out`."
+          },
+          "channel": {
+            "type": "string",
+            "description": "`telegram`, `slack`, `email`, `web`, `webhook`, `teamchat`, `voice` or `apps`."
+          },
+          "draft": {
+            "description": "The rule being edited, tried as if saved."
+          }
+        },
+        "required": [
+          "text",
+          "direction",
+          "channel"
+        ]
+      },
+      "KillView": {
+        "type": "object",
+        "properties": {
+          "kill": {
+            "description": "The firewall's own account: `{org, agents: [{vmId, ...}]}`; null when it has none."
+          }
+        },
+        "required": [
+          "kill"
+        ]
+      },
+      "Engage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "vmId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One agent; every agent when left out.",
+            "default": null
+          },
+          "confirm": {
+            "type": "string",
+            "description": "`STOP`."
+          }
+        },
+        "required": [
+          "confirm"
+        ]
+      },
+      "Release": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "vmId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        }
+      },
+      "SearchView": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchKeyInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The key set, or null: agents use the free search."
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchProviderOption"
+            }
+          }
+        },
+        "required": [
+          "providers"
+        ]
+      },
+      "SearchKeyInfo": {
+        "type": "object",
+        "properties": {
+          "credentialId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "description": "`tavily` or `brave`."
+          },
+          "hint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "credentialId",
+          "provider",
+          "hint"
+        ]
+      },
+      "SearchProviderOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "SearchChange": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/CommandAnswer"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchKeyInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "SearchKey": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "`tavily` or `brave`."
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "key"
+        ]
+      },
+      "ExitView": {
+        "type": "object",
+        "properties": {
+          "residential": {
+            "description": "The firewall's own account: provider, host, sticky, cap, country, bytes used, last check;\n`{configured: false}` when there is none."
+          }
+        },
+        "required": [
+          "residential"
+        ]
+      },
+      "ExitAccount": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "A preset id (`brightdata`, `oxylabs`, `decodo`, `iproyal`, `apify`) or `custom`."
+          },
+          "providerName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The name shown in the summary; the provider id when left out.",
+            "default": null
+          },
+          "scheme": {
+            "type": "string",
+            "description": "`http`, `https` or `socks5`."
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "username": {
+            "type": "string",
+            "default": ""
+          },
+          "password": {
+            "type": "string"
+          },
+          "usernameTemplate": {
+            "type": "string",
+            "description": "How the proxy's user name is written, with `{username}`, `{session}`, `{country}`."
+          },
+          "passwordTemplate": {
+            "type": "string"
+          },
+          "sticky": {
+            "type": "boolean",
+            "description": "One IP per agent.",
+            "default": false
+          },
+          "capBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0,
+            "default": null
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Two letters; any country when left out.",
+            "default": null
+          }
+        },
+        "required": [
+          "provider",
+          "scheme",
+          "host",
+          "port",
+          "password",
+          "usernameTemplate",
+          "passwordTemplate"
+        ]
+      },
+      "ExitSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sticky": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Left out: unchanged.",
+            "default": null
+          },
+          "capBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0,
+            "description": "Left out: unchanged; `null`: no cap.",
+            "default": null
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Left out: unchanged; `null`: any country.",
+            "default": null
+          }
+        }
+      },
+      "ChannelsView": {
+        "type": "object",
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Channel"
+            }
+          },
+          "codeRecipients": {
+            "description": "The firewall's own account of who gets codes (`code_recipients`): approved and allowed senders."
+          }
+        },
+        "required": [
+          "channels",
+          "codeRecipients"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "`telegram` or `slack`."
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hint": {
+            "type": "string",
+            "description": "The token's last four characters."
+          },
+          "vmId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "agentName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "approvedSenders": {
+            "type": "integer",
+            "format": "int64",
+            "description": "People approved to talk to it."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "hint",
+          "approvedSenders"
+        ]
+      },
+      "ChannelChange": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/CommandAnswer"
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Channel"
+            }
+          }
+        },
+        "required": [
+          "result",
+          "channels"
+        ]
+      },
+      "NewChannel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/ChannelType"
+          },
+          "botToken": {
+            "type": "string"
+          },
+          "appToken": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Slack only: the app-level token (socket mode).",
+            "default": null
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "vmId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent it answers for; none yet when left out.",
+            "default": null
+          }
+        },
+        "required": [
+          "type",
+          "botToken"
+        ]
+      },
+      "ChannelType": {
+        "type": "string",
+        "enum": [
+          "telegram",
+          "slack"
+        ]
+      },
+      "NewToken": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "botToken": {
+            "type": "string"
+          },
+          "appToken": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "botToken"
+        ]
+      },
+      "Assign": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "vmId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vmId"
+        ]
+      },
+      "Pairing": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The code the bot sent the person (4 to 16 characters)."
+          },
+          "senderId": {
+            "type": "string",
+            "description": "The person's id on the channel."
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "code",
+          "senderId"
+        ]
+      },
+      "NewConnection": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "The app's id in the catalog (`github`, `linear`, ...)."
+          },
+          "serviceName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its name, for the summary; the id when left out.",
+            "default": null
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An API key app's key.",
+            "default": null
+          },
+          "secrets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true,
+            "description": "A credential app's secret fields.",
+            "default": null
+          },
+          "extra": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true,
+            "description": "Fields that are not secret (an account's domain, a region).",
+            "default": null
+          },
+          "vmIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The agents that may use it.",
+            "default": []
+          }
+        },
+        "required": [
+          "service"
+        ]
+      },
+      "NewOauthConnection": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Your own OAuth app, when the app needs one: its client id and secret.",
+            "default": null
+          },
+          "clientSecret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "extra": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true,
+            "description": "Other fields of your OAuth app (a tenant, a domain).",
+            "default": null
+          },
+          "authorizationOptionIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The permissions asked for, by the setup's option ids.",
+            "default": []
+          },
+          "vmIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "service"
+        ]
+      },
+      "ConnectionSecrets": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "secrets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true,
+            "default": null
+          },
+          "extra": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true,
+            "default": null
+          }
+        }
+      },
+      "AssignBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "vmId": {
+            "type": "string"
+          },
+          "on": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "vmId",
+          "on"
+        ]
+      },
+      "NewMcpServer": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Lower case letters, digits and dashes, at most 40: how agents name it."
+          },
+          "url": {
+            "type": "string",
+            "description": "`https://`, not a private address."
+          },
+          "auth": {
+            "type": "string",
+            "description": "`none`, `header` or `oauth`."
+          },
+          "headerName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "headerValue": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "OAuth: your own client, when the server does not register one itself.",
+            "default": null
+          },
+          "clientSecret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "vmIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "name",
+          "url",
+          "auth"
+        ]
+      },
+      "McpHeader": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "headerName": {
+            "type": "string"
+          },
+          "headerValue": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "headerName",
+          "headerValue"
+        ]
+      },
+      "McpReconnect": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "clientSecret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        }
+      },
+      "OauthCallback": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "GoogleConnect": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "description": "`….apps.googleusercontent.com`"
+          },
+          "clientSecret": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`gmail`, `calendar`, `drive`, `contacts`, `sheets`, `docs`."
+          },
+          "gmailScope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`full`, `readonly`, `send` or `read-send`; `read-send` when left out.",
+            "default": null
+          },
+          "driveScope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`full`, `readonly` or `file`.",
+            "default": null
+          },
+          "audience": {
+            "type": "string",
+            "description": "`internal`, `external_production` or `external_testing`."
+          },
+          "vmIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The agents that get it once it is connected.",
+            "default": []
+          }
+        },
+        "required": [
+          "clientId",
+          "clientSecret",
+          "services",
+          "audience"
+        ]
+      },
+      "GoogleGrant": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "granted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "granted"
+        ]
+      },
+      "GoogleServices": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "services"
+        ]
+      },
+      "LoginChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`update` or `delete`."
+          },
+          "id": {
+            "type": "string",
+            "description": "The login's id (`lg_…`)."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "sites": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The sites it may be used on.",
+            "default": null
+          },
+          "vmIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The agents that may use it.",
+            "default": null
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`swap` (the proxy puts the password in) or `type` (the firewall types it into the page).",
+            "default": null
+          }
+        },
+        "required": [
+          "action",
+          "id"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "cc_local_session"
+      },
+      "csrf": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-csrf-token"
+      }
+    }
+  },
+  "security": [
+    {
+      "session": []
+    }
+  ]
+}

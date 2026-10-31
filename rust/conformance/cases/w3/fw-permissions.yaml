@@ -1,0 +1,26 @@
+name: firewall turns the proxy's asks into permission requests and approvals into grants
+agent: mitm-agent
+env:
+  PENDING_PATH: run/pending.jsonl
+  PERMISSION_POLL_MS: "200"
+files:
+  run/pending.jsonl: |
+    {"permission_id":"perm_1","vm_id":"vm_1","scope":"GET example.com/","host":"example.com","method":"GET","path":"/","ai_category":"exfil"}
+    {"permission_id":"perm_2","scope":"APP gmail #1","kind":"app_call","service":"gmail","action":"send","expires_at":"2030-01-01T00:00:00Z"}
+console:
+  /api/vm-agent/permission: [[200, {status: approved}]]
+steps:
+  - name: each ask once, in the console's shape
+    received:
+      - path: /api/vm-agent/permission
+        method: POST
+        json_subset: {permission_id: perm_1, scope: GET example.com/, summary: GET example.com/, host: example.com, method: GET, path: /, ai_reason: exfil, agent_vm_id: vm_1}
+      - path: /api/vm-agent/permission
+        method: POST
+        json_subset: {permission_id: perm_2, scope: "APP gmail #1", summary: "APP gmail #1", kind: app_call, app: {service: gmail, action: send, operation: null, connection: null, rule: null}, expires_at: "2030-01-01T00:00:00Z"}
+  - name: approvals become grants for the proxy
+    files:
+      run/grants.json:
+        json:
+          perm_1: {expires_at: $number, scope: GET example.com/}
+          perm_2: {expires_at: $number, scope: "APP gmail #1"}

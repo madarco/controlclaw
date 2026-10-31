@@ -1,0 +1,58 @@
+name: vm-agent storage, grow and disk reseal through cc-secure
+agent: vm-agent
+shims:
+  - argv: [sudo, -n, /usr/local/bin/cc-secure, size]
+    stdout: '{"present":true,"mounted":true,"sizeGb":30,"maxGb":53,"reserveGb":10,"diskBytes":80279486464,"systemUsedBytes":11978649600,"imageBytes":2701271040,"fsBytes":31509659648,"usedBytes":1360420864,"freeBytes":28630728704,"pending":false}'
+  - argv: [sudo, -n, /usr/local/bin/cc-secure, grow, "60"]
+    stderr: "cc-secure: no room: this server's disk allows at most 53 GiB\n"
+    code: 1
+  - argv: [sudo, -n, /usr/local/bin/cc-secure, grow, "40"]
+    stdout: "cc-secure: grown\n{\"present\":true,\"mounted\":false,\"sizeGb\":40,\"maxGb\":53,\"diskBytes\":1}\n"
+  - argv: [sudo, -n, /usr/local/bin/cc-secure, reseal, "OLIAAYYu9C/XU5mQckoX00FBWNlYg7+Ur4qx2M/tKXs="]
+    stdout: '{"to":"sha256:0006bb1c1b76749b","changed":true}'
+steps:
+  - name: no token
+    request: {method: GET, path: /storage}
+    expect: {status: 401}
+  - name: the sizes
+    request: {method: GET, path: /storage, token: {signer: console}}
+    expect:
+      status: 200
+      headers: {cache-control: no-store}
+      json: {present: true, mounted: true, sizeGb: 30, maxGb: 53, reserveGb: 10, diskBytes: 80279486464, systemUsedBytes: 11978649600, imageBytes: 2701271040, fsBytes: 31509659648, usedBytes: 1360420864, freeBytes: 28630728704, pending: false}
+      calls_include: [[sudo, -n, /usr/local/bin/cc-secure, size]]
+  - name: a size that is not whole
+    request: {method: POST, path: /storage/grow, json: {targetGb: 40.5}, token: {signer: console}}
+    expect: {status: 400, json: {error: The size must be a whole number of GiB., code: invalid}}
+  - name: the box says no, in its own words
+    request: {method: POST, path: /storage/grow, json: {targetGb: 60}, token: {signer: console}}
+    expect: {status: 422, json: {error: "No room: this server's disk allows at most 53 GiB.", code: refused}}
+  - name: a grow
+    request: {method: POST, path: /storage/grow, json: {targetGb: 40}, token: {signer: console}}
+    expect:
+      status: 200
+      json: {present: true, mounted: false, sizeGb: 40, maxGb: 53, reserveGb: 0, diskBytes: 1, systemUsedBytes: 0, imageBytes: 0, fsBytes: null, usedBytes: null, freeBytes: null, pending: false}
+  - name: storage/grow is not a GET
+    request: {method: GET, path: /storage/grow, token: {signer: console}}
+    expect: {status: 401}
+  - name: a reseal from the console
+    request: {method: POST, path: /disk/reseal, json: {publicKey: "OLIAAYYu9C/XU5mQckoX00FBWNlYg7+Ur4qx2M/tKXs="}, token: {signer: console}}
+    expect: {status: 401, json: {error: a new recovery key must come from the org firewall}}
+  - name: a reseal with another purpose
+    request: {method: POST, path: /disk/reseal, json: {publicKey: "OLIAAYYu9C/XU5mQckoX00FBWNlYg7+Ur4qx2M/tKXs="}, token: {signer: firewall, bind: true, claims: {purpose: backup}}}
+    expect: {status: 401}
+  - name: an unbound firewall token (disk is always bound)
+    request: {method: POST, path: /disk/reseal, json: {publicKey: "OLIAAYYu9C/XU5mQckoX00FBWNlYg7+Ur4qx2M/tKXs="}, token: {signer: firewall, claims: {purpose: disk}}}
+    expect: {status: 401}
+  - name: not a key
+    request: {method: POST, path: /disk/reseal, json: {publicKey: "nope"}, token: {signer: firewall, bind: true, claims: {purpose: disk}}}
+    expect: {status: 400, json: {ok: false, error: That is not a recovery public key., code: invalid}}
+  - name: a reseal
+    request: {method: POST, path: /disk/reseal, json: {publicKey: "OLIAAYYu9C/XU5mQckoX00FBWNlYg7+Ur4qx2M/tKXs="}, token: {signer: firewall, bind: true, claims: {purpose: disk}}}
+    expect:
+      status: 200
+      json: {ok: true, to: "sha256:0006bb1c1b76749b", changed: true}
+      calls_include: [[sudo, -n, /usr/local/bin/cc-secure, reseal, "OLIAAYYu9C/XU5mQckoX00FBWNlYg7+Ur4qx2M/tKXs="]]
+  - name: another disk route
+    request: {method: POST, path: /disk/other, json: {}, token: {signer: firewall, bind: true, claims: {purpose: disk}}}
+    expect: {status: 404, json: {error: Not found}}

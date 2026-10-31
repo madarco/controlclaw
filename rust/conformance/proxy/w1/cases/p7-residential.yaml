@@ -1,0 +1,151 @@
+# P7: the residential exit (features 12, 13). Ported from test_tcp_drop.py (test_residential,
+# test_tls_residential), test_residential.py (rule matching, credential templates, sticky
+# sessions, fail closed) and run-residential.sh. The upstream fixture wants u:p unless a step says.
+name: a residential TLS flow is relayed through the upstream untouched, by name
+files:
+  rules.json: [{name: shop, effect: allow, match_domain: origin.test, exit: residential, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  exit.json: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p}}
+steps:
+  - http: {url: "https://origin.test/via-exit", trust: origin}
+    expect: {status: 200, json: {path: /via-exit, sni: origin.test}}
+  - seen: {server: upstream, upstream: ["CONNECT origin.test:443"]}
+  - upstream: {auths: ["u:p"]}
+  - log:
+      records: [{flow_id: $uuid, effect: residential, exit: residential, rule: shop, host: origin.test, port: 443,
+                 vm_id: test-agent, bytes_in: $number, bytes_out: $number, duration_ms: $number, rule_id: null,
+                 method: $absent, path: $absent}]
+---
+name: raw TCP on a residential rule by address and port is relayed through the upstream
+files:
+  rules.json: [{name: by-ip, effect: tunnel, match_domain: 203.0.113.10, match_port: 7000, exit: residential, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  exit.json: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p}}
+steps:
+  - raw: {connect: "203.0.113.10:7000", send: "ping"}
+    expect: {recv: "<greeting>ping"}
+  - seen: {server: upstream, upstream: ["CONNECT 203.0.113.10:7000"]}
+  - log: {records: [{effect: residential, host: 203.0.113.10, port: 7000, bytes_out: 4, bytes_in: 17}]}
+---
+name: SOCKS5 carries the name and a password, and plain HTTP is refused over it
+files:
+  rules.json: [{name: shop, effect: allow, match_domain: "*.origin.test", exit: residential, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  exit.json: {enabled: true, upstream: {scheme: socks5, host: upstream.test, port: 1080, username: u, password: p}}
+steps:
+  - http: {url: "https://www.origin.test/s", trust: origin}
+    expect: {status: 200, json: {sni: www.origin.test}}
+  - seen: {server: upstream, upstream: ["SOCKS5 www.origin.test:443"]}
+  - http: {via: absolute, url: "http://www.origin.test/plain"}
+    expect: {status: 403, json: {error: residential_exit_unavailable, host: www.origin.test, tenant: rig-org}}
+  - log: {last: {effect: residential, exit: residential, status: 403, port: 80,
+                 error: "residential exit unavailable: plain HTTP needs an HTTP upstream, not SOCKS5"}}
+---
+name: plain HTTP goes through the upstream, CONNECT by name and the request inside
+files:
+  rules.json: [{name: shop, effect: allow, match_domain: origin.test, exit: residential, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  exit.json: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p}}
+steps:
+  - http: {url: "http://origin.test/p?q=1", headers: {Authorization: Bearer __NOT_SWAPPED}}
+    expect: {status: 200, json: {path: "/p?q=1", headers: {Authorization: Bearer __NOT_SWAPPED}}}
+  - http: {url: "http://other.test/direct"}
+    expect: {status: 200}
+  - seen: {server: upstream, upstream: ["CONNECT origin.test:80"]}
+  - log:
+      records:
+        - {effect: residential, exit: residential, host: origin.test, port: 80, status: 200, method: $absent, path: $absent,
+           bytes_in: $number, bytes_out: 0}
+        - {effect: allow, host: other.test}
+---
+name: credentials follow the templates, the sticky session and the country
+files:
+  rules.json: [{name: shop, effect: allow, match_domain: origin.test, exit: residential, exit_country: de, priority: 1},
+               {name: rest, effect: allow, match_domain: other.test, exit: residential, priority: 2}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: vm-a}, {private_ip: 10.0.0.4, vm_id: vm-b}]
+  exit.json: {enabled: true, sticky: true, sticky_salt: "0123456789abcdef0123456789abcdef",
+              upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p,
+                         username_template: "{username}[-cc-{country}][-s-{session}]", password_template: "{password}"}}
+steps:
+  - upstream: {password: p}
+  - http: {url: "https://origin.test/1", trust: origin}
+    expect: {error: true}
+  - http: {agent: agent2, url: "https://other.test/2", trust: origin}
+    expect: {error: true}
+  - upstream: {auths: ["$re:^u-cc-DE-s-[0-9a-f]{12}:p$", "$re:^u-s-[0-9a-f]{12}:p$"]}
+  - log: {where: {host: origin.test}, last: {effect: residential, exit_country: DE, error: "$contains:residential exit unreachable"}}
+---
+name: a residential flow fails closed and never leaves from the firewall
+files:
+  rules.json: [{id: r-shop, name: shop, effect: allow, match_domain: origin.test, exit: residential, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  exit.json: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: wrong}}
+steps:
+  - http: {url: "https://origin.test/x", trust: origin}
+    expect: {error: true}
+  - seen: {server: origin, connections: 0}
+  - log: {last: {effect: residential, rule: shop, rule_id: r-shop, host: origin.test, port: 443,
+                 error: "residential exit unreachable: Upstream proxy upstream.test:3128 refused HTTP CONNECT request: 407 Proxy Authentication Required"}}
+  - write: {file: exit.json, content: {enabled: true, cap_bytes: 100, used_bytes: 100,
+                                       upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p}}}
+  - http: {url: "https://origin.test/x", trust: origin}
+    expect: {error: true}
+  - log: {last: {flow_id: "$re:^res_[0-9a-f]{24}$", effect: residential, rule_id: r-shop,
+                 error: "residential exit unavailable: this month's residential data cap is used up"}}
+  - write: {file: exit.json, content: {enabled: false}}
+  - http: {url: "https://origin.test/x", trust: origin}
+    expect: {error: true}
+  - log: {last: {error: "residential exit unavailable: no residential exit is configured"}}
+  - write: {file: exit.json, content: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 9, username: u, password: p}}}
+  - http: {url: "https://origin.test/x", trust: origin}
+    expect: {error: true}
+  - log: {last: {error: "$contains:residential exit unreachable"}}
+  - seen: {server: origin, connections: 0}
+---
+name: a country the credential cannot carry fails closed
+files:
+  rules.json: [{name: shop, effect: allow, match_domain: origin.test, exit: residential, exit_country: US, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  exit.json: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p}}
+steps:
+  - http: {url: "https://origin.test/x", trust: origin}
+    expect: {error: true}
+  - seen: {server: upstream, upstream: []}
+  - log: {last: {exit_country: US, error: "residential exit unavailable: this exit's credential has no country field, so it cannot come out in US"}}
+---
+name: a block outranking the residential rule wins, and a locked agent has no exit
+files:
+  rules.json: [{name: no-other, effect: block, match_domain: other.test, priority: 1},
+               {name: everything, effect: allow, match_domain: "*", exit: residential, priority: 9}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}, {private_ip: 10.0.0.4, vm_id: locked, locked: true}]
+  exit.json: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p}}
+steps:
+  - http: {url: "https://other.test/x"}
+    expect: {status: 403, json: {error: blocked_by_policy}}
+  - http: {agent: agent2, url: "https://origin.test/x"}
+    expect: {status: 403, json: {error: blocked_by_kill_switch}}
+  - seen: {server: upstream, upstream: []}
+---
+name: an HTTPS request matched by a residential rule at request level goes out over TLS through the exit
+files:
+  rules.json: [{name: api-v1, effect: allow, match_domain: origin.test, match_path: /v1, priority: 1},
+               {name: api-rest, effect: allow, match_domain: origin.test, exit: residential, priority: 2}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  exit.json: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p}}
+steps:
+  - http: {url: "https://origin.test/v1/x"}
+    expect: {status: 200, json: {path: /v1/x, sni: origin.test}}
+  - http: {url: "https://origin.test/other"}
+    expect: {status: 200, json: {path: /other, sni: origin.test, tls: true}}
+  - seen: {server: upstream, upstream: ["CONNECT origin.test:443"]}
+---
+name: the control plane never goes out through the exit, whatever the rules say
+skip: {mitmproxy: "the addon passes the control plane straight through when a residential rule names it (next_layer), even for a box marked cp_inspect; cc-proxy inspects it (Rust-only fix, owner 2026-10-28)"}
+files:
+  rules.json: [{name: everything, effect: allow, match_domain: "*", exit: residential, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, cp_inspect: true}]
+  exit.json: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p}}
+steps:
+  - http: {url: "https://cp.test/api/vm-agent/heartbeat"}
+    expect: {status: 200, json: {sni: cp.test}}
+  - seen: {server: upstream, upstream: []}

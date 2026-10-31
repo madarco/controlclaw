@@ -1,0 +1,305 @@
+{
+  "name": "k3 email: AgentMail answers filtered by the email rules, attachments judged by their message",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "a message asked for by id is emptied and marked",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "actions": [
+                  {
+                    "action": "hide",
+                    "reason": "not_allowed"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "inbox_id": "a@agentmail.to",
+          "thread_id": "t1",
+          "message_id": "m1",
+          "from": "Evil <evil@x.com>",
+          "labels": [
+            "received"
+          ],
+          "text": "SECRET",
+          "html": "<b>SECRET</b>",
+          "subject": "s",
+          "attachments": [
+            {
+              "attachment_id": "x"
+            }
+          ],
+          "authentication_results": {
+            "dmarc": "fail"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/m1"
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "inbox_id": "a@agentmail.to",
+          "thread_id": "t1",
+          "message_id": "m1",
+          "from": "Evil <evil@x.com>",
+          "labels": [
+            "received",
+            "blocked"
+          ],
+          "text": "",
+          "html": "",
+          "subject": "",
+          "attachments": [],
+          "authentication_results": {}
+        },
+        "loopback": {
+          "email": {
+            "/": [
+              {
+                "action": "email.inbound",
+                "provider": "agentmail",
+                "inboxId": "a@agentmail.to",
+                "items": [
+                  {
+                    "kind": "message",
+                    "message_id": "m1",
+                    "from": "Evil <evil@x.com>",
+                    "labels": [
+                      "received"
+                    ],
+                    "authentication_results": {
+                      "dmarc": "fail"
+                    },
+                    "text": "SECRET",
+                    "html": "<b>SECRET</b>"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a list: hidden out, stripped previews blank, the count follows",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "actions": [
+                  {
+                    "action": "hide"
+                  },
+                  {
+                    "action": "strip"
+                  },
+                  {
+                    "action": "keep"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "count": 3,
+          "messages": [
+            {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m1",
+              "preview": "SECRET"
+            },
+            {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m2",
+              "preview": "hello"
+            },
+            {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m3",
+              "preview": "mine"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages"
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "count": 2,
+          "messages": [
+            {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m2",
+              "preview": ""
+            },
+            {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m3",
+              "preview": "mine"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "no answer from the firewall: nothing is shown",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 500,
+              "json": {
+                "ok": false
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "messages": [
+            {
+              "inbox_id": "a@agentmail.to",
+              "thread_id": "t1",
+              "message_id": "m2",
+              "preview": "x"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages"
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "messages": []
+        }
+      }
+    },
+    {
+      "name": "an answer that is not JSON",
+      "upstream": {
+        "status": 200,
+        "body": "{nope",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages"
+      },
+      "expect": {
+        "status": 502,
+        "body": "{\"error\":\"unreadable_response\"}"
+      }
+    },
+    {
+      "name": "an attachment of a hidden message",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "actions": [
+                  {
+                    "action": "hide"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/m1/attachments/att1"
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "held_back"
+        },
+        "loopback": {
+          "email": {
+            "/": [
+              {
+                "action": "email.inbound",
+                "items": [
+                  {
+                    "kind": "ref",
+                    "message_id": "m1"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a thread's attachment",
+      "request": {
+        "method": "GET",
+        "host": "api.agentmail.to",
+        "path": "/v0/threads/t1/attachments/x"
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "no_loopback": [
+          "email"
+        ],
+        "json_subset": {
+          "reason": "thread_attachment",
+          "message": "Read attachments through the message they belong to."
+        }
+      }
+    }
+  ]
+}

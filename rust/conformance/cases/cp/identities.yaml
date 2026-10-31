@@ -1,0 +1,29 @@
+name: cp GET /identities
+agent: control-plane
+endpoint: /identities
+scope: both
+seed:
+  vms:
+    - {id: cpid_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+    - {id: cpid_a1, role: openclaw, name: cpid-a1, private_ip: 10.0.0.3}
+    - {id: cpid_a2, role: openclaw, name: cpid-a2}
+steps:
+  - name: no token
+    request: {method: GET, path: /api/vm-agent/identities}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: a key the control plane does not know
+    request: {method: GET, path: /api/vm-agent/identities, as: cpid_fw, broken: wrong-key}
+    expect: {status: 401}
+  - name: an expired token
+    request: {method: GET, path: /api/vm-agent/identities, as: cpid_fw, broken: expired}
+    expect: {status: 401}
+  - name: an agent may not read the map
+    request: {method: GET, path: /api/vm-agent/identities, as: cpid_a1}
+    expect: {status: 403, json: {error: $string}}
+  - name: the firewall reads the agents with a private address
+    request: {method: GET, path: /api/vm-agent/identities, as: cpid_fw}
+    expect:
+      status: 200
+      json:
+        identities:
+          - {vm_id: cpid_a1, private_ip: 10.0.0.3, name: cpid-a1, hostname: $any, access_hostname: $any, status: running, role: openclaw, agent_addr: $optional}

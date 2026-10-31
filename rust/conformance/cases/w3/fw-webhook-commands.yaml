@@ -1,0 +1,71 @@
+name: firewall webhook commands read, sync, cancel and forget the sealed registrations
+agent: mitm-agent
+env:
+  WEBHOOK_STORE_PATH: state/webhooks.enc
+  ACCESS_STORE_PATH: state/access.enc
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+  state/webhooks.enc: '{"alg":"AES-256-GCM","nonce":"HPI1TYyQh9QTec85","ct":"rxutCRnszr525DBmcpCik3zdvwny8jggS+PZRBYGN4R/mPDaeYvTnWuMhtvy0jmiLqOY0X5jVQimMlZJNkVKPGQHv62b8z5gsELv4L6729NWPtXUbT2wiARFhDeLrCQTzjUpCBCJqttg2HeD6pmJ1QAyN6XKI7XGk9vrHbmX7nfEhybOREfHjurj4O+CEnUUbReLZgR2u8ae6tdYYLP+Owf1UrvUhki0QIy5pDGowgnoClu6SpredRrTTwjslJ2wrM61693fTI//OPTwKTWgVLvXpM0+PGldxTzvq4l3UTukSuARuhrCyPd23oRflWvi9r6WaHcchX7rRHeQNNaAiywEbmeNBPW9rrD5/46gDb7naYX2HRwef6YrnXHsrQWyl4ppeaAnNVmg70q71qYmHlLAAF8G5AI0BT3271YRCavvmQwBt8T437pxTdyxI5h6VwZCei9IBxDqdvRE2LfPg592JiSdN1hX5qqXdNJypdtDqaqHvbLpLz1SP4kWIqh0KekCLY72daAmVKPMU4T1V0hdSxRRbtCC5hoPshQu0W/qJMODJCRc/mHjRAF1CMT3rKk3EpYC2044X/ol6kbkeP2Ox7rgVNSpWaXJJD2VAVdz3QD65jKaFUCbtnQAg4E3vtBpIKbWW2NQDcrWlwR4aJQKzmZuFEzFieWQakh79aXnQdr86Vl3sZJAiw=="}'
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/webhooks: [[200, {hooks: [{id: hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}, {id: hk_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}]}]]
+steps:
+  - name: the console reads kinds and limits, never a secret
+    command:
+      id: cmd_w1
+      action: webhook.read
+      result:
+        command_id: cmd_w1
+        ok: true
+        status: read
+        message: ""
+        data:
+          hooks:
+            - {id: hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, name: Test hook, target: {vmId: vm_1, hostname: "127.0.0.2", port: 8788, path: /x}, checks: [{kind: hmac, header: x-cc-signature, algo: sha256, replayProtected: false}], ready: true, maxBodyBytes: 4096, perMinute: 60, enabled: true, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z"}
+  - name: the beat lists what this firewall can serve
+    beat:
+      json_subset: {inventory: {webhooks: [{id: hk_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, ready: false}, {id: hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, ready: true}]}}
+  - name: a sync renames and disables, and cannot create
+    command:
+      id: cmd_w2
+      action: webhook.sync
+      payload: {hooks: [{id: hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, name: Renamed, enabled: false, maxBodyBytes: "2048"}, {id: hk_cccccccccccccccccccccccccccccccc, name: Invented}]}
+      result: {command_id: cmd_w2, ok: true, status: synced, data: {unknown: [hk_cccccccccccccccccccccccccccccccc], dropped: [], held: 1}}
+  - command:
+      id: cmd_w3
+      action: webhook.read
+      result: {command_id: cmd_w3, ok: true, data: {hooks: [{id: hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, name: Renamed, enabled: false, maxBodyBytes: 2048, updatedAt: $string}]}}
+  - name: nothing is waiting for a code
+    command:
+      id: cmd_w4
+      action: webhook.cancel
+      payload: {changeId: chg_1}
+      result: {command_id: cmd_w4, ok: true, status: nothing_waiting}
+  - name: a confirm with nothing pending
+    command:
+      id: cmd_w5
+      action: webhook.confirm
+      payload: {changeId: chg_1, code: "123456"}
+      result: {command_id: cmd_w5, ok: false, status: expired, message: "That change is no longer waiting for a code."}
+  - name: a proposal the firewall refuses before any code
+    command:
+      id: cmd_w6
+      action: webhook.propose
+      payload: {changeId: chg_2, kind: retarget, hookId: hk_dddddddddddddddddddddddddddddddd, name: X, target: {vmId: vm_1, hostname: h, port: 8788}}
+      result: {command_id: cmd_w6, ok: false, status: refused, message: "This firewall does not hold that webhook."}
+  - command:
+      id: cmd_w7
+      action: webhook.propose
+      payload: {changeId: chg_3, kind: register, hookId: hk_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee, name: X, target: {vmId: vm_1, hostname: h, port: 3100}, verify: [{kind: hmac, header: x, secret: s}]}
+      result: {command_id: cmd_w7, ok: false, status: refused, message: "A webhook may only deliver to a port between 8700 and 8799 (got 3100)."}
+  - name: forget drops it now
+    command:
+      id: cmd_w8
+      action: webhook.forget
+      payload: {hookId: hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+      result: {command_id: cmd_w8, ok: true, status: forgotten}
+  - command:
+      id: cmd_w9
+      action: webhook.forget
+      payload: {hookId: hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+      result: {command_id: cmd_w9, ok: true, status: already_gone}

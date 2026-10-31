@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "config": {
+    "enabled": true,
+    "proxyUrl": "http://127.0.0.1:8080/",
+    "source": "config",
+    "errors": []
+  },
+  "checks": [
+    {
+      "kind": "allowed",
+      "url": "https://example.com/",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "kind": "denied",
+      "url": "http://127.0.0.1:34277/",
+      "ok": true,
+      "status": 403
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+name: vm-agent GET /status with an unreadable unit says unknown, not stopped
+agent: vm-agent
+shims:
+  - argv: [systemctl, is-active, openclaw]
+    code: 1
+  - argv: [systemctl, status, openclaw]
+    code: 1
+steps:
+  - request: {method: GET, path: /status, token: {signer: console}}
+    expect:
+      status: 200
+      json_subset:
+        active: false
+        status: unknown
+        state: unknown
+        message: status unavailable

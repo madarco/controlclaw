@@ -1,0 +1,123 @@
+name: Google account and Drive folders with nothing connected
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+  GOOGLE_STORE_PATH: state/google.enc
+  DRIVE_STORE_PATH: state/drive.enc
+  CHANNEL_STORE_PATH: state/channels.enc
+steps:
+  - name: no account
+    command:
+      id: g_read
+      action: google.read
+      payload: {}
+      result: {ok: true, status: read, data: {account: null, agents: []}}
+  - name: no Drive connection
+    command:
+      id: d_read
+      action: drive.read
+      payload: {}
+      result: {ok: true, status: read, data: {accounts: [], folders: []}}
+  - name: a client id that is not one
+    command:
+      id: g_bad
+      action: google.propose
+      payload:
+        changeId: c1
+        kind: connect_account
+        client: {clientId: nope, redirectUri: "https://controlclaw.com/oauth/callback"}
+        clientSecret: GOCSPX-x
+        services: [gmail]
+      result: {ok: false, status: failed, message: "That does not look like a Google OAuth client id. It ends in .apps.googleusercontent.com."}
+  - name: a connect with no secret
+    command:
+      id: g_nosecret
+      action: google.propose
+      payload:
+        changeId: c1
+        kind: connect_account
+        client: {clientId: "1234567890-abc.apps.googleusercontent.com", redirectUri: "https://controlclaw.com/oauth/callback"}
+        services: [gmail]
+      result: {ok: false, status: failed, message: "a Google connection needs its client id, client secret and redirect URI"}
+  - name: a callback no authorization is waiting for
+    command:
+      id: g_cb
+      action: google.callback
+      payload: {state: nope, code: x}
+      result: {ok: false, status: failed, message: "This sign-in does not match an authorization your firewall started. Start the connection again."}
+  - name: no code is waiting
+    command:
+      id: g_conf
+      action: google.confirm
+      payload: {changeId: c1, code: "123456"}
+      result: {ok: false, status: expired, message: "No change is waiting for a code, or the code expired.", data: {changeId: c1}}
+  - name: granting before there is an account
+    command:
+      id: g_grant
+      action: google.propose
+      payload: {changeId: c2, kind: grant_agent, agents: [{vmId: vm_1, name: one, hostname: one.example}]}
+      result: {ok: false, status: failed, message: "Connect a Google account before giving it to an agent."}
+  - name: forgetting an agent it never had
+    command:
+      id: g_forget
+      action: google.forget
+      payload: {vmId: vm_1}
+      result: {ok: true, status: applied, data: {vmId: vm_1}}
+  - name: a folder before any account
+    command:
+      id: d_add
+      action: drive.propose
+      payload: {changeId: d1, kind: add_folder, folder: {id: f1, folderId: 1AbCdEfGhIjKl, name: Docs, mode: ro}, agents: []}
+      result: {ok: false, status: failed, message: "Connect a Google account before adding folders."}
+  - name: a folder name that would be a path
+    command:
+      id: d_name
+      action: drive.propose
+      payload: {changeId: d2, kind: add_folder, folder: {id: f1, folderId: 1AbCdEfGhIjKl, name: "../etc", mode: ro}, agents: []}
+      result: {ok: false, status: failed, message: "That folder name cannot be used as a directory name on the box."}
+  - name: a push to an agent with nothing mounted
+    command:
+      id: d_push
+      action: drive.push
+      payload: {vmId: vm_1}
+      result: {ok: true, status: applied, data: {vmId: vm_1, mounts: [], failed: []}}
+  - name: a malformed proposal
+    command:
+      id: d_bad
+      action: drive.propose
+      payload: {kind: add_folder}
+      result: {ok: false, status: failed, message: "malformed drive.propose payload"}
+  - name: cancel a Google change that is not waiting
+    command:
+      id: g_cancel
+      action: google.cancel
+      payload: {changeId: g-9}
+      result: {ok: true, status: "cancelled"}
+  - name: a Google push with no agent
+    command:
+      id: g_push_bad
+      action: google.push
+      payload: {}
+      result: {ok: false, status: "failed", message: "malformed google.push payload"}
+  - name: a Google push for an agent
+    command:
+      id: g_push
+      action: google.push
+      payload: {vmId: vm_1}
+      result: {ok: true, status: "applied"}
+  - name: cancel a Drive change that is not waiting
+    command:
+      id: d_cancel
+      action: drive.cancel
+      payload: {changeId: d-9}
+      result: {ok: true, status: "cancelled"}
+  - name: confirm a Drive change that is not waiting
+    command:
+      id: d_confirm
+      action: drive.confirm
+      payload: {changeId: d-9, code: "123456"}
+      result: {ok: false, status: "expired", message: "No change is waiting for a code, or the code expired."}

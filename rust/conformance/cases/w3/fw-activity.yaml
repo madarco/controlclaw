@@ -1,0 +1,23 @@
+name: firewall ships the traffic log to Activity, AgentMail and phone records stripped
+agent: mitm-agent
+env:
+  ACTIVITY_POLL_MS: "200"
+files:
+  run/traffic.jsonl: |
+    {"flow_id":"f1","ts":1,"host":"example.com","effect":"allow","path":"/x?y=1"}
+    not json
+    {"flow_id":"f2","host":"api.agentmail.to","path":"/v0/inboxes/me@x/messages/abc","method":"POST","subject":"secret","error":"boom"}
+    {"flow_id":"f3","host":"api.twilio.com","path":"/2010-04-01/Accounts/AC1/Calls.json","method":"POST","rule":"x"}
+    {"flow_id":"f4","partial
+steps:
+  - name: one batch, the bad line skipped, the partial line left
+    received:
+      - path: /api/vm-agent/activity
+        method: POST
+        json_subset:
+          records:
+            - {flow_id: f1, ts: 1, host: example.com, effect: allow, path: "/x?y=1"}
+            - {flow_id: f2, host: api.agentmail.to, method: POST, path: "/v0/inboxes/{id}/messages/{id}", rule: agentmail, error: AgentMail request failed}
+            - {flow_id: f3, host: api.twilio.com, rule: phone, method: POST, path: "/2010-04-01/Accounts/{id}/Calls.json"}
+    files:
+      run/traffic.jsonl.cursor: {json: {inode: $number, offset: $number}}

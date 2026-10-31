@@ -1,0 +1,19 @@
+name: vm-agent with a gateway token and OpenClaw down still answers the console
+agent: vm-agent
+files:
+  keys/openclaw_gateway_token: "tok\n"
+  keys/config_api_url: "http://127.0.0.1:9/api/vm-agent/config\n"
+shims:
+  - argv: [systemctl, is-active]
+    stdout: "inactive\n"
+    code: 3
+  - argv: [systemctl, cat]
+    code: 1
+steps:
+  - request: {method: GET, path: /health, token: {signer: console}}
+    expect:
+      status: 200
+      json:
+        status: ok
+        uptime: $number
+        services: {docker: not-installed, tailscaled: not-installed, browser-stream: not-installed, openclaw: not-installed}

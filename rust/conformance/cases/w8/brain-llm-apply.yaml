@@ -1,0 +1,47 @@
+name: brain box POST /llm/apply takes only a placeholder, only from the firewall
+agent: vm-agent
+service: gbrain
+shims:
+  - argv: [sudo, /usr/local/bin/cc-gbrain-key]
+    stdout: "changed\n"
+steps:
+  - name: no token
+    request: {method: POST, path: /llm/apply, json: {memory: null}}
+    expect: {status: 401, json: {error: model changes must come from the org firewall}, headers: {cache-control: no-store}}
+  - name: the console's token is not the firewall's
+    request: {method: POST, path: /llm/apply, json: {memory: null}, token: {signer: console}}
+    expect: {status: 401, json: {error: model changes must come from the org firewall}}
+  - name: another purpose
+    request: {method: POST, path: /llm/apply, json: {memory: null}, token: {signer: firewall, bind: true, claims: {purpose: gbrain}}}
+    expect: {status: 401}
+  - name: a real key is refused
+    request:
+      method: POST
+      path: /llm/apply
+      json: {memory: {apiKey: sk-proj-abc123abc123abc123}}
+      token: {signer: firewall, bind: true, claims: {purpose: llm}}
+    expect: {status: 400, json: {ok: false, error: memory.apiKey is not an included-key placeholder}}
+  - name: a push that says nothing about memory
+    request: {method: POST, path: /llm/apply, json: {credentials: []}, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect: {status: 400, json: {ok: false, error: "memory is required: a brain takes its model key from memory.apiKey"}}
+  - name: the placeholder goes to the helper on stdin
+    request:
+      method: POST
+      path: /llm/apply
+      json: {credentials: [], memory: {provider: openai-compatible, apiKey: vck-cc-included-AbCd1234xYz09Qwe}}
+      token: {signer: firewall, bind: true, claims: {purpose: llm}}
+    expect:
+      status: 200
+      json: {ok: true, applied: [], changed: true}
+      calls_include:
+        - {argv: [sudo, /usr/local/bin/cc-gbrain-key], stdin: "vck-cc-included-AbCd1234xYz09Qwe\n"}
+  - name: a removal is a dash
+    request: {method: POST, path: /llm/apply, json: {memory: null}, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect:
+      status: 200
+      json: {ok: true, applied: [], changed: true}
+      calls_include:
+        - {argv: [sudo, /usr/local/bin/cc-gbrain-key], stdin: "-\n"}
+  - name: any other method is behind the console's gate
+    request: {method: GET, path: /llm/apply, token: {signer: console}}
+    expect: {status: 401, json: {error: Unauthorized}}

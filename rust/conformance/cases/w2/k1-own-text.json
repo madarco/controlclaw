@@ -1,0 +1,190 @@
+{
+  "name": "k1 own text: the firewall's own code message goes while its marker is fresh, what the agent adds is still checked",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "no marker: not asked, and the rule stops it",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "ControlClaw: Code: 123 456\nWords: customer list"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "loopback": {
+          "content": {
+            "/own": "none"
+          }
+        }
+      }
+    },
+    {
+      "name": "a fresh marker: the firewall's text is taken out and the rest goes",
+      "files": {
+        "content-own.json": {
+          "until": "$now+600"
+        }
+      },
+      "loopback": {
+        "content": {
+          "/own": [
+            {
+              "status": 200,
+              "json": {
+                "rest": "\n"
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "ControlClaw: Code: 123 456\nWords: customer list"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "json": {
+            "chat_id": 42,
+            "text": "ControlClaw: Code: 123 456\nWords: customer list"
+          }
+        },
+        "loopback": {
+          "content": {
+            "/own": [
+              {
+                "text": "ControlClaw: Code: 123 456\nWords: customer list"
+              }
+            ]
+          }
+        },
+        "audit": []
+      }
+    },
+    {
+      "name": "what the agent adds is checked",
+      "loopback": {
+        "content": {
+          "/own": [
+            {
+              "status": 200,
+              "json": {
+                "rest": "\n\nand the customer list"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "ControlClaw: Code: 123 456\nWords: customer list\nand the customer list"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "loopback": {
+          "content": {
+            "/stopped": [
+              {
+                "text": "\n\nand the customer list"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the mitm-agent cannot answer: checked whole",
+      "loopback": {
+        "content": {
+          "/own": [
+            {
+              "status": 500,
+              "json": {}
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "ControlClaw: Code: 123 456\nWords: customer list"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "an old marker: not asked",
+      "files": {
+        "content-own.json": {
+          "until": "$now-1"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "ControlClaw: Code: 123 456\nWords: customer list"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "loopback": {
+          "content": {
+            "/own": "none"
+          }
+        }
+      }
+    }
+  ]
+}

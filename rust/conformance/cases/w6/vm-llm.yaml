@@ -1,0 +1,68 @@
+name: vm-agent /llm/* takes firewall writes, reads from either side, and says when OpenClaw is down
+agent: vm-agent
+steps:
+  - name: console token cannot write
+    request: {method: POST, path: /llm/apply, json: {model: {}, credentials: [], remove: []}, token: {signer: console}}
+    expect:
+      status: 401
+      json: {error: model changes must come from the org firewall}
+      headers: {cache-control: no-store}
+  - name: a firewall token for another purpose cannot write
+    request: {method: POST, path: /llm/apply, json: {model: {}, credentials: [], remove: []}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 401
+      json: {error: model changes must come from the org firewall}
+  - name: no token cannot read
+    request: {method: GET, path: /llm/status}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - name: console read with OpenClaw down
+    request: {method: GET, path: /llm/status, token: {signer: console}}
+    expect:
+      status: 503
+      json: {ok: false, error: OpenClaw is not running on this box}
+  - name: firewall read with OpenClaw down
+    request: {method: GET, path: /llm/status, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect:
+      status: 503
+      json: {ok: false, error: OpenClaw is not running on this box}
+  - name: models needs a provider
+    request: {method: GET, path: "/llm/models?provider=../x", token: {signer: console}}
+    expect:
+      status: 400
+      json: {ok: false, error: provider required}
+  - name: an unknown read is a 404 for the firewall
+    request: {method: GET, path: /llm/nope, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect:
+      status: 404
+      json: {error: Not found}
+  - name: and a 401 for the console, whose route list does not have it
+    request: {method: GET, path: /llm/nope, token: {signer: console}}
+    expect:
+      status: 401
+  - name: a bad credential is refused before anything runs
+    request: {method: POST, path: /llm/apply, json: {model: {}, credentials: [{provider: openai, kind: magic, profileId: x, value: v, model: m}], remove: []}, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect:
+      status: 400
+      json: {ok: false, error: "credentials[].kind must be api_key, token or oauth"}
+  - name: a provider block must be https
+    request: {method: POST, path: /llm/apply, json: {model: {}, credentials: [{provider: controlclaw, kind: api_key, profileId: "controlclaw:included", value: v, model: m, providerBlock: {baseUrl: "http://x.example/v1", api: openai-completions, models: [{id: a}]}}], remove: []}, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect:
+      status: 400
+      json: {ok: false, error: "credentials[].providerBlock.baseUrl must be an https URL"}
+  - name: a body other than the one the token named
+    request: {method: POST, path: /llm/apply, json: {model: {}, credentials: [], remove: []}, token: {signer: firewall, bind: true, body: {model: {primary: x}}, claims: {purpose: llm}}}
+    expect:
+      status: 400
+      json: {ok: false, error: Invalid JSON body}
+  - name: a valid apply with OpenClaw down
+    request: {method: POST, path: /llm/apply, json: {model: {primary: openai/gpt-5.6-sol, fallbacks: []}, credentials: [], remove: []}, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect:
+      status: 503
+      json: {ok: false, error: OpenClaw is not running on this box}
+  - name: an unknown write path is a 404
+    request: {method: POST, path: /llm/nope, json: {}, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect:
+      status: 404
+      json: {error: Not found}

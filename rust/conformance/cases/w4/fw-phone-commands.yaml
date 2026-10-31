@@ -1,0 +1,91 @@
+name: phone commands with no Twilio account
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+  CHANNEL_STORE_PATH: state/channels.enc
+steps:
+  - name: nothing connected
+    command:
+      id: p_read
+      action: phone.read
+      payload: {}
+      result:
+        ok: true
+        status: applied
+        data: {realtimeSupported: true, accountSid: null, accountType: null, status: disconnected, numbers: [], assignment: null, cleanupPending: false}
+  - name: assigning with no account
+    command:
+      id: p_assign
+      action: phone.propose
+      payload: {changeId: a1, kind: assign, numberSid: PNbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, vmId: vm_1, hostname: one.example, name: one}
+      result:
+        ok: false
+        status: failed
+        message: needs_token
+        data: {realtimeSupported: true, accountSid: null, accountType: null, status: disconnected, numbers: [], assignment: null, cleanupPending: false}
+  - name: a kind that is not one
+    command:
+      id: p_bad
+      action: phone.propose
+      payload: {changeId: a2, kind: fax}
+      result: {ok: false, status: failed, message: invalid_input}
+  - name: limits with nothing assigned
+    command:
+      id: p_limits
+      action: phone.propose
+      payload: {changeId: a3, kind: limits, maxDurationSeconds: 600}
+      result: {ok: false, status: failed, message: not_assigned}
+  - name: a connect whose token is not one
+    command:
+      id: p_connect
+      action: phone.propose
+      payload: {changeId: a4, kind: connect, accountSid: ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, authToken: nope}
+      result: {ok: false, status: failed, message: phone_setup_failed}
+  - name: no code is waiting
+    command:
+      id: p_conf
+      action: phone.confirm
+      payload: {changeId: a4, code: "123456"}
+      result: {ok: false, status: expired}
+  - name: the proxy's admission of an outbound call, with nothing assigned
+    request: {method: POST, path: /, listener: !port 8791, json: {action: reserve, vmId: vm_1, placeholder: x}}
+    expect: {status: 403, json: {ok: false}}
+  - name: settling a reservation that is not there
+    request: {method: POST, path: /, listener: !port 8791, json: {action: settle, id: nope}}
+    expect: {status: 200, json: {ok: true}}
+  - name: anything else on the admission port
+    request: {method: GET, path: /, listener: !port 8791}
+    expect: {status: 403}
+  - name: an action that is not one
+    request: {method: POST, path: /, listener: !port 8791, json: {action: book}}
+    expect: {status: 403, json: {ok: false}}
+  - name: cancel with nothing waiting
+    command:
+      id: p_cancel
+      action: phone.cancel
+      payload: {changeId: a9}
+      result: {ok: true, status: "cancelled"}
+  - name: a push with nothing assigned
+    command:
+      id: p_push
+      action: phone.push
+      payload: {}
+      result: {ok: true, status: "applied"}
+  - name: unassign with nothing assigned
+    command:
+      id: p_unassign
+      action: phone.unassign
+      payload: {}
+      result: {ok: true, status: "applied"}
+  - name: forget an agent with nothing assigned
+    command:
+      id: p_forget
+      action: phone.forget
+      payload: {vmId: vm_1}
+      result: {ok: true, status: "applied"}
+  # Disconnect with no account is in w4/fw-phone-disconnect.yaml: it saves the store, whose path the
+  # TS hard-codes to /opt/controlclaw/state, so its answer here depended on who ran the rig.

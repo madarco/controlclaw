@@ -1,0 +1,256 @@
+{
+  "name": "k1 engine: the strongest action wins, log-only passes and is recorded, padding cannot hide a key",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "watch",
+          "name": "watch",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [
+            "budget"
+          ],
+          "detectors": [],
+          "action": "log",
+          "reason": "watch reason"
+        },
+        {
+          "id": "both-log",
+          "name": "both-log",
+          "direction": "both",
+          "channels": [
+            "*"
+          ],
+          "patterns": [
+            "list"
+          ],
+          "detectors": [],
+          "action": "log",
+          "reason": "b reason"
+        },
+        {
+          "id": "list-hold",
+          "name": "list-hold",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [
+            "list"
+          ],
+          "detectors": [],
+          "action": "hold",
+          "reason": "list reason"
+        },
+        {
+          "id": "re",
+          "name": "re",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [
+            "(a+)+$"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "re reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "log only: it goes, and the line says log",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "the budget is fine"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "json_subset": {
+            "text": "the budget is fine"
+          }
+        },
+        "audit": [
+          {
+            "rule": "watch",
+            "action": "log",
+            "direction": "out",
+            "channel": "telegram"
+          }
+        ],
+        "loopback": {
+          "content": {
+            "/stopped": "none",
+            "/notice": "none"
+          }
+        }
+      }
+    },
+    {
+      "name": "a word is never a regex: the pattern only matches itself, and a long run of a's does not hang",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": {
+            "$repeat": "a",
+            "n": 5000
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "max_seconds": 5,
+        "audit": []
+      }
+    },
+    {
+      "name": "the literal pattern is found",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "literally (a+)+$ here"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: re reason"
+        }
+      }
+    },
+    {
+      "name": "hold beats log, and every log hit is recorded (a form body cannot be held: stopped instead)",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "form": {
+          "chat_id": "42",
+          "text": "a list"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: list reason (it could not be held for approval)"
+        },
+        "audit": [
+          {
+            "rule": "both-log",
+            "action": "log"
+          },
+          {
+            "rule": "list-hold",
+            "action": "block",
+            "held": false
+          }
+        ],
+        "loopback": {
+          "content": {
+            "/hold": "none",
+            "/notice": [
+              {
+                "kind": "out",
+                "chatId": "42",
+                "reason": "list reason"
+              }
+            ],
+            "/stopped": [
+              {
+                "rule": {
+                  "id": "list-hold"
+                },
+                "text": "a list"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "too much text is refused, never cut",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "description": {
+            "$repeat": "x",
+            "n": 70000
+          },
+          "text": "sk-proj-KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: it is too long to check"
+        },
+        "audit": [
+          {
+            "rule": "error",
+            "action": "block",
+            "detail": "too long"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a key after a long field is still found",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "description": {
+            "$repeat": "x",
+            "n": 30000
+          },
+          "text": "sk-proj-KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: it looks like it contains a password, key or token"
+        }
+      }
+    }
+  ]
+}

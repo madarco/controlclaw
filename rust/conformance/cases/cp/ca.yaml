@@ -1,0 +1,29 @@
+name: cp /ca (publish and read the CA)
+agent: control-plane
+endpoint: /ca
+scope: both
+seed:
+  vms:
+    - {id: cpca_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+    - {id: cpca_a1, role: openclaw, name: cpca-a1, private_ip: 10.0.0.3}
+steps:
+  - name: no token
+    request: {method: POST, path: /api/vm-agent/ca, json: {ca_cert: x, ca_sig: y}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: an agent may not publish
+    request: {method: POST, path: /api/vm-agent/ca, as: cpca_a1, json: {ca_cert: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n", ca_sig: c2ln}}
+    expect: {status: 403, json: {error: $string}}
+  - name: no signature
+    request: {method: POST, path: /api/vm-agent/ca, as: cpca_fw, json: {ca_cert: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"}}
+    expect: {status: 400, json: {error: $string}}
+  - name: the firewall publishes its CA
+    request: {method: POST, path: /api/vm-agent/ca, as: cpca_fw, json: {ca_cert: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n", ca_sig: c2ln}}
+    expect: {status: 200, json: {ok: true}}
+  - name: an agent reads it with the firewall's key
+    request: {method: GET, path: /api/vm-agent/ca, as: cpca_a1}
+    expect:
+      status: 200
+      json: {caCert: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n", caSig: c2ln, pubKey: $string, privateIp: 10.0.0.2, doctor_ssh_pub: null, doctor_ssh_sig: null}
+  - name: stored on the firewall's row
+    request: {method: POST, path: /__conformance/read, json: {org_id: "${org_id}", what: ca, id: cpca_fw}}
+    expect: {status: 200, json: {ca_cert: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n", ca_sig: c2ln}}

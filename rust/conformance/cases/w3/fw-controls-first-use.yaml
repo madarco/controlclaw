@@ -1,0 +1,19 @@
+name: firewall devices apply without a code when nobody is approved, support access never does (first use)
+agent: mitm-agent
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  SSH_STATE_PATH: state/ssh.json
+fake_agent:
+  /devices/approve: [[200, {ok: true, deviceId: dev_1}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2", private_ip: 10.0.0.5}]}]]
+steps:
+  - name: approving a device applies at once
+    command: {id: d1, action: devices.propose, payload: {changeId: c1, kind: approve, targetId: req_1, targetLabel: "Anna's Mac", agent: {vmId: vm_1, name: atlas, hostname: "127.0.0.2"}}, result: {command_id: d1, ok: true, status: applied, data: {changeId: c1, summary: "Let Anna's Mac control atlas", vmId: vm_1, targetId: req_1, deviceId: dev_1, tofu: true}}}
+    agent_received:
+      - {path: /devices/approve, method: POST, json_subset: {claims: {purpose: devices}, body: {requestId: req_1}}}
+  - name: support access has no first-use shortcut
+    command: {id: s1, action: ssh.propose, payload: {changeId: c2, seconds: 3600}, result: {command_id: s1, ok: false, status: failed}}

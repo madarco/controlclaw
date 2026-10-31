@@ -1,0 +1,20 @@
+name: vm-agent POST /restart runs systemctl through sudo
+agent: vm-agent
+shims:
+  - argv: [sudo, -n, systemctl, restart, openclaw]
+  - argv: [systemctl, is-active, openclaw]
+    stdout: "active\n"
+  - argv: [systemctl, status, openclaw]
+    stdout: "openclaw.service - OpenClaw\n   Active: active (running)\n"
+steps:
+  - request: {method: POST, path: /restart, token: {signer: console}}
+    expect:
+      status: 200
+      json:
+        ok: true
+        action: restart
+        active: true
+        status: active
+        message: "openclaw.service - OpenClaw\n   Active: active (running)"
+      calls_include:
+        - [sudo, -n, systemctl, restart, openclaw]

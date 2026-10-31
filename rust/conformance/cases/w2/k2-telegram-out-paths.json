@@ -1,0 +1,162 @@
+{
+  "name": "k2 telegram out: odd paths are refused, reads and file downloads go",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "odd path /bot123456:CC-TG-placeholder/sendMessage/",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage/",
+        "json": {
+          "chat_id": 1,
+          "text": "hi"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json": {
+          "ok": false,
+          "error_code": 400,
+          "description": "Bad Request: blocked by your organization's rules: this Telegram call could not be checked"
+        },
+        "audit": [
+          {
+            "rule": "error",
+            "action": "block",
+            "detail": "unmatched path"
+          }
+        ]
+      }
+    },
+    {
+      "name": "odd path /bot123456:CC-TG-placeholder/send%4Dessage",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/send%4Dessage",
+        "json": {
+          "chat_id": 1,
+          "text": "hi"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json": {
+          "ok": false,
+          "error_code": 400,
+          "description": "Bad Request: blocked by your organization's rules: this Telegram call could not be checked"
+        },
+        "audit": [
+          {
+            "rule": "error",
+            "action": "block",
+            "detail": "unmatched path"
+          }
+        ]
+      }
+    },
+    {
+      "name": "odd path /bot123456:CC-TG-placeholder//sendMessage",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder//sendMessage",
+        "json": {
+          "chat_id": 1,
+          "text": "hi"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json": {
+          "ok": false,
+          "error_code": 400,
+          "description": "Bad Request: blocked by your organization's rules: this Telegram call could not be checked"
+        },
+        "audit": [
+          {
+            "rule": "error",
+            "action": "block",
+            "detail": "unmatched path"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a file download is a read",
+      "upstream": {
+        "status": 200,
+        "body": "JPEGDATA",
+        "headers": {
+          "Content-Type": "image/jpeg"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "api.telegram.org",
+        "path": "/file/bot123456:CC-TG-placeholder/photos/file_1.jpg"
+      },
+      "expect": {
+        "status": 200,
+        "body": "JPEGDATA",
+        "upstream": {
+          "method": "GET"
+        },
+        "audit": []
+      }
+    },
+    {
+      "name": "getMe is a read",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": {
+            "id": 1
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot1:x/getMe"
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "path": "/bot1:x/getMe"
+        }
+      }
+    },
+    {
+      "name": "a read with a key in it is still a read",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot1:x/getChat",
+        "json": {
+          "chat_id": "sk-proj-KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "audit": []
+      }
+    }
+  ]
+}

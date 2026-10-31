@@ -1,0 +1,81 @@
+name: "Doctor, Firewall Doctor and the Final check installed on a complete build: a change paid with a credential this firewall does not hold is refused, the beat carries the checks' state"
+agent: mitm-agent
+system_bins:
+  cc-doctor-run: "#!/bin/sh\nexit 1\n"
+  cc-doctor-stop: "#!/bin/sh\nexit 0\n"
+  cc-doctor-attach: "#!/bin/sh\nexit 1\n"
+  cc-fw-repair: "#!/bin/sh\nexit 1\n"
+  cc-fwdoctor: "#!/bin/sh\nexit 1\n"
+  cc-tplcheck: "#!/bin/sh\nexit 1\n"
+# The same helpers for the Rust build, which reads their paths from the env lines below (the rig
+# writes system_bins for the TS build only).
+files:
+  bin/cc-doctor-run: "#!/bin/sh\nexit 1\n"
+  bin/cc-doctor-stop: "#!/bin/sh\nexit 0\n"
+  bin/cc-doctor-attach: "#!/bin/sh\nexit 1\n"
+  bin/cc-fw-repair: "#!/bin/sh\nexit 1\n"
+  bin/cc-fwdoctor: "#!/bin/sh\nexit 1\n"
+  bin/cc-tplcheck: "#!/bin/sh\nexit 1\n"
+shims:
+  - {argv: [sudo, -n, /usr/local/bin/cc-doctor-stop], code: 0}
+env:
+  DOCTOR_RUN_HELPER: bin/cc-doctor-run
+  DOCTOR_ATTACH_HELPER: bin/cc-doctor-attach
+  FW_REPAIR_HELPER: bin/cc-fw-repair
+  FW_DOCTOR_CLIENT: bin/cc-fwdoctor
+  TPLCHECK_CLIENT: bin/cc-tplcheck
+  DOCTOR_KEY_PATH: state/doctor.enc
+  DOCTOR_TRANSCRIPTS_DIR: state/doctor-transcripts
+  DOCTOR_RESERVE_PATH: state/doctor-reserve
+  TPLCHECK_STORE_PATH: state/template-checks.enc
+  CHANNEL_STORE_PATH: state/channels.enc
+  LLM_STORE_PATH: state/llm.enc
+  AI_TRACE_DIR: state/ai-review-traces
+  EMAIL_RULES_STORE_PATH: state/email-rules.enc
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  APPS_RULES_PATH: state/apps-rules.enc
+  MCP_SERVERS_STORE_PATH: state/mcp-servers.enc
+  MCP_CATALOG_PATH: state/mcp-catalog.enc
+  MCP_ASKS_PATH: state/mcp-asks.json
+  MCP_SERVER_CALLS_PATH: state/mcp-server-calls.jsonl
+  TEAMCHAT_STORE_PATH: state/teamchat.enc
+  TEAMCHAT_STATS_PATH: state/teamchat-stats.json
+steps:
+  - name: a Final check paid with a credential this firewall does not hold
+    command:
+      id: d1
+      action: tplcheck.propose
+      payload: {changeId: c1, agents: [vm-a], cli: claude, credentialId: c1, model: claude-haiku-4-5}
+      result: {command_id: d1, ok: false, status: failed, message: "That coding agent, credential and model cannot be used together on your firewall. Choose another.", data: {changeId: c1}}
+  - name: a request this firewall does not read
+    command:
+      id: d2
+      action: tplcheck.propose
+      payload: {changeId: c1, agents: [vm-a, vm-a], cli: claude, credentialId: c1, model: claude-haiku-4-5}
+      result: {command_id: d2, ok: false, status: failed, message: "The test request was not one this firewall reads.", data: {changeId: c1}}
+  - name: nothing waits for a code
+    command:
+      id: d3
+      action: tplcheck.confirm
+      payload: {changeId: c1, code: "123456"}
+      result: {command_id: d3, ok: false, status: expired, message: "Nothing is waiting for a code, or the code expired.", data: {changeId: c1}}
+  - name: cancel answers for its change
+    command:
+      id: d4
+      action: tplcheck.cancel
+      payload: {changeId: c1}
+      result: {command_id: d4, ok: true, status: cancelled, data: {changeId: c1}}
+  - name: a Firewall Doctor repair paid with a credential this firewall does not hold
+    command:
+      id: d5
+      action: doctor.propose
+      payload: {sessionId: session-1234, vmId: fw_1, cli: claude, credentialId: c1, model: claude-sonnet-4-5, preset: pages}
+      result: {command_id: d5, ok: false, status: failed, message: "The doctor request could not be completed. Check the selected model, credentials and firewall software."}
+  # The whole list, as the matcher has no "contains": template_check_v1, doctor_firewall_v1 and
+  # doctor_terminal show the helpers in system_bins were found (cc-tplcheck, cc-fw-repair with
+  # cc-fwdoctor, cc-doctor-attach). A word added to the TS build changes this line.
+  - name: the beat carries the checks' state (no sentence, no template name) and the words for the installed helpers
+    beat:
+      json_subset:
+        template_checks: {consent: [], waiting: null, agents: []}
+        features: [included_ai, web_search, meetings_transcript, meetings_autojoin, tailscale, devices, gbrain, drive_folders, google_account, agentmail, email_rules, phone, secrets, logins, mcp_servers, mcp_rules, templates_code, skills_apply, notes_apply, apply_overwrite, template_check_v1, bound_tokens, update_all, auto_update, backups, residential_exit, kill_switch, open_v1, doctor_v1, template_repair, template_capture, doctor_chat, doctor_start, doctor_firewall_v1, ai_review_history, ai_log_review, open_fw_content_rules, doctor_terminal, speech_families, speech_wake, speech_wake_sessions, meeting_followup, meeting_instructions, speech_always, meeting_full_agent, meeting_present, content_rules, meeting_consult_model, phone_voice_edit, controlplane_mcp, open_logs, open_whatsapp, open_phone]

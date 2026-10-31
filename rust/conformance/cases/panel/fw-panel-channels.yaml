@@ -1,0 +1,78 @@
+name: "panel API: Telegram and Slack bots, MCP servers and the OAuth callback, with no code"
+agent: mitm-agent
+skip:
+  ts: "the panel API is in the Rust build only"
+ports:
+  panel: CC_PANEL_PORT
+env:
+  MITM_MODE: standalone
+  SYNC_INTERVAL_MS: "60000"
+  ACTIVITY_POLL_MS: "200"
+  FIREWALL_URL: ""
+  STORE_URL: ""
+  RULES_URL: ""
+  IDENTITIES_URL: ""
+  PERMISSION_URL: ""
+  CA_URL: ""
+  ACTIVITY_URL: ""
+  WEBHOOKS_URL: ""
+  ORG_ID: ""
+  BOX_ID: ""
+  LOCAL_PANEL_BIND: "127.0.0.1:$PORT_PANEL"
+  LOCAL_PANEL_SECURE_COOKIE: "0"
+  # The stores default to /opt/controlclaw/state, not STATE_DIR (backlog).
+  LLM_STORE_PATH: "$ROOT/state/llm.enc"
+  CHANNEL_STORE_PATH: "$ROOT/state/channels.enc"
+  CONTENT_RULES_STORE_PATH: "$ROOT/state/content-rules.enc"
+  CONTENT_STOPPED_PATH: "$ROOT/state/content-stopped"
+  EMAIL_RULES_STORE_PATH: "$ROOT/state/email-rules.enc"
+  AGENTMAIL_STORE_PATH: "$ROOT/state/agentmail.enc"
+  APPS_RULES_PATH: "$ROOT/state/apps-rules.enc"
+  MCP_CATALOG_PATH: "$ROOT/state/mcp-catalog.enc"
+  KILL_STORE_PATH: "$ROOT/state/kill.enc"
+  SEARCH_STORE_PATH: "$ROOT/state/search.enc"
+  EXIT_STORE_PATH: "$ROOT/state/exit.enc"
+  TAILSCALE_STORE_PATH: "$ROOT/state/tailscale.enc"
+  SSH_STATE_PATH: "$ROOT/state/ssh.json"
+  GBRAIN_STORE_PATH: "$ROOT/state/gbrain.enc"
+  MCP_SERVERS_STORE_PATH: "$ROOT/state/mcp-servers.enc"
+  MCP_ASKS_PATH: "$ROOT/state/mcp-asks.json"
+  CONNECTOR_GATE_BIND: "127.0.0.1"
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+steps:
+  - name: signed in; no bots yet
+    panel_login: panel
+    request: {method: GET, path: /api/channels, port: panel, jar: true}
+    expect: {status: 200, json_subset: {channels: []}}
+  - name: Slack needs its app-level token too
+    request: {method: POST, path: /api/channels, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {type: slack, botToken: xoxb-1234-5678-abcdefgh}}
+    expect: {status: 400}
+  - name: a Telegram bot is added at once, with no agent yet
+    request: {method: POST, path: /api/channels, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {type: telegram, botToken: "123456:AAconformancetokenabcd", label: "@ccbot"}}
+    keep: {bot: channels.0.id}
+    expect: {status: 200, json_subset: {result: {ok: true, status: applied}, channels: [{type: telegram, hint: "…abcd", label: "@ccbot", vmId: null}]}}
+  - name: its token is replaced
+    request: {method: PUT, path: /api/channels/$bot/token, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {botToken: "123456:AAconformancetokenwxyz"}}
+    expect: {status: 200, json_subset: {result: {ok: true, status: applied}, channels: [{hint: "…wxyz"}]}}
+  - name: a pairing needs an agent
+    request: {method: POST, path: /api/channels/$bot/pairing, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {code: ABCD1234, senderId: "42"}}
+    expect: {status: 400}
+  - name: and it is removed
+    request: {method: DELETE, path: /api/channels/$bot, port: panel, jar: true, headers: {x-csrf-token: $csrf}}
+    expect: {status: 200, json_subset: {result: {ok: true, status: applied}, channels: []}}
+  - name: an MCP server must be on the internet over https
+    request: {method: POST, path: /api/mcp-servers, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {name: docs, url: "http://10.0.0.5/mcp", auth: none}}
+    expect: {status: 400}
+  - name: an MCP server goes through the module's own checks with no code; one that does not answer is refused
+    request: {method: POST, path: /api/mcp-servers, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {name: docs, url: "https://mcp.example.invalid/mcp", auth: header, headerName: Authorization, headerValue: "Bearer conformance"}}
+    expect: {status: 409, json_subset: {ok: false, status: failed, message: $string}}
+  - name: the MCP servers are listed (none)
+    request: {method: GET, path: /api/mcp-servers, port: panel, jar: true}
+    expect: {status: 200}
+  - name: a sign-in nobody started is refused, with the reason
+    request: {method: POST, path: /api/oauth/callback, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {state: not-a-real-state, code: abc}}
+    expect: {status: 409, json_subset: {ok: false, message: $string}}
+  - name: no connector runtime on this firewall
+    request: {method: GET, path: /api/connectors, port: panel, jar: true}
+    expect: {status: 404}

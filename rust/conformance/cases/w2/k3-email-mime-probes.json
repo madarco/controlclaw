@@ -1,0 +1,282 @@
+{
+  "name": "k3 email: MIME read as Python reads it (host review probes on #528)",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "email"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "a line that only starts with the boundary is text",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IHMNCkNvbnRlbnQtVHlwZTogbXVsdGlwYXJ0L21peGVkOyBib3VuZGFyeT1hDQoNCi0tYQ0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluDQoNCmhlbGxvDQotLWFYDQpDb250ZW50LVR5cGU6IGltYWdlL3BuZw0KDQp0aGUgY3VzdG9tZXIgbGlzdA0KLS1hLS0NCg"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule"
+        }
+      }
+    },
+    {
+      "name": "an RFC 2231 boundary",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IHMNCkNvbnRlbnQtVHlwZTogbXVsdGlwYXJ0L21peGVkOyBib3VuZGFyeSo9Jyd6eg0KDQotLXp6DQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW4NCg0KdGhlIGN1c3RvbWVyIGxpc3QNCi0tenotLQ0K"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule"
+        }
+      }
+    },
+    {
+      "name": "an RFC 2231 boundary in pieces",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IHMNCkNvbnRlbnQtVHlwZTogbXVsdGlwYXJ0L21peGVkOyBib3VuZGFyeSowPSJ6IjsgYm91bmRhcnkqMT0icSINCg0KLS16cQ0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluDQoNCnRoZSBjdXN0b21lciBsaXN0DQotLXpxLS0NCg"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule"
+        }
+      }
+    },
+    {
+      "name": "a part's headers end at a line that is not a header",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IHMNCkNvbnRlbnQtVHlwZTogbXVsdGlwYXJ0L21peGVkOyBib3VuZGFyeT1hDQoNCi0tYQ0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluDQpub3QgYSBoZWFkZXINCkNvbnRlbnQtVHlwZSA6IGltYWdlL3BuZw0KDQp0aGUgY3VzdG9tZXIgbGlzdA0KLS1hLS0NCg"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule"
+        }
+      }
+    },
+    {
+      "name": "a space before the colon is not a header",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IHMNCkNvbnRlbnQtVHlwZSA6IGltYWdlL3BuZw0KDQp0aGUgY3VzdG9tZXIgbGlzdA0K"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule"
+        }
+      }
+    },
+    {
+      "name": "bare CR line breaks",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IHMNQ29udGVudC1UeXBlOiBtdWx0aXBhcnQvbWl4ZWQ7IGJvdW5kYXJ5PWENDS0tYQ1Db250ZW50LVR5cGU6IHRleHQvcGxhaW4NDXRoZSBjdXN0b21lciBsaXN0DS0tYS0tDQ"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule"
+        }
+      }
+    },
+    {
+      "name": "UTF-7",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IHMNCkNvbnRlbnQtVHlwZTogdGV4dC9wbGFpbjsgY2hhcnNldD11dGYtNw0KDQorQUhRQWFBQmxBQ0FBWXdCMUFITUFkQUJ2QUcwQVpRQnlBQ0FBYkFCcEFITUFkQS0NCg"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule"
+        }
+      }
+    },
+    {
+      "name": "whitespace after a boundary",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IHMNCkNvbnRlbnQtVHlwZTogbXVsdGlwYXJ0L21peGVkOyBib3VuZGFyeT1hDQoNCi0tYSAJDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW4NCg0KdGhlIGN1c3RvbWVyIGxpc3QNCi0tYS0tIA0K"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule"
+        }
+      }
+    }
+  ]
+}

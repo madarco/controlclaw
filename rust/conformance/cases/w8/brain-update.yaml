@@ -1,0 +1,18 @@
+name: brain box /update reads for the console or the firewall, and starts only from the firewall
+agent: vm-agent
+service: gbrain
+steps:
+  - name: the console reads the update status
+    request: {method: GET, path: /update, token: {signer: console}}
+    expect:
+      status: 200
+      json: {ok: true, automatic: true, pinned: false, phase: idle, detail: null, ref: null, at: null}
+  - name: but cannot start one
+    request: {method: POST, path: /update, json: {}, token: {signer: console}}
+    expect: {status: 401, json: {error: an update must come from the org firewall}}
+  - name: a mode that is not one
+    request: {method: POST, path: /update, json: {mode: "now"}, token: {signer: firewall, bind: true, claims: {purpose: update}}}
+    expect: {status: 400, json: {error: Invalid update mode or deadline}}
+  - name: no token
+    request: {method: GET, path: /update}
+    expect: {status: 401}

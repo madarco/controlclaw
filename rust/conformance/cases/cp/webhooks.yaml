@@ -1,0 +1,18 @@
+name: cp GET /webhooks
+agent: control-plane
+endpoint: /webhooks
+scope: saas-only
+seed:
+  vms:
+    - {id: cpwh_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+    - {id: cpwh_a1, role: openclaw, name: cpwh-a1, private_ip: 10.0.0.3}
+steps:
+  - name: no token
+    request: {method: GET, path: /api/vm-agent/webhooks}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: an agent is told there is nothing here
+    request: {method: GET, path: /api/vm-agent/webhooks, as: cpwh_a1}
+    expect: {status: 404, json: {error: Not found}}
+  - name: the firewall reads the live ids
+    request: {method: GET, path: /api/vm-agent/webhooks, as: cpwh_fw}
+    expect: {status: 200, json: {hooks: []}}

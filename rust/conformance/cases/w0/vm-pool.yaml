@@ -1,0 +1,13 @@
+name: vm-agent on an unclaimed pool box answers only its health
+agent: vm-agent
+pool: true
+steps:
+  - name: health, not ready yet
+    request: {method: GET, path: /health}
+    expect: {status: 503, json: {unclaimed: true, ready: false}}
+  - name: health with a query is not health
+    request: {method: GET, path: "/health?x=1"}
+    expect: {status: 401, json: {unclaimed: true, ready: false}}
+  - name: even the console's routes
+    request: {method: GET, path: /status, token: {signer: console}}
+    expect: {status: 401, json: {unclaimed: true, ready: false}}

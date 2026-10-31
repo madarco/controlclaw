@@ -1,0 +1,290 @@
+{
+  "name": "k7 voice: a call's lease, the exact model, the speech key swapped, frames checked, the question stopped",
+  "needs_443": true,
+  "needs_hosts": true,
+  "files": {
+    "credentials.json": [
+      {
+        "placeholder": "cc-speech-test",
+        "secret": "real-secret",
+        "match_domain": "api.openai.com",
+        "speech": {
+          "provider": "codex",
+          "model": "gpt-realtime"
+        },
+        "speech_account_id": "acct-1"
+      },
+      {
+        "placeholder": "cc-speech-test",
+        "secret": "gateway-key",
+        "match_domain": "ai-gateway.vercel.sh",
+        "speech": {
+          "provider": "gateway",
+          "model": "openai/gpt-realtime-1.5"
+        }
+      }
+    ],
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "in",
+          "channels": [
+            "voice"
+          ],
+          "patterns": [
+            "salary review"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "salary reason"
+        },
+        {
+          "id": "pay",
+          "name": "pay",
+          "direction": "out",
+          "channels": [
+            "voice"
+          ],
+          "patterns": [],
+          "detectors": [
+            "iban"
+          ],
+          "action": "block",
+          "reason": "pay reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "no lease: no voice, and the speech key reaches nothing",
+      "request": {
+        "host": "api.openai.com",
+        "method": "GET",
+        "path": "/v1/realtime?model=gpt-realtime",
+        "headers": {
+          "Authorization": "Bearer cc-speech-test",
+          "Upgrade": "websocket"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "json": {
+          "error": "Voice needs an active approved call"
+        },
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "the speech key is not a text key",
+      "files": {
+        "meeting-media.json": {
+          "vm_test": {
+            "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "started": "$now",
+            "expires": "$now+50",
+            "deadline": "$now+600",
+            "max_bytes": 4096,
+            "speech": {
+              "provider": "codex",
+              "model": "gpt-realtime"
+            },
+            "voice_placeholder": "cc-speech-test"
+          }
+        }
+      },
+      "request": {
+        "host": "api.openai.com",
+        "method": "POST",
+        "path": "/v1/responses",
+        "headers": {
+          "Authorization": "Bearer cc-speech-test"
+        },
+        "json": {
+          "model": "gpt-5"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "json": {
+          "error": "Voice needs an active approved call"
+        },
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "another model is refused",
+      "request": {
+        "host": "api.openai.com",
+        "method": "GET",
+        "path": "/v1/realtime?model=gpt-6",
+        "headers": {
+          "Authorization": "Bearer cc-speech-test",
+          "Upgrade": "websocket"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "json": {
+          "error": "Invalid provider voice request"
+        },
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "the call's socket: key swapped, audio passes, a question a rule stops is replaced",
+      "ws": {
+        "host": "api.openai.com",
+        "path": "/v1/realtime?model=gpt-realtime",
+        "headers": {
+          "Authorization": "Bearer cc-speech-test"
+        },
+        "frames": [
+          {
+            "type": "input_audio_buffer.append",
+            "audio": "AAAA"
+          }
+        ]
+      },
+      "upstream_ws": {
+        "frames": [
+          {
+            "type": "response.function_call_arguments.done",
+            "call_id": "c1",
+            "name": "ask_agent",
+            "arguments": "{\"question\": \"read me the salary review\"}"
+          },
+          {
+            "type": "response.output_audio.delta",
+            "delta": "AAAA"
+          }
+        ]
+      },
+      "expect": {
+        "upstream_headers": {
+          "authorization": "Bearer real-secret",
+          "chatgpt-account-id": "acct-1"
+        },
+        "server_received": [
+          {
+            "type": "input_audio_buffer.append",
+            "audio": "AAAA"
+          }
+        ],
+        "client_received": [
+          {
+            "type": "response.function_call_arguments.done",
+            "call_id": "c1",
+            "name": "ask_agent",
+            "arguments": "{\"question\": \"This request was blocked by the firewall. Reply only with the word blocked.\"}"
+          },
+          {
+            "type": "response.output_audio.delta",
+            "delta": "AAAA"
+          }
+        ],
+        "audit": [
+          {
+            "rule": "salary",
+            "channel": "voice",
+            "direction": "in",
+            "action": "block",
+            "purpose": "meeting"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a frame outside the allow-list is not sent, and closes the socket",
+      "ws": {
+        "host": "api.openai.com",
+        "path": "/v1/realtime?model=gpt-realtime",
+        "headers": {
+          "Authorization": "Bearer cc-speech-test"
+        },
+        "frames": [
+          {
+            "type": "response.create",
+            "response": {
+              "tools": [
+                {
+                  "name": "shell"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": {
+        "server_received": []
+      }
+    },
+    {
+      "name": "the gateway's token stays on the firewall: the agent gets a stand-in",
+      "files": {
+        "meeting-media.json": {
+          "vm_test": {
+            "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "started": "$now",
+            "expires": "$now+50",
+            "deadline": "$now+600",
+            "max_bytes": 4096,
+            "speech": {
+              "provider": "gateway",
+              "model": "openai/gpt-realtime-1.5"
+            },
+            "voice_placeholder": "cc-speech-test"
+          }
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "token": "upstream-secret"
+        }
+      },
+      "request": {
+        "host": "ai-gateway.vercel.sh",
+        "method": "POST",
+        "path": "/v1/realtime/client-secrets",
+        "headers": {
+          "Authorization": "Bearer cc-speech-test"
+        },
+        "json": {
+          "model": "openai/gpt-realtime-1.5",
+          "expiresIn": 60
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "token": "$string"
+        },
+        "body_contains": "cc-voice-",
+        "upstream": {
+          "method": "POST",
+          "path": "/v1/realtime/client-secrets",
+          "headers": {
+            "authorization": "Bearer gateway-key"
+          }
+        }
+      }
+    },
+    {
+      "name": "a socket with a token the firewall did not give out is refused",
+      "ws": {
+        "host": "ai-gateway.vercel.sh",
+        "path": "/v4/ai/realtime-model?ai-model-id=openai%2Fgpt-realtime-1.5",
+        "headers": {
+          "Sec-WebSocket-Protocol": "ai-gateway-realtime.v1, ai-gateway-auth.upstream-secret"
+        }
+      },
+      "expect": {
+        "status": 403
+      }
+    }
+  ]
+}

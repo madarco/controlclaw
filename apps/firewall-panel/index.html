@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ControlClaw firewall</title>
+    <!-- What shows while panel.js loads: plain CSS (the page's CSP allows inline styles, no inline
+         script), in the theme's colours. React replaces #root's content when it starts. -->
+    <style>
+      body { margin: 0; }
+      .boot { min-height: 100dvh; display: grid; place-items: center; background: #f3f2ed; font: 500 13.5px system-ui, sans-serif; color: #3b4252; }
+      .boot-row { display: flex; align-items: center; gap: 10px; }
+      .boot-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; opacity: 0.6; animation: boot-spin 0.8s linear infinite; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @media (prefers-color-scheme: dark) {
+        .boot { background: oklch(0.22 0.025 265); color: oklch(0.82 0.02 265); }
+      }
+      @media (prefers-reduced-motion: reduce) { .boot-spin { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="boot" role="status" aria-live="polite">
+        <div class="boot-row"><span class="boot-spin" aria-hidden="true"></span>Loading the firewall panel…</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

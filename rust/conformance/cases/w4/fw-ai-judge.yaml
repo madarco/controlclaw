@@ -1,0 +1,46 @@
+name: the AI judge on its loopback port and ai.scan, with the AI off
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  AI_JUDGE_PORT: "13101"
+  LLM_STORE_PATH: state/llm.enc
+  AI_TRACE_DIR: state/ai-review-traces
+  STORE_URL: "file:state/no-record.json"
+steps:
+  - name: no AI settings, a well-formed request
+    request:
+      method: POST
+      path: /judge
+      listener: !port 13101
+      json: {mode: review, rule: allow-all, vm_id: vm_1, method: POST, host: paste.example, path: /api/post/1}
+    expect: {status: 200, json: {decision: fallback}}
+  - name: not JSON
+    request: {method: POST, path: /judge, listener: !port 13101, json: "nope"}
+    expect: {status: 400, json: {decision: fallback}}
+  - name: a request with no host
+    request: {method: POST, path: /judge, listener: !port 13101, json: {method: GET}}
+    expect: {status: 400, json: {decision: fallback}}
+  - name: GET is not served
+    request: {method: GET, path: /judge, listener: !port 13101}
+    expect: {status: 404, json: {error: Not found}}
+  - name: another path
+    request: {method: POST, path: /judge/x, listener: !port 13101, json: {}}
+    expect: {status: 404, json: {error: Not found}}
+  - name: a content check that is not one
+    request: {method: POST, path: /content, listener: !port 13101, json: {text: x}}
+    expect: {status: 400, json: {failed: true, why: bad request}}
+  - name: a content check with the AI off
+    request:
+      method: POST
+      path: /content
+      listener: !port 13101
+      json: {direction: out, channel: telegram, text: hello, rules: [{id: r1, policy: No secrets.}]}
+    expect: {status: 200, json: {failed: true, why: "off"}}
+  - name: ai.scan with the review off
+    command:
+      id: c_scan_off
+      action: ai.scan
+      result: {command_id: c_scan_off, ok: false, status: "off", message: "AI Log Review is off or its key is not on the firewall yet."}

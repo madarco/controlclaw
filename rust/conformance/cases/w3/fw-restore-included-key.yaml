@@ -1,0 +1,54 @@
+name: a firewall restore is not held back by the plan's included key on an agent
+agent: mitm-agent
+# The console issues the included key again after a restore: only the owner's own credentials count.
+skip: {ts: "intentional difference: the TS build counts every agent of the model store, the included key too; the Rust build counts only the owner's own credentials (host decision, 2026-10-29; the TS is not changed any more)"}
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+  CHANNEL_STORE_PATH: state/channels.enc
+  LLM_STORE_PATH: state/llm.enc
+  CONNECTOR_STORE_PATH: state/connectors.enc
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  BACKUP_STORE_PATH: state/backup.enc
+  RECOVERY_STAGING_DIR: state/recovery
+steps:
+  - name: the org's recovery key
+    command:
+      id: r1
+      action: backup.recovery.rebind
+      payload: {publicKey: "E75P6uryBMf9M1j8nAByGIHRdCeBKCJ+xnTzf3/pe20=", signingPublicKey: "zTYmVgDEldv5RDSH7wCFeUVqh12d3w7mdGKXTFsd1CA="}
+      result: {command_id: r1, ok: true, status: applied}
+  - name: nothing set up yet, so a restore may run
+    request: {method: POST, path: /recovery/hello, listener: tls, recovery: {secret: "/WS9zNOqMYoUl1ZNWy+FBGpixVJhfzx0+QapjLrbT2fNNiZWAMSV2/lENIfvAIV5RWqHXZ3fDuZ0YpdMWx3UIA==", head: {}}}
+    expect:
+      status: 200
+      json_subset: {ok: true, canRestore: true, reason: null}
+  - name: a model for an agent (first use, no code)
+    command:
+      id: c_add
+      action: llm.propose
+      payload:
+        changeId: chg-1
+        kind: add
+        credentialId: cred-inc
+        provider: controlclaw
+        providerName: Included AI tokens
+        credKind: api_key
+        placeholder: vck-cc-included123
+        hint: Included
+        profileId: controlclaw:included
+        swap: {matchDomain: ai-gateway.vercel.sh, locations: ["header:authorization"]}
+        allowedModels: [moonshotai/kimi-k2.6]
+        agents: [{vmId: vm_9, name: nine, hostname: nine.vm.example, model: controlclaw/moonshotai/kimi-k2.6, role: primary}]
+        secret: {apiKey: vck_real_key}
+      result: {command_id: c_add, ok: true, status: applied}
+  - name: an agent on the included key alone does not hold a restore back
+    request: {method: POST, path: /recovery/hello, listener: tls, recovery: {secret: "/WS9zNOqMYoUl1ZNWy+FBGpixVJhfzx0+QapjLrbT2fNNiZWAMSV2/lENIfvAIV5RWqHXZ3fDuZ0YpdMWx3UIA==", head: {}}}
+    expect:
+      status: 200
+      json_subset: {ok: true, canRestore: true, reason: null}

@@ -1,0 +1,44 @@
+name: llm commands that change nothing (malformed, no code waiting, cancel, an unknown agent)
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  LLM_STORE_PATH: state/llm.enc
+  # A store record the TS sync can read (none): the fake console answers `{}`.
+  STORE_URL: "file:state/no-record.json"
+steps:
+  - name: nothing held yet
+    beat:
+      json_subset: {included_ai: null}
+  - name: a malformed proposal
+    command:
+      id: c_bad
+      action: llm.propose
+      payload: {changeId: x, kind: nope, credentialId: c, provider: p}
+      result: {command_id: c_bad, ok: false, status: failed, message: "malformed llm.propose payload"}
+  - name: a malformed confirm
+    command:
+      id: c_bad2
+      action: llm.confirm
+      payload: {code: "123456"}
+      result: {ok: false, status: failed, message: "malformed llm.confirm payload"}
+  - name: no code is waiting
+    command:
+      id: c_conf
+      action: llm.confirm
+      payload: {changeId: chg-0, code: "123456"}
+      result: {ok: false, status: expired, message: "No change is waiting for a code, or the code expired.", data: {changeId: chg-0}}
+  - name: cancel says cancelled whatever is waiting
+    command:
+      id: c_cancel
+      action: llm.cancel
+      payload: {changeId: chg-0}
+      result: {ok: true, status: cancelled, message: "", data: {changeId: chg-0}}
+  - name: a push for an agent this firewall holds nothing for
+    command:
+      id: c_push0
+      action: llm.push
+      payload: {vmId: vm_unknown}
+      result: {ok: true, status: applied, data: {vmId: vm_unknown, applied: [], failed: []}}

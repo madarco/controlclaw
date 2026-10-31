@@ -1,0 +1,165 @@
+{
+  "name": "k1 engine: a word rule blocks an outgoing Telegram message, recorded without its text",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "a text without the words goes out",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": {
+            "message_id": 1
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "hello"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": {
+            "message_id": 1
+          }
+        },
+        "upstream": {
+          "json": {
+            "chat_id": 42,
+            "text": "hello"
+          }
+        },
+        "audit": []
+      }
+    },
+    {
+      "name": "the words, on word edges and in another case, are blocked",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "Here is the Customer List."
+        }
+      },
+      "expect": {
+        "status": 400,
+        "json": {
+          "ok": false,
+          "error_code": 400,
+          "description": "Bad Request: blocked by your organization's rules: cust reason"
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "upstream": "none",
+        "loopback": {
+          "content": {
+            "/notice": [
+              {
+                "kind": "out",
+                "botId": "123456",
+                "chatId": "42",
+                "vmId": "vm_test",
+                "reason": "cust reason"
+              }
+            ],
+            "/stopped": [
+              {
+                "vmId": "vm_test",
+                "rule": {
+                  "id": "cust",
+                  "name": "cust",
+                  "reason": "cust reason"
+                },
+                "channel": "telegram",
+                "direction": "out",
+                "text": "Here is the Customer List.",
+                "id": "$string"
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "cust",
+            "channel": "telegram",
+            "direction": "out",
+            "action": "block",
+            "vm_id": "vm_test",
+            "id": "$string",
+            "flow_id": "$string",
+            "ts": "$number"
+          }
+        ],
+        "audit_lacks": [
+          "ustomer"
+        ],
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "content: cust",
+            "status": 400,
+            "host": "api.telegram.org",
+            "vm_id": "vm_test"
+          }
+        ]
+      }
+    },
+    {
+      "name": "customer listing is not the phrase",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "the customer listing"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "json_subset": {
+            "text": "the customer listing"
+          }
+        },
+        "audit": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+[
+  {
+    "vm_id": "vm_abc",
+    "private_ip": "10.0.0.3",
+    "name": "Ada",
+    "hostname": "ada.ccl.bot",
+    "access_hostname": "ada-x.ccl.bot",
+    "status": "running",
+    "role": "openclaw",
+    "tailscale": true
+  },
+  {
+    "vm_id": "vm_def",
+    "private_ip": "10.0.0.4",
+    "name": "Bo",
+    "hostname": null,
+    "status": "running",
+    "role": "openclaw",
+    "locked": true,
+    "code_until": 1767225600.5
+  },
+  {
+    "vm_id": "vm_ghi",
+    "private_ip": "10.0.0.5",
+    "update_until": 1767225600
+  }
+]

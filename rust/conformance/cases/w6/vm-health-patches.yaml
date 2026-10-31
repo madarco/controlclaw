@@ -1,0 +1,29 @@
+name: vm-agent GET /health/patches, the console's token only
+agent: vm-agent
+steps:
+  - request: {method: GET, path: /health/patches}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - request: {method: GET, path: /health/patches, token: {signer: firewall, bind: true, claims: {purpose: health}}}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - name: nothing of ControlClaw's installed on this machine
+    request: {method: GET, path: /health/patches, token: {signer: console}}
+    expect:
+      status: 200
+      json:
+        openclaw: $any
+        items:
+          - {id: meetings_runtime, status: unknown, expected: null, actual: $any}
+          - {id: meetings_plugin, status: missing, expected: null, actual: null}
+          - {id: phone_plugin, status: not_installed, expected: "2026.9.7"}
+          - {id: phone_runtime, status: missing, actual: $any}
+          - {id: voice_adapter, status: missing}
+          - {id: wake, status: $string}
+          - {id: meeting_guard, status: missing}
+          - {id: browser_stealth, status: missing}
+          - {id: email_cli, status: not_installed}
+          - {id: model_provider, status: unknown}
+          - {id: openclaw_patch, status: unknown}

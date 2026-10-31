@@ -1,0 +1,13 @@
+name: firewall webhook register on an org with nobody approved applies without a code (first use)
+agent: mitm-agent
+env:
+  WEBHOOK_STORE_PATH: state/webhooks.enc
+  ACCESS_STORE_PATH: state/access.enc
+console:
+  /api/vm-agent/store: [[404, {}]]
+steps:
+  - command:
+      id: cmd_f1
+      action: webhook.propose
+      payload: {changeId: chg_1, kind: register, hookId: hk_ffffffffffffffffffffffffffffffff, name: New hook, target: {vmId: vm_1, hostname: h.example, port: 8788, path: /in}, verify: [{kind: hmac, header: x-sig, secret: s}]}
+      result: {command_id: cmd_f1, ok: true, status: applied, message: "Let \"New hook\" deliver to port 8788 on h.example. Nobody is approved on a channel yet, so this applied without a code."}

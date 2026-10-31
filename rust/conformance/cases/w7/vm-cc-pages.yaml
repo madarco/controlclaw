@@ -1,0 +1,80 @@
+name: vm-agent /__cc pages before sign-in, the shell script and the 404s
+agent: vm-agent
+files:
+  keys/config_api_url: "https://console.example/api/vm-agent/config\n"
+steps:
+  - name: the login page
+    request: {method: GET, path: /__cc/login}
+    expect:
+      status: 200
+      headers: {content-type: text/html; charset=utf-8, cache-control: no-store, x-frame-options: DENY}
+      body_file: golden/login.html
+  - name: the Open page
+    request: {method: GET, path: /__cc/open}
+    expect: {status: 200, body_file: golden/open.html}
+  - name: the enroll page before the firewall is known
+    request: {method: GET, path: /__cc/enroll}
+    expect: {status: 200, body_file: golden/enroll-none.html}
+  - name: the live browser's page
+    request: {method: GET, path: /__cc/browser}
+    expect: {status: 200, body_file: golden/browser.html}
+  - name: verify with no session is the private page
+    request: {method: GET, path: /__cc/verify}
+    expect:
+      status: 401
+      headers: {content-type: text/html; charset=utf-8, x-frame-options: DENY}
+      body_file: golden/denied.html
+  - name: verify-view with no session
+    request: {method: GET, path: /__cc/verify-view}
+    expect: {status: 401, body_file: golden/denied-view.html}
+  - name: the files page with no session
+    request: {method: GET, path: /__cc/files}
+    expect:
+      status: 401
+      headers:
+        x-frame-options: DENY
+        content-security-policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+      body_file: golden/denied-files.html
+  - name: the WhatsApp page with no session
+    request: {method: GET, path: /__cc/whatsapp}
+    expect:
+      status: 401
+      headers: {referrer-policy: no-referrer, cache-control: no-store}
+      body_file: golden/denied-whatsapp.html
+  - name: the WhatsApp code with no session
+    request: {method: GET, path: /__cc/whatsapp/qr}
+    expect:
+      status: 401
+      json: {error: Only an owner or admin who opened this agent can see the WhatsApp code.}
+  - name: the theme script
+    request: {method: GET, path: /__cc/shell.js}
+    expect:
+      status: 200
+      headers: {content-type: text/javascript; charset=utf-8, cache-control: no-cache, x-content-type-options: nosniff}
+      body: '(function(){var m=window.matchMedia("(prefers-color-scheme: dark)");var a=function(){document.documentElement.classList.toggle("dark",m.matches)};a();m.addEventListener("change",a)})();'
+  - name: a bundle file that is not there
+    request: {method: GET, path: /__cc/files-ui/nothing-here.js}
+    expect: {status: 404, headers: {content-type: text/plain}, body: Not found}
+  - name: a bundle name that could leave the folder
+    request: {method: GET, path: /__cc/files-ui/..%2Fx.js}
+    expect: {status: 404, body: Not found}
+  - name: Doctor's paths go to the console
+    request: {method: GET, path: /__cc/doctor/start/x}
+    expect:
+      status: 303
+      headers: {location: "https://console.example/dashboard/doctor/firewall?vm=vm_1", cache-control: no-store}
+  - name: HEAD too
+    request: {method: HEAD, path: /__cc/doctor}
+    expect: {status: 303}
+  - name: a POST to a page is a 404
+    request: {method: POST, path: /__cc/login}
+    expect: {status: 404, headers: {cache-control: no-store}, json: {error: Not found}}
+  - name: an unknown /__cc path
+    request: {method: GET, path: /__cc/nothing}
+    expect: {status: 404, json: {error: Not found}}
+  - name: Open begin before the firewall is known
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect:
+      status: 409
+      json: {error: This agent cannot check your browser with its firewall yet. Open it again from your ControlClaw console.}
+      set_cookies: []

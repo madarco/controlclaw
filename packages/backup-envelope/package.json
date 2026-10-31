@@ -1,0 +1,27 @@
+{
+  "name": "@controlclaw/backup-envelope",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "tsx src/envelope.test.ts && tsx src/manifest.test.ts && tsx src/retention.test.ts && tsx src/recovery-identity.test.ts && tsx src/luks-recovery.test.ts && tsx src/recovery-confirm.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "libsodium-wrappers": "^0.8.4"
+  },
+  "engines": {
+    "node": ">=24.16.0"
+  }
+}

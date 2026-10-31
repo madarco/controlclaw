@@ -1,0 +1,73 @@
+name: firewall backups, the recovery key and the signed recovery routes
+agent: mitm-agent
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  BACKUP_STORE_PATH: state/backup.enc
+  RECOVERY_STAGING_DIR: state/recovery
+fake_agent:
+  /backup/run: [[200, {header: h1, manifestHash: m1, plainBytes: 10, cipherBytes: 27, entries: 2, excludedBytes: 0, takenAt: "2026-10-01T00:00:00.000Z"}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2"}]}]]
+steps:
+  - name: the backup key is made at start, with no recovery key yet
+    beat:
+      json_subset: {backup: {publicKey: $string, fingerprint: $string, recovery: null, recoveryRoutes: {enabled: true, port: $number, certFingerprint: $string}}}
+  - name: an unsigned recovery request is refused before its body is read
+    request: {method: POST, path: /recovery/hello, listener: tls}
+    expect: {status: 401, json: {error: This request is not signed.}}
+  - name: with no recovery key, a signed request is refused as a wrong one is
+    request: {method: POST, path: /recovery/hello, listener: tls, recovery: {secret: "/WS9zNOqMYoUl1ZNWy+FBGpixVJhfzx0+QapjLrbT2fNNiZWAMSV2/lENIfvAIV5RWqHXZ3fDuZ0YpdMWx3UIA==", head: {}}}
+    expect: {status: 401, json: {error: This firewall has not been given a recovery key to check signatures against.}}
+  - name: the recovery routes are HTTPS only
+    request: {method: POST, path: /recovery/hello}
+    expect: {status: 426}
+  - name: a staged archive nobody handed out
+    request: {method: GET, path: /recovery/staged/nope}
+    expect: {status: 404, json: {error: Not found}}
+  - command: {id: r1, action: backup.recovery.rebind, payload: {publicKey: short}, result: {command_id: r1, ok: false, status: failed, message: "That is not a recovery key this firewall can use.", data: {}}}
+  - name: a rebuilt firewall takes the org's recovery key back without a code
+    command:
+      id: r2
+      action: backup.recovery.rebind
+      payload: {publicKey: "E75P6uryBMf9M1j8nAByGIHRdCeBKCJ+xnTzf3/pe20=", signingPublicKey: "zTYmVgDEldv5RDSH7wCFeUVqh12d3w7mdGKXTFsd1CA=", fingerprint: ignored}
+      result: {command_id: r2, ok: true, status: applied, data: {fingerprint: c8a7-416a-a007-9da4, control: 91b2-fcd4-f02f-29c4, firewallFingerprint: $string, firewallPublicKey: $string}}
+  - name: and only once
+    command: {id: r3, action: backup.recovery.rebind, payload: {publicKey: "E75P6uryBMf9M1j8nAByGIHRdCeBKCJ+xnTzf3/pe20=", signingPublicKey: "zTYmVgDEldv5RDSH7wCFeUVqh12d3w7mdGKXTFsd1CA="}, result: {command_id: r3, ok: false, status: already_set, message: "This firewall already holds a recovery key (c8a7-416a-a007-9da4), so it will not take another without a confirmation.", data: {fingerprint: c8a7-416a-a007-9da4}}}
+  - beat:
+      json_subset: {backup: {recovery: {fingerprint: c8a7-416a-a007-9da4, tofu: true, setAt: $string, control: 91b2-fcd4-f02f-29c4}}}
+  - name: the recovery CLI's first call, signed with the recovery key
+    request: {method: POST, path: /recovery/hello, listener: tls, recovery: {secret: "/WS9zNOqMYoUl1ZNWy+FBGpixVJhfzx0+QapjLrbT2fNNiZWAMSV2/lENIfvAIV5RWqHXZ3fDuZ0YpdMWx3UIA==", head: {}}}
+    expect:
+      status: 200
+      json: {ok: true, orgId: org_1, boxId: fw_1, backupPublicKey: $string, backupFingerprint: $string, recoveryFingerprint: c8a7-416a-a007-9da4, recoveryKeyFingerprint: 91b2-fcd4-f02f-29c4, certFingerprint: $string, canRestore: $any, reason: $any, agents: [{name: atlas, vmId: vm_1}]}
+  - name: a request dated outside the window
+    request: {method: POST, path: /recovery/hello, listener: tls, recovery: {secret: "/WS9zNOqMYoUl1ZNWy+FBGpixVJhfzx0+QapjLrbT2fNNiZWAMSV2/lENIfvAIV5RWqHXZ3fDuZ0YpdMWx3UIA==", head: {}, timestamp_offset_ms: -600000}}
+    expect: {status: 401}
+  - command: {id: b0, action: backup.run, payload: {backupId: b0, agent: {vmId: vm_1, hostname: "127.0.0.2"}, kinds: [other]}, result: {command_id: b0, ok: false, status: failed, message: "malformed backup.run payload: no archives asked for"}}
+  - command: {id: b1, action: backup.run, payload: {backupId: b1, agent: {vmId: vm_1, hostname: "127.0.0.2"}, kinds: [workspace], uploads: {workspace: "http://store.example/up"}}, result: {command_id: b1, ok: false, status: failed, message: "No upload address for the workspace archive.", data: {backupId: b1}}}
+  - name: a backup answers at once with the wraps, and reports the archives later
+    command:
+      id: b2
+      action: backup.run
+      payload: {backupId: b2, agent: {vmId: vm_1, name: atlas, hostname: "127.0.0.2"}, kinds: [workspace], uploads: {workspace: "https://store.example/up"}}
+      result: {command_id: b2, ok: true, status: running, data: {backupId: b2, wraps: [{recipient: firewall, fingerprint: $string, wrapped: $string}, {recipient: recovery, fingerprint: c8a7-416a-a007-9da4, wrapped: $string}], recovery: true}}
+    agent_received:
+      - {path: /backup/run, method: POST, json_subset: {claims: {purpose: backup}, body: {orgId: org_1, vmId: vm_1, backupId: b2, kind: workspace, dataKey: $string, uploadUrl: "https://store.example/up"}}}
+    received:
+      - path: /api/vm-agent/firewall
+        json_subset: {results: [{command_id: "backup.done:b2", ok: true, status: done, data: {backupId: b2, archives: [{kind: workspace, header: h1, manifestHash: m1, plainBytes: 10, cipherBytes: 27, entries: 2, excludedBytes: 0, takenAt: "2026-10-01T00:00:00.000Z"}], wraps: [$any, $any], recovery: true}}]}
+  - command: {id: f1, action: backup.firewall-run, payload: {backupId: f1}, result: {command_id: f1, ok: false, status: failed, message: "malformed backup.firewall-run payload"}}
+  - command: {id: c1, action: backup.restore.confirm, payload: {changeId: x, vmId: vm_1, code: "1"}, result: {command_id: c1, ok: false, status: expired, message: "No restore is waiting for a code, or the code expired.", data: {changeId: x}}}
+  - command: {id: c2, action: backup.recovery.confirm, payload: {changeId: x, code: "1"}, result: {command_id: c2, ok: false, status: expired, message: "No recovery key is waiting for a code, or the code expired.", data: {changeId: x}}}
+  - command: {id: c3, action: backup.firewall-restore.confirm, payload: {changeId: x, code: "1"}, result: {command_id: c3, ok: false, status: expired, message: "No firewall restore is waiting for a code, or the code expired.", data: {changeId: x}}}
+  - command: {id: c4, action: backup.restore.cancel, payload: {changeId: x, vmId: vm_1}, result: {command_id: c4, ok: true, status: cancelled, data: {changeId: x}}}
+  - command: {id: c5, action: backup.recovery.cancel, payload: {changeId: x}, result: {command_id: c5, ok: true, status: cancelled, data: {changeId: x}}}
+  - command: {id: c6, action: backup.firewall-restore.cancel, payload: {changeId: x}, result: {command_id: c6, ok: true, status: cancelled, data: {changeId: x}}}
+  - command: {id: p1, action: backup.recovery.propose, payload: {changeId: p1, publicKey: nope}, result: {command_id: p1, ok: false, status: failed, message: "That is not a recovery key this firewall can use.", data: {changeId: p1}}}
+  - name: the key and the recovery key survive a restart
+    restart: true
+    beat:
+      json_subset: {backup: {recovery: {fingerprint: c8a7-416a-a007-9da4, tofu: true, control: 91b2-fcd4-f02f-29c4}}}

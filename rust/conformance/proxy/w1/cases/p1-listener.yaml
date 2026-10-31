@@ -1,0 +1,89 @@
+# P1: the listener, CONNECT, the protocol peek, source IP -> identity, dev flags.
+# Ported from test_tcp_drop.py (test_plain, test_intercepted_tls) and addon.py 255-260.
+name: raw TCP after CONNECT is dropped and recorded, the origin never dialled
+files:
+  rules.json: []
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:7000", send_hex: "000100002112a442746573742d7472616e736964"}
+    expect: {closed: true}
+  - seen: {server: echo, connections: 0, received: ""}
+  - log:
+      records:
+        - {flow_id: $string, ts: $number, tenant: rig-org, vm_id: test-agent, host: "203.0.113.10", port: 7000,
+           effect: drop, rule_id: null}
+---
+name: raw TCP from a source not in the identity map is dropped with vm_id null
+files:
+  rules.json: []
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {agent: unknown, connect: "203.0.113.10:7000", send: "hello"}
+    expect: {closed: true}
+  - seen: {server: echo, connections: 0}
+  - log:
+      records: [{effect: drop, vm_id: null, port: 7000}]
+---
+name: TLS-wrapped non-HTTP inside an intercepted tunnel is dropped
+files:
+  rules.json: []
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:7443", tls: mitm, sni: origin.test,
+          send_hex: "000100002112a442746573742d7472616e736964"}
+    expect: {closed: true}
+  - seen: {server: echo, received: ""}
+  - log:
+      where: {effect: drop}
+      records: [{vm_id: test-agent}]
+---
+name: CONNECT is answered 200 before anything is dialled
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - connect: {target: "203.0.113.10:7000"}
+    expect: {status: 200}
+  - sleep: 0.3
+  - seen: {server: echo, connections: 0}
+  - log: {count: 0}
+---
+name: a dev flag outside a smoke test stops the proxy starting
+env: {MITM_DEV_LOG_SECRETS: "1", MITM_ALLOW_DEV_FLAGS: ""}
+start: {refused: true, output_contains: "refusing to start with dev flags set outside a smoke test"}
+steps: []
+---
+name: dev flags are allowed with MITM_ALLOW_DEV_FLAGS=1
+env: {MITM_DEV_INSECURE_UPSTREAM: "1", MITM_ALLOW_DEV_FLAGS: "1"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:7000", send: "x"}
+    expect: {closed: true}
+---
+name: absolute-form plain HTTP is forwarded and recorded
+files:
+  rules.json: []
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {via: absolute, url: "http://origin.test/hello?q=secret"}
+    expect: {status: 200, json: {method: GET, path: "/hello?q=secret", tls: false}}
+  - log:
+      last: {effect: allow, host: origin.test, method: GET, path: /hello, status: 200, vm_id: test-agent}
+---
+name: plain HTTP inside a CONNECT tunnel is intercepted
+files:
+  rules.json: []
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "http://origin.test/plain"}
+    expect: {status: 200, json: {path: /plain, tls: false}}
+  - log:
+      last: {effect: allow, host: origin.test, path: /plain, status: 200}
+---
+name: a CONNECT name that is not the SNI is never dialled
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, cp_inspect: true}]
+steps:
+  - http: {url: "https://cp.test/x", connect: "other.test:443", trust: origin}
+    expect: {error: true}
+  - seen: {server: origin, connections: 0}

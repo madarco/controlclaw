@@ -1,0 +1,38 @@
+name: vm-agent /__cc/files-ui serves the page bundle by name
+agent: vm-agent
+env: {FILES_UI_DIR: $ROOT/ui}
+files:
+  ui/app.js: "console.log('explorer')"
+  ui/chunk-ABC123.js: "export const x = 1"
+  ui/tw.css: "body{}"
+  ui/asset-x.woff2: "font"
+  ui/secret.txt: "no"
+  ui-secret.js: "outside"
+steps:
+  - name: an entry file is revalidated
+    request: {method: GET, path: /__cc/files-ui/app.js}
+    expect:
+      status: 200
+      headers: {content-type: text/javascript; charset=utf-8, cache-control: no-cache, x-content-type-options: nosniff}
+      body: "console.log('explorer')"
+  - name: a hashed chunk is kept for good
+    request: {method: GET, path: /__cc/files-ui/chunk-ABC123.js}
+    expect: {status: 200, headers: {cache-control: "public, max-age=31536000, immutable"}}
+  - name: the stylesheet
+    request: {method: GET, path: /__cc/files-ui/tw.css}
+    expect: {status: 200, headers: {content-type: text/css; charset=utf-8, cache-control: no-cache}, body: "body{}"}
+  - name: a font
+    request: {method: GET, path: /__cc/files-ui/asset-x.woff2}
+    expect: {status: 200, headers: {content-type: font/woff2, cache-control: "public, max-age=31536000, immutable"}}
+  - name: a file of another kind
+    request: {method: GET, path: /__cc/files-ui/secret.txt}
+    expect: {status: 404, body: Not found}
+  - name: a way out of the folder
+    request: {method: GET, path: /__cc/files-ui/..%2Fui-secret.js}
+    expect: {status: 404, body: Not found}
+  - name: a dot-dot the URL resolves
+    request: {method: GET, path: /__cc/files-ui/../files-ui/app.js}
+    expect: {status: 200}
+  - name: not a POST
+    request: {method: POST, path: /__cc/files-ui/app.js}
+    expect: {status: 404, json: {error: Not found}}

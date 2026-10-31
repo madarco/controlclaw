@@ -1,0 +1,306 @@
+{
+  "name": "k4 web: request bodies to other sites checked; model hosts, files and other channels left alone",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        },
+        {
+          "id": "pay",
+          "name": "pay",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [],
+          "detectors": [
+            "iban"
+          ],
+          "action": "hold",
+          "reason": "pay reason"
+        },
+        {
+          "id": "watch",
+          "name": "watch",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [
+            "budget"
+          ],
+          "detectors": [],
+          "action": "log",
+          "reason": "watch reason"
+        },
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "in",
+          "channels": [
+            "slack",
+            "email"
+          ],
+          "patterns": [
+            "salary"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "salary reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "JSON, nested",
+      "request": {
+        "method": "POST",
+        "host": "forms.example.com",
+        "path": "/submit",
+        "json": {
+          "name": "x",
+          "notes": {
+            "a": [
+              "the customer list"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json": {
+          "error": "blocked_by_content_rule",
+          "host": "forms.example.com",
+          "message": "Blocked by your organization's rules: cust reason"
+        },
+        "audit": [
+          {
+            "rule": "cust",
+            "channel": "web",
+            "action": "block"
+          }
+        ],
+        "traffic": [
+          {
+            "rule": "content: cust",
+            "status": 403
+          }
+        ]
+      }
+    },
+    {
+      "name": "a form",
+      "request": {
+        "method": "POST",
+        "host": "forms.example.com",
+        "path": "/submit",
+        "body": "q=the+customer+list",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a hold stops a web request",
+      "request": {
+        "method": "POST",
+        "host": "forms.example.com",
+        "path": "/submit",
+        "body": "IBAN GB82 WEST 1234 5698 7654 32",
+        "headers": {
+          "Content-Type": "text/plain"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json": {
+          "error": "blocked_by_content_rule",
+          "host": "forms.example.com",
+          "message": "Blocked by your organization's rules: pay reason (a request to a website cannot be held for approval)"
+        },
+        "audit": [
+          {
+            "rule": "pay",
+            "held": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "log only",
+      "upstream": {
+        "status": 200,
+        "json": {}
+      },
+      "request": {
+        "method": "POST",
+        "host": "forms.example.com",
+        "path": "/submit",
+        "body": "my budget",
+        "headers": {
+          "Content-Type": "text/plain"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "body": "my budget"
+        },
+        "audit": [
+          {
+            "rule": "watch",
+            "channel": "web",
+            "action": "log"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a sign-in posts tokens: not Leaking secrets",
+      "upstream": {
+        "status": 200,
+        "json": {}
+      },
+      "request": {
+        "method": "POST",
+        "host": "forms.example.com",
+        "path": "/submit",
+        "json": {
+          "id_token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "a model provider is not the web",
+      "upstream": {
+        "status": 200,
+        "json": {}
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.openai.com",
+        "path": "/v1/chat/completions",
+        "json": {
+          "messages": [
+            {
+              "content": "the customer list"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "a file is not text",
+      "upstream": {
+        "status": 200,
+        "json": {}
+      },
+      "request": {
+        "method": "POST",
+        "host": "forms.example.com",
+        "path": "/submit",
+        "body": "PNG customer list",
+        "headers": {
+          "Content-Type": "image/png"
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "too long to check",
+      "request": {
+        "method": "POST",
+        "host": "forms.example.com",
+        "path": "/submit",
+        "json": {
+          "x": {
+            "$repeat": "y",
+            "n": 524289
+          }
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json": {
+          "error": "blocked_by_content_rule",
+          "host": "forms.example.com",
+          "message": "Blocked by your organization's rules: it is too long to check"
+        }
+      }
+    },
+    {
+      "name": "a query naming /gmail/ does not skip the check",
+      "request": {
+        "method": "POST",
+        "host": "www.googleapis.com",
+        "path": "/upload/drive/v3/files?x=/gmail/",
+        "json": {
+          "name": "the customer list"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "unknown rules: refused",
+      "files": {
+        "content-rules.json": "{"
+      },
+      "request": {
+        "method": "POST",
+        "host": "forms.example.com",
+        "path": "/submit",
+        "body": "hello",
+        "headers": {
+          "Content-Type": "text/plain"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json": {
+          "error": "blocked_by_content_rule",
+          "host": "forms.example.com",
+          "message": "Blocked by your organization's rules: the check could not run"
+        }
+      }
+    }
+  ]
+}

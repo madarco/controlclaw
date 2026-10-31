@@ -1,0 +1,18 @@
+name: cp POST /template-capture-draft
+agent: control-plane
+endpoint: /template-capture-draft
+scope: saas-only
+seed:
+  vms:
+    - {id: cptc_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+    - {id: cptc_a1, role: openclaw, name: cp-a1, private_ip: 10.0.0.3}
+steps:
+  - name: no token
+    request: {method: POST, path: /api/vm-agent/template-capture-draft, json: {}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: an agent may not send it
+    request: {method: POST, path: /api/vm-agent/template-capture-draft, as: cptc_a1, json: {}}
+    expect: {status: 403, json: {error: Forbidden}}
+  - name: a body that is not one
+    request: {method: POST, path: /api/vm-agent/template-capture-draft, as: cptc_fw, json: {nothing: here}}
+    expect: {status: 400, json_subset: {error: $string}}

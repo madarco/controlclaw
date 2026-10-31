@@ -1,0 +1,91 @@
+name: brain box /gbrain/* connects, locks and disconnects agents, only from the firewall
+agent: vm-agent
+service: gbrain
+shims:
+  - argv: [sudo, /usr/local/bin/cc-gbrain-token, create, vm-a, read_write]
+    stdout: "gbrain_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+  - argv: [sudo, /usr/local/bin/cc-gbrain-token, create, vm-b]
+    stdout: "Token created\n"
+  - argv: [sudo, /usr/local/bin/cc-gbrain-token, revoke]
+    stdout: "revoked\n"
+steps:
+  - name: no token, any path
+    request: {method: GET, path: /gbrain/connections}
+    expect: {status: 401, json: {error: brain connections must come from the org firewall}, headers: {cache-control: no-store}}
+  - name: the console's token
+    request: {method: GET, path: /gbrain/connections, token: {signer: console}}
+    expect: {status: 401, json: {error: brain connections must come from the org firewall}}
+  - name: an unknown path with a firewall token
+    request: {method: GET, path: /gbrain/other, token: {signer: firewall, bind: true, claims: {purpose: gbrain}}}
+    expect: {status: 404, json: {error: Not found}}
+  - name: nobody connected
+    request: {method: GET, path: /gbrain/connections, token: {signer: firewall, bind: true, claims: {purpose: gbrain}}}
+    expect: {status: 200, json: {ok: true, connections: [], lock: {all: false, vmIds: []}}}
+  - name: a public address is refused
+    request:
+      method: POST
+      path: /gbrain/connect
+      json: {vmId: vm-a, ip: 203.0.113.5, scope: read}
+      token: {signer: firewall, bind: true, claims: {purpose: gbrain}}
+    expect: {status: 400, json: {ok: false, error: ip must be a private 10.x address}}
+  - name: connect mints a token
+    request:
+      method: POST
+      path: /gbrain/connect
+      json: {vmId: vm-a, ip: 10.0.0.3, scope: read_write}
+      token: {signer: firewall, bind: true, claims: {purpose: gbrain}}
+    expect:
+      status: 200
+      json: {ok: true, applied: []}
+      calls_include:
+        - [sudo, /usr/local/bin/cc-gbrain-token, create, vm-a, read_write]
+  - name: a helper with no token is an error
+    request:
+      method: POST
+      path: /gbrain/connect
+      json: {vmId: vm-b, ip: 10.0.0.4, scope: read}
+      token: {signer: firewall, bind: true, claims: {purpose: gbrain}}
+    expect: {status: 500, json: {ok: false, error: GBrain returned no usable token}}
+  - name: the emergency stop
+    request:
+      method: POST
+      path: /gbrain/lock
+      json: {all: false, vmIds: [vm-b, vm-a, vm-a]}
+      token: {signer: firewall, bind: true, claims: {purpose: gbrain}}
+    expect: {status: 200, json: {ok: true, applied: []}}
+  - name: the list has no token, and the lock, after a restart
+    restart: true
+    # Issued ahead: a token from the same second as the newest one taken before the restart is
+    # refused (`before-restart`).
+    request: {method: GET, path: /gbrain/connections, token: {signer: firewall, bind: true, iat_offset: 2, claims: {purpose: gbrain}}}
+    expect:
+      status: 200
+      json:
+        ok: true
+        connections: [{vmId: vm-a, ip: 10.0.0.3, scope: read_write, at: $string}]
+        lock: {all: false, vmIds: [vm-a, vm-b]}
+  - name: a bad lock
+    request:
+      method: POST
+      path: /gbrain/lock
+      json: {all: false, vmIds: [../x]}
+      token: {signer: firewall, bind: true, iat_offset: 3, claims: {purpose: gbrain}}
+    expect: {status: 400, json: {ok: false, error: vmIds must be vm ids}}
+  - name: disconnect
+    request:
+      method: POST
+      path: /gbrain/disconnect
+      json: {vmId: vm-a}
+      token: {signer: firewall, bind: true, iat_offset: 3, claims: {purpose: gbrain}}
+    expect:
+      status: 200
+      json: {ok: true, removed: true, applied: []}
+      calls_include:
+        - [sudo, /usr/local/bin/cc-gbrain-token, revoke, vm-a]
+  - name: disconnect again
+    request:
+      method: POST
+      path: /gbrain/disconnect
+      json: {vmId: vm-a}
+      token: {signer: firewall, bind: true, iat_offset: 3, claims: {purpose: gbrain}}
+    expect: {status: 200, json: {ok: true, removed: false, applied: []}}

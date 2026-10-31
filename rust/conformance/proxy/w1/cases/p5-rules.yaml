@@ -1,0 +1,260 @@
+# P5: website rules, permissions and grants, the inline AI review, the update window, the kill
+# switch and its code window on HTTP, the traffic log (features 1, 2, 3, 7, 8, 28). Ported from
+# test_kill_switch.py, test_update_window.py, test_rule_ids.py, test_ai_judge.py and the HTTP cases
+# of test_tcp_drop.py (test_http_block, test_http_permission, test_http_locked).
+name: a block rule answers 403 and never dials
+files:
+  rules.json: [{id: r-block, name: No pastebins, effect: block, match_domain: blocked.test, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://blocked.test/paste"}
+    expect: {status: 403, json: {error: blocked_by_policy, host: blocked.test, tenant: rig-org}}
+  - seen: {server: origin, connections: 0}
+  - log: {records: [{effect: block, rule: No pastebins, rule_id: r-block, status: 403, host: blocked.test,
+                     method: GET, path: /paste, vm_id: test-agent}]}
+---
+name: an allow rule's id is on the allow record, and no rule gives null
+files:
+  rules.json: [{id: r-allow, name: docs, effect: allow, match_domain: origin.test, priority: 5},
+               {name: Old rule, effect: allow, match_domain: other.test, priority: 6}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/a"}
+    expect: {status: 200}
+  - http: {url: "https://other.test/b"}
+    expect: {status: 200}
+  - http: {url: "https://www.origin.test/c"}
+    expect: {status: 200}
+  - log:
+      records:
+        - {effect: allow, rule: docs, rule_id: r-allow, host: origin.test}
+        - {effect: allow, rule: Old rule, rule_id: null, host: other.test}
+        - {effect: allow, rule: null, rule_id: null, host: www.origin.test}
+---
+name: rules match by priority, agent, method and path
+files:
+  rules.json: [{name: posts-only, effect: block, match_domain: "*.origin.test", match_method: post, match_path: /api, priority: 2},
+               {name: other-agent, effect: block, match_domain: "*", vm_id: other-agent, priority: 1},
+               {name: catch-all, effect: allow, match_domain: "*", priority: 9}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://www.origin.test/v1/api/x", method: POST, body: "{}", headers: {Content-Type: application/json}}
+    expect: {status: 403, json: {error: blocked_by_policy}}
+  - http: {url: "https://www.origin.test/v1/api/x"}
+    expect: {status: 200}
+  - http: {url: "https://origin.test/api", method: POST, body: "x"}
+    expect: {status: 403}
+  - log: {where: {effect: allow}, last: {rule: catch-all}}
+---
+name: an ask rule answers 451 once in pending.jsonl, and a grant lets it through
+files:
+  rules.json: [{name: ask-me, effect: require_permission, match_domain: origin.test, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  grants.json: {perm_1fabc62ce506e43e0cd69b8217066485: {expires_at: 9999999999, scope: "GET origin.test/granted"}}
+steps:
+  - http: {url: "https://origin.test/ask?token=secret"}
+    expect: {status: 451, json: {permission_id: perm_3371e938f7f3eee207427f4e4da5eac6, reason: require_permission,
+                                 summary: "GET origin.test/ask", expires_at: $number}}
+  - http: {url: "https://origin.test/ask?again=1"}
+    expect: {status: 451}
+  - seen: {server: origin, connections: 0}
+  - log:
+      file: pending.jsonl
+      records: [{permission_id: perm_3371e938f7f3eee207427f4e4da5eac6, vm_id: test-agent, tenant: rig-org,
+                 scope: "GET origin.test/ask", host: origin.test, method: GET, path: /ask, ts: $number}]
+  - log:
+      where: {effect: require_permission}
+      last: {permission_id: perm_3371e938f7f3eee207427f4e4da5eac6, status: 451, rule: ask-me}
+  - http: {url: "https://origin.test/granted"}
+    expect: {status: 200}
+  - log: {where: {effect: allow}, last: {permission_id: perm_1fabc62ce506e43e0cd69b8217066485, rule: ask-me}}
+---
+name: an expired grant does not let it through
+files:
+  rules.json: [{name: ask-me, effect: require_permission, match_domain: origin.test, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  grants.json: {perm_1fabc62ce506e43e0cd69b8217066485: {expires_at: 1000}}
+steps:
+  - http: {url: "https://origin.test/granted"}
+    expect: {status: 451}
+---
+name: the AI review can block an allowed request, and is sent what the addon sends
+files:
+  rules.json: [{name: httpbin, effect: allow, match_domain: origin.test, ai_review: true, ai_policy: Only our own bins., priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - judge: {answer: {decision: block, category: exfiltration}}
+  - http: {url: "https://origin.test/post?x=1&b=2&x=3", method: POST, body: "hello\u0001world",
+           headers: {Content-Type: text/plain}}
+    expect: {status: 403, json: {error: blocked_by_ai_review, host: origin.test, category: exfiltration}}
+  - seen:
+      server: judge
+      requests: 1
+      last: {path: /judge, json: {mode: review, rule: httpbin, vm_id: test-agent, method: POST, host: origin.test,
+                                  path: /post, query_keys: [b, x], content_type: text/plain,
+                                  body_start: "hello world", recent: [], policy: Only our own bins.}}
+  - log: {last: {effect: block, rule: httpbin, status: 403, ai: {verdict: block, category: exfiltration, cached: false}}}
+---
+name: the AI review's ask becomes a 451, and its silence leaves the rule standing
+files:
+  rules.json: [{name: r, effect: allow, match_domain: origin.test, ai_review: true, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - judge: {answer: {decision: ask, category: unusual}}
+  - http: {url: "https://origin.test/ask"}
+    expect: {status: 451, json: {reason: ai_review}}
+  - log: {file: pending.jsonl, last: {ai_category: unusual}}
+  - judge: {answer: {decision: fallback}}
+  - http: {url: "https://origin.test/other"}
+    expect: {status: 200}
+  - judge: {answer: {decision: block}, delay: 4}
+  - http: {url: "https://origin.test/slow"}
+    expect: {status: 200}
+  - seen: {server: judge, last: {json: {recent: [{method: GET, host: origin.test, path: /ask, effect: require_permission, status: 451, ts: $number}, {effect: allow, path: /other, status: 200, bytes_out: 0, method: GET, host: origin.test, ts: $number}]}}}
+---
+name: an ask rule with a policy can be approved by the AI
+files:
+  rules.json: [{name: r, effect: require_permission, match_domain: origin.test, ai_review: true, ai_policy: Reading is fine., priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - judge: {answer: {decision: allow}}
+  - http: {url: "https://origin.test/read"}
+    expect: {status: 200}
+  - seen: {server: judge, last: {json: {mode: approve, policy: Reading is fine., permission_id: "$re:^perm_[0-9a-f]{32}$", scope: "GET origin.test/read"}}}
+  - log: {last: {effect: allow, ai: {verdict: allow, by: ai}, permission_id: "$re:^perm_"}}
+---
+name: mail hosts never go to the judge
+files:
+  rules.json: [{name: r, effect: allow, match_domain: "*", ai_review: true, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - judge: {answer: {decision: block}}
+  - http: {url: "https://api.agentmail.to/v0/inboxes"}
+    expect: {status: 200}
+  - seen: {server: judge, requests: 0}
+---
+name: a tunnel rule reached as HTTP is let through and recorded as a tunnel
+files:
+  rules.json: [{name: t, effect: tunnel, match_domain: origin.test, match_port: 80, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {via: absolute, url: "http://origin.test/t"}
+    expect: {status: 200}
+  - log: {records: [{effect: tunnel, rule: t, host: origin.test, path: /t}]}
+---
+name: a locked agent gets nothing but the control plane, other agents are untouched
+files:
+  rules.json: []
+  identities.json: [{private_ip: 10.0.0.3, vm_id: vm-1, locked: true, update_until: 9999999999},
+                    {private_ip: 10.0.0.4, vm_id: vm-2}]
+steps:
+  - http: {url: "https://api.openai.com/v1/models"}
+    expect: {status: 403, json: {error: blocked_by_kill_switch, host: api.openai.com, tenant: rig-org}}
+  - log: {last: {effect: block, rule: kill_switch, vm_id: vm-1, host: api.openai.com, status: 403}}
+  - http: {url: "https://pkgs.test/pool/x.deb"}
+    expect: {status: 403, json: {error: blocked_by_kill_switch}}
+  # Only https on 443 is the control plane: plain http is an ordinary site, so refused.
+  - http: {via: absolute, url: "http://cp.test/api/vm-agent/heartbeat"}
+    expect: {status: 403, json: {error: blocked_by_kill_switch}}
+  - http: {agent: agent2, url: "https://api.openai.com/v1/models"}
+    expect: {status: 200}
+---
+name: the code window lets a locked agent reach its channels and nothing else
+files:
+  rules.json: [{name: deny-all, effect: block, match_domain: "*", priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: vm-1, locked: true, code_until: 9999999999},
+                    {private_ip: 10.0.0.4, vm_id: vm-2, locked: true, code_until: 1000},
+                    {private_ip: 10.0.0.9, vm_id: vm-3, locked: true, code_until: "soon"}]
+steps:
+  - http: {url: "https://api.telegram.org/bot1/sendMessage", method: POST, body: "{}", headers: {Content-Type: application/json}}
+    expect: {status: 200}
+  - log: {last: {effect: allow, rule: kill_switch_code, vm_id: vm-1}}
+  - http: {url: "https://slack.com/api/chat.postMessage", method: POST, body: "{}"}
+    expect: {status: 200}
+  - http: {url: "https://api.openai.com/v1/models"}
+    expect: {status: 403, json: {error: blocked_by_kill_switch}}
+  - http: {agent: agent2, url: "https://api.telegram.org/bot1/getMe"}
+    expect: {status: 403, json: {error: blocked_by_kill_switch}}
+  - http: {agent: unknown, url: "https://api.telegram.org/bot1/getMe"}
+    expect: {status: 403, json: {error: blocked_by_kill_switch}}
+---
+name: an updating agent reaches the package hosts and nothing else
+files:
+  rules.json: [{name: deny-all, effect: block, match_domain: "*", priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: vm-1, update_until: 9999999999},
+                    {private_ip: 10.0.0.4, vm_id: vm-2, update_until: 1000},
+                    {private_ip: 10.0.0.9, vm_id: vm-3, update_until: "soon"}]
+steps:
+  - http: {url: "https://pkgs.test/pool/x.deb"}
+    expect: {status: 200}
+  - log: {last: {effect: allow, rule: agent_update, vm_id: vm-1, host: pkgs.test}}
+  - http: {via: absolute, url: "http://pkgs.test/dists/Release"}
+    expect: {status: 200}
+  - http: {url: "https://origin.test/x"}
+    expect: {status: 403, json: {error: blocked_by_policy}}
+  - log: {last: {rule: deny-all}}
+  - http: {url: "https://login.tailscale.com/x"}
+    expect: {status: 403}
+  - http: {agent: agent2, url: "https://pkgs.test/pool/x.deb"}
+    expect: {status: 403}
+  - http: {agent: unknown, url: "https://pkgs.test/pool/x.deb"}
+    expect: {status: 403}
+---
+name: an agent with no window and no identity is blocked by the rules
+files:
+  rules.json: [{name: deny-all, effect: block, match_domain: "*", priority: 1}]
+  identities.json: []
+steps:
+  - http: {url: "https://pkgs.test/pool/x.deb"}
+    expect: {status: 403}
+  - log: {last: {effect: block, rule: deny-all, vm_id: null}}
+---
+name: the traffic log rotates to .1 past its size
+env: {MITM_LOG_MAX_BYTES: "600"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/1"}
+  - http: {url: "https://origin.test/2"}
+  - http: {url: "https://origin.test/3"}
+  - http: {url: "https://origin.test/4"}
+  - log: {file: traffic.jsonl.1, last: {effect: allow}}
+  - log: {last: {effect: allow, path: /4}}
+---
+name: a catch-all rule with an id keeps it, a grant deadline as text counts
+files:
+  rules.json: [{id: r1, effect: require_permission, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  grants.json: {perm_1fabc62ce506e43e0cd69b8217066485: {expires_at: "9999999999"}}
+steps:
+  - http: {url: "https://origin.test/ask"}
+    expect: {status: 451}
+  - log: {last: {effect: require_permission, rule: null, rule_id: r1}}
+  - http: {url: "https://origin.test/granted"}
+    expect: {status: 200}
+  - log: {last: {effect: allow, rule: grant, rule_id: null}}
+---
+name: a rule whose path is not text matches nothing
+skip: {mitmproxy: "the addon raises on it and mitmproxy sends the request on unchecked"}
+files:
+  rules.json: [{name: odd-allow, effect: allow, match_domain: origin.test, match_path: 5, priority: 1},
+               {name: deny, effect: block, match_domain: "*", priority: 2}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/x"}
+    expect: {status: 403}
+  - log: {last: {rule: deny}}
+---
+name: before rules.json is first read, every request is refused; then the default is allow
+skip: {mitmproxy: "the addon allows everything with no rules.json (host review of #535)"}
+files:
+  rules.json: null
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/cold"}
+    expect: {status: 403, json: {error: rules_unavailable, host: origin.test, tenant: rig-org}}
+  - log: {last: {effect: block, rule: rules_unavailable, status: 403}}
+  - seen: {server: origin, requests: 0}
+  - write: {file: rules.json, content: []}
+  - http: {url: "https://origin.test/warm"}
+    expect: {status: 200}

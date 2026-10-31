@@ -1,0 +1,9 @@
+name: vm-agent /tailscale on a box built before Tailscale support
+agent: vm-agent
+steps:
+  - name: the status says so instead of failing
+    request: {method: GET, path: /tailscale/status, token: {signer: console}}
+    expect: {status: 200, json: {state: unavailable, name: null, ip: null, ssh: false, backendState: null, message: "This agent was built before Tailscale support. Update the agent (or rebuild it) to use Tailscale."}}
+  - name: a join is a 409, not a 500
+    request: {method: POST, path: /tailscale/apply, json: {authKey: tskey-auth-k1-SECRET, hostname: ada}, token: {signer: firewall, bind: true, claims: {purpose: tailscale}}}
+    expect: {status: 409, json: {ok: false, code: tailscale_unsupported, error: "This agent was built before Tailscale support. Update the agent (or rebuild it) to use Tailscale."}}

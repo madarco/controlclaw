@@ -1,0 +1,40 @@
+name: firewall sync with no record, then a record it cannot open, keeps the last config
+agent: mitm-agent
+env:
+  SYNC_INTERVAL_MS: "300"
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/egress-rules: [[200, [{name: not-under-rules}]]]
+  /api/vm-agent/identities: [[200, {}]]
+steps:
+  - name: a 404 is an empty record; a body with no rules key is no rules
+    files:
+      run/credentials.json: {text: "[]"}
+      run/rules.json: {text: "[]"}
+      run/identities.json: {text: "[]"}
+      run/exit.json: {text: "{\n  \"enabled\": false\n}"}
+  - name: rules arrive on the next sync
+    console:
+      /api/vm-agent/egress-rules: [[200, {rules: [{name: r1}]}]]
+    files:
+      run/rules.json: {text: "[\n  {\n    \"name\": \"r1\"\n  }\n]"}
+  - name: an identity map that is not a list fails the sync, and the files stay as they were
+    console:
+      /api/vm-agent/identities: [[200, {identities: {not: a list}}]]
+      /api/vm-agent/egress-rules: [[200, {rules: [{name: r3}]}]]
+    files:
+      run/rules.json: {text: "[\n  {\n    \"name\": \"r1\"\n  }\n]", for_ms: 1500}
+  - name: rules that are not a list are written as they came
+    console:
+      /api/vm-agent/identities: [[200, {identities: []}]]
+      /api/vm-agent/egress-rules: [[200, {rules: {not: a list}}]]
+    files:
+      run/rules.json: {text: "{\n  \"not\": \"a list\"\n}"}
+  - name: a record sealed for another box fails the sync, and the files stay as they were
+    console:
+      /api/vm-agent/store: [[200, {alg: AES-256-GCM, version: 1, salt: AAAAAAAAAAAAAAAAAAAAAA==, payload_box: {nonce: AAAAAAAAAAAAAAAA, ct: AAAAAAAAAAAAAAAAAAAAAAAA}, payload_user: {nonce: AAAAAAAAAAAAAAAA, ct: AAAAAAAAAAAAAAAAAAAAAAAA}}]]
+      /api/vm-agent/egress-rules: [[200, {rules: [{name: r2}]}]]
+    files:
+      run/rules.json: {text: "{\n  \"not\": \"a list\"\n}", for_ms: 1500}

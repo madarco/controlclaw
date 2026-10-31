@@ -1,0 +1,51 @@
+name: a firewall restore is allowed only while no agent has a channel, a model or a connection
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+  CHANNEL_STORE_PATH: state/channels.enc
+  LLM_STORE_PATH: state/llm.enc
+  CONNECTOR_STORE_PATH: state/connectors.enc
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  BACKUP_STORE_PATH: state/backup.enc
+  RECOVERY_STAGING_DIR: state/recovery
+steps:
+  - name: the org's recovery key
+    command:
+      id: r1
+      action: backup.recovery.rebind
+      payload: {publicKey: "E75P6uryBMf9M1j8nAByGIHRdCeBKCJ+xnTzf3/pe20=", signingPublicKey: "zTYmVgDEldv5RDSH7wCFeUVqh12d3w7mdGKXTFsd1CA="}
+      result: {command_id: r1, ok: true, status: applied}
+  - name: nothing set up yet, so a restore may run
+    request: {method: POST, path: /recovery/hello, listener: tls, recovery: {secret: "/WS9zNOqMYoUl1ZNWy+FBGpixVJhfzx0+QapjLrbT2fNNiZWAMSV2/lENIfvAIV5RWqHXZ3fDuZ0YpdMWx3UIA==", head: {}}}
+    expect:
+      status: 200
+      json_subset: {ok: true, canRestore: true, reason: null}
+  - name: a model for an agent, on the owner's own key (first use, no code)
+    command:
+      id: c_add
+      action: llm.propose
+      payload:
+        changeId: chg-1
+        kind: add
+        credentialId: cred-openai
+        provider: openai
+        providerName: OpenAI
+        credKind: api_key
+        placeholder: sk-cc-openai-abcdef123456
+        hint: "…a1b2"
+        profileId: openai:controlclaw
+        swap: {matchDomain: api.openai.com, locations: ["header:authorization"]}
+        agents: [{vmId: vm_9, name: nine, hostname: nine.vm.example, model: openai/gpt-5.6, role: primary}]
+        secret: {apiKey: sk-real-openai-key-a1b2}
+      result: {command_id: c_add, ok: true, status: applied}
+  - name: now a restore would leave that agent without its model
+    request: {method: POST, path: /recovery/hello, listener: tls, recovery: {secret: "/WS9zNOqMYoUl1ZNWy+FBGpixVJhfzx0+QapjLrbT2fNNiZWAMSV2/lENIfvAIV5RWqHXZ3fDuZ0YpdMWx3UIA==", head: {}}}
+    expect:
+      status: 200
+      json_subset: {ok: true, canRestore: false, reason: "This only works on a firewall nothing has been set up on yet. Putting one back replaces its keys, so the channels, models and integrations your agents use now would stop working. Take them off this firewall first."}

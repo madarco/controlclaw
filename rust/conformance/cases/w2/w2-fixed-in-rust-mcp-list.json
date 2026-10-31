@@ -1,0 +1,54 @@
+{
+  "name": "w2 fixed in Rust only: a tools/list the check could not read is kept from the agent",
+  "skip": {
+    "mitmproxy": "the addon passes a tools/list on unchanged when its check fails (fixed in Rust)"
+  },
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "MCP: the tools/list check fails: the list is kept from the agent",
+      "loopback": {
+        "mcp": {
+          "/tools": [
+            {
+              "status": 500,
+              "json": {}
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "result": {
+            "tools": [
+              {
+                "name": "delete_doc"
+              }
+            ]
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "method": "tools/list"
+        }
+      },
+      "expect": {
+        "body_contains": "could not check this list"
+      }
+    }
+  ]
+}

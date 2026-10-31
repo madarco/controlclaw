@@ -1,0 +1,62 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Link WhatsApp</title><script src="/__cc/shell.js"></script><link rel="stylesheet" href="/__cc/files-ui/tw.css"><style>
+h1{font-size:1.2rem;font-weight:600;margin:0 0 .25rem;letter-spacing:-.01em}
+.host{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink-2);margin:0 0 1.5rem;word-break:break-all}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:.6rem}
+.steps li{display:flex;align-items:center;gap:.7rem;color:var(--ink-2);transition:color .2s}
+.steps li.active{color:var(--ink)}.steps li.done{color:var(--ink)}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;flex:none;transition:all .2s}
+.active .dot{border-color:var(--brand);border-top-color:transparent;animation:spin .8s linear infinite}
+.done .dot{border-color:var(--allow);background:var(--allow)}
+.done .dot::after{content:"";width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err{display:none;margin-top:1.25rem;padding:.9rem 1rem;border-radius:12px;background:var(--block-soft);color:var(--block-fg);font-size:14px}
+.err.show{display:block}
+a.btn{display:inline-block;margin-top:1.25rem;padding:.55rem .9rem;border-radius:10px;background:var(--brand);color:#fff;text-decoration:none;font-weight:600;font-size:14px}
+a.btn.alt{margin-left:.5rem;background:transparent;color:var(--brand-ink);border:1px solid var(--line)}
+p.note{margin:1.25rem 0 0;font-size:13px;color:var(--ink-2)}
+.foot{margin-top:1.5rem;font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:.4rem}
+.foot::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--brand)}
+p.lead{margin:0 0 1rem;color:var(--ink-2)}
+input.code{width:100%;font:600 1.6rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.3em;text-align:center;padding:.7rem;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
+input.code:focus{outline:2px solid var(--brand);outline-offset:1px}
+button.btn{margin-top:1rem;width:100%;padding:.7rem;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:600;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.4rem}
+button.btn:disabled{opacity:.5;cursor:not-allowed}
+[hidden]{display:none!important}
+.otp{display:flex;align-items:center;justify-content:center;gap:8px}
+.otp .g{display:flex;align-items:center}
+.otp input{position:relative;width:36px;height:36px;margin:0;padding:0;border:1px solid var(--line);border-left-width:0;border-radius:0;background:transparent;color:var(--ink);font-family:inherit;font-size:14px;text-align:center;box-shadow:0 1px 2px 0 rgb(0 0 0/.05);outline:none;transition:border-color .15s,box-shadow .15s}
+.otp .g input:first-child{border-left-width:1px;border-radius:8px 0 0 8px}
+.otp .g input:last-child{border-radius:0 8px 8px 0}
+.otp input:focus{z-index:1;border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 50%,transparent)}
+.otp .sep{display:flex;color:var(--ink)}
+.otp.busy{opacity:.5}.otp.busy input{cursor:not-allowed}
+.line{display:flex;align-items:center;justify-content:center;gap:.4rem;margin:.75rem 0 0;font-size:12.5px;color:var(--ink-2)}
+.spin{width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;flex:none}
+</style></head><body class="bg-bg-2 font-sans text-ink antialiased"><div class="grid min-h-dvh grid-rows-[58px_auto_1fr] md:h-dvh md:grid-cols-[220px_1fr] md:grid-rows-[58px_1fr] md:overflow-hidden"><div class="min-w-0 md:col-span-2"><header class="flex h-full min-w-0 items-center gap-3 px-4 md:px-5"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand"><svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span><div class="min-w-0 leading-tight"><div class="truncate text-[14px] font-semibold text-ink">box</div><div class="truncate font-mono text-[11.5px] text-ink-2">box.example</div></div><span class="flex-1"></span><a href="https://console.example/dashboard/agents/vm_1" class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink shadow-sm hover:bg-bg"><svg class="h-4 w-4 text-ink-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg><span class="hidden sm:inline">Back to console</span><span class="sm:hidden">Console</span></a></header></div><nav aria-label="Agent pages" class="flex min-w-0 gap-0.5 overflow-x-auto px-3 pb-2 md:flex-col md:overflow-x-visible md:overflow-y-auto md:pb-4"><a href="/__cc/whatsapp" aria-current="page" class="flex shrink-0 items-center gap-[11px] rounded-lg px-[10px] py-2 text-[13.5px] bg-surface font-semibold text-ink shadow-sm"><svg class="h-4 w-4 shrink-0 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg><span>WhatsApp</span></a><a href="/__cc/files" class="flex shrink-0 items-center gap-[11px] rounded-lg px-[10px] py-2 text-[13.5px] text-ink-2 hover:bg-bg"><svg class="h-4 w-4 shrink-0 text-ink-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg><span>Files</span></a><a href="/__cc/logs" class="flex shrink-0 items-center gap-[11px] rounded-lg px-[10px] py-2 text-[13.5px] text-ink-2 hover:bg-bg"><svg class="h-4 w-4 shrink-0 text-ink-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>Logs</span></a><a href="/__cc/browser" class="flex shrink-0 items-center gap-[11px] rounded-lg px-[10px] py-2 text-[13.5px] text-ink-2 hover:bg-bg"><svg class="h-4 w-4 shrink-0 text-ink-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg><span>Browser</span></a><a href="https://console.example/dashboard/doctor/firewall?vm=vm_1" class="flex shrink-0 items-center gap-[11px] rounded-lg px-[10px] py-2 text-[13.5px] text-ink-2 hover:bg-bg"><svg class="h-4 w-4 shrink-0 text-ink-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/></svg><span>Doctor</span></a></nav><main class="min-w-0 border-t border-line bg-surface md:overflow-y-auto md:mr-2 md:mb-2 md:rounded-tl-2xl md:border shadow-sm"><div class="mx-auto max-w-[34rem] px-4 py-8 md:px-9"><h1 id="h">Link WhatsApp to box</h1><p class="host">box.example</p>
+<p class="lead" id="lead">On your phone, open WhatsApp, go to Linked devices, and scan this code.</p>
+<div id="qr" style="display:grid;place-items:center;min-height:16rem"></div>
+<div class="err" id="err"></div>
+<p class="note">Anyone who scans this code links their WhatsApp to your agent, so only scan it yourself, and close this tab when you are done.</p></div><script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const TEXT = {"installing":"Setting up WhatsApp on this agent. The code appears here in a moment.","connected":"Linked. You can close this tab.","expired":"The code expired. Start the WhatsApp link again from your ControlClaw console.","failed":"The link did not work. Start it again from your ControlClaw console.","idle":"No WhatsApp link is waiting. Start one from your ControlClaw console."};
+  let last = '';
+  const tick = async () => {
+    let d;
+    try {
+      const r = await fetch('/__cc/whatsapp/qr', { credentials: 'same-origin' });
+      if (r.status === 401) { $('err').textContent = 'Your session on this agent has expired. Open WhatsApp again from your ControlClaw console.'; $('err').className = 'err show'; return; }
+      d = await r.json();
+    } catch (e) { setTimeout(tick, 4000); return; }
+    if (d.state === 'qr' && d.qrDataUrl) {
+      if (d.qrDataUrl !== last) { last = d.qrDataUrl; const img = new Image(); img.alt = 'WhatsApp link code'; img.width = 256; img.height = 256; img.src = d.qrDataUrl; $('qr').replaceChildren(img); }
+      $('lead').textContent = 'On your phone, open WhatsApp, go to Linked devices, and scan this code.';
+    } else {
+      $('qr').replaceChildren();
+      $('lead').textContent = TEXT[d.state] || d.message || TEXT.idle;
+      if (d.state === 'connected') { $('h').textContent = 'WhatsApp is linked'; return; }
+    }
+    if (d.state !== 'expired' && d.state !== 'failed') setTimeout(tick, 2500);
+  };
+  tick();
+})();</script></main></div></body></html>

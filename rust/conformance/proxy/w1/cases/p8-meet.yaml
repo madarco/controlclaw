@@ -1,0 +1,92 @@
+# P8: the Meet TURN media relay (feature 27). Ported from test_meeting_media.py and
+# test_tcp_drop.py (test_meeting_tls, test_meeting_idle_revoke). The rig's origin stands in for
+# Google's TURN server: MITM_DEV_MEET_RANGES adds its range, the addon gets the same in a copy.
+# A lease must start after the proxy, so each case writes it once the proxy is up.
+name: with a meeting lease, TLS to meet.turns.goog is relayed untouched and recorded
+env: {MITM_DEV_MEET_RANGES: "meet.turns.goog=203.0.113.10/32"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - write: {file: meeting-media.json, content: {test-agent: {id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, started: "$now",
+            expires: "$now+30", deadline: "$now+3600", max_bytes: 1000000}}}
+  - http: {url: "https://meet.turns.goog/media", trust: origin}
+    expect: {status: 200, json: {path: /media, sni: meet.turns.goog}}
+  - log:
+      within: 3
+      records: [{flow_id: "$re:^meet_[0-9a-f]{24}$", ts: $number, tenant: rig-org, vm_id: test-agent,
+                 host: meet.turns.goog, port: 443, effect: tunnel, rule: meet-media-v1, bytes_in: $number,
+                 bytes_out: $number, duration_ms: $number, reason: closed, rule_id: null}]
+---
+name: without a lease, for another agent, or off Google's range, a TURN connection is closed
+env: {MITM_DEV_MEET_RANGES: "meet.turns.goog=203.0.113.10/32"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}, {private_ip: 10.0.0.4, vm_id: other-agent}]
+steps:
+  - http: {url: "https://meet.turns.goog/none", trust: origin}
+    expect: {error: true}
+  - write: {file: meeting-media.json, content: {test-agent: {id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, started: "$now",
+            expires: "$now+30", deadline: "$now+3600", max_bytes: 1000000}}}
+  - http: {agent: agent2, url: "https://meet.turns.goog/other-agent", trust: origin}
+    expect: {error: true}
+  # Not on 443.
+  - http: {url: "https://meet.turns.goog/port", connect: "203.0.113.10:8443", trust: origin}
+    expect: {error: true}
+  # Outside the range the name may reach.
+  - http: {url: "https://meet.turns.goog/range", connect: "203.0.113.11:443", trust: origin}
+    expect: {error: true}
+  - log: {where: {rule: meet-media-v1}, count: 0}
+  - log: {where: {effect: drop}, count: 4}
+  - log: {where: {effect: drop}, last: {host: 203.0.113.11, port: 443, vm_id: test-agent, rule_id: null}}
+  - seen: {server: origin, requests: 0}
+---
+name: a lease from before the proxy started, expired, or too long is not honoured
+env: {MITM_DEV_MEET_RANGES: "meet.turns.goog=203.0.113.10/32"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  meeting-media.json: {test-agent: {id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, started: "$now-1",
+                       expires: "$now+30", deadline: "$now+3600", max_bytes: 1000000}}
+steps:
+  - http: {url: "https://meet.turns.goog/before-start", trust: origin}
+    expect: {error: true}
+  - write: {file: meeting-media.json, content: {test-agent: {id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, started: "$now",
+            expires: "$now+120", deadline: "$now+3600", max_bytes: 1000000}}}
+  - http: {url: "https://meet.turns.goog/expires-too-late", trust: origin}
+    expect: {error: true}
+  - write: {file: meeting-media.json, content: {test-agent: {id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, started: "$now",
+            expires: "$now+30", deadline: "$now+3600", max_bytes: "1000000"}}}
+  - http: {url: "https://meet.turns.goog/budget-a-string", trust: origin}
+    expect: {error: true}
+  - seen: {server: origin, requests: 0}
+---
+name: a locked agent's lease is not honoured
+env: {MITM_DEV_MEET_RANGES: "meet.turns.goog=203.0.113.10/32"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, locked: true}]
+steps:
+  - write: {file: meeting-media.json, content: {test-agent: {id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, started: "$now",
+            expires: "$now+30", deadline: "$now+3600", max_bytes: 1000000}}}
+  - http: {url: "https://meet.turns.goog/locked", trust: origin}
+    expect: {error: true}
+  - seen: {server: origin, requests: 0}
+---
+name: a lease revoked under an idle relay closes it within the second
+env: {MITM_DEV_MEET_RANGES: "meet.turns.goog=203.0.113.10/32"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - write: {file: meeting-media.json, content: {test-agent: {id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, started: "$now",
+            expires: "$now+30", deadline: "$now+3600", max_bytes: 1000000}}}
+  - raw: {connect: "203.0.113.10:443", tls: origin, sni: meet.turns.goog, then_write: {file: meeting-media.json, content: {}}}
+    expect: {closed: true}
+  - log: {within: 3, last: {rule: meet-media-v1, reason: revoked_or_limit}}
+---
+name: the byte budget is charged before sending, handshakes included
+env: {MITM_DEV_MEET_RANGES: "meet.turns.goog=203.0.113.10/32"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - write: {file: meeting-media.json, content: {test-agent: {id: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, started: "$now",
+            expires: "$now+30", deadline: "$now+3600", max_bytes: 900}}}
+  - http: {url: "https://meet.turns.goog/budget", trust: origin}
+    expect: {error: true}
+  - log: {within: 3, last: {rule: meet-media-v1, reason: byte_limit, bytes_in: 0}}

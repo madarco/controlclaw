@@ -1,0 +1,75 @@
+name: "panel API: Google, AgentMail and website logins, with no code"
+agent: mitm-agent
+skip:
+  ts: "the panel API is in the Rust build only"
+ports:
+  panel: CC_PANEL_PORT
+env:
+  MITM_MODE: standalone
+  SYNC_INTERVAL_MS: "60000"
+  ACTIVITY_POLL_MS: "200"
+  FIREWALL_URL: ""
+  STORE_URL: ""
+  RULES_URL: ""
+  IDENTITIES_URL: ""
+  PERMISSION_URL: ""
+  CA_URL: ""
+  ACTIVITY_URL: ""
+  WEBHOOKS_URL: ""
+  ORG_ID: ""
+  BOX_ID: ""
+  LOCAL_PANEL_BIND: "127.0.0.1:$PORT_PANEL"
+  LOCAL_PANEL_SECURE_COOKIE: "0"
+  # The stores default to /opt/controlclaw/state, not STATE_DIR (backlog).
+  LLM_STORE_PATH: "$ROOT/state/llm.enc"
+  CHANNEL_STORE_PATH: "$ROOT/state/channels.enc"
+  CONTENT_RULES_STORE_PATH: "$ROOT/state/content-rules.enc"
+  CONTENT_STOPPED_PATH: "$ROOT/state/content-stopped"
+  EMAIL_RULES_STORE_PATH: "$ROOT/state/email-rules.enc"
+  AGENTMAIL_STORE_PATH: "$ROOT/state/agentmail.enc"
+  APPS_RULES_PATH: "$ROOT/state/apps-rules.enc"
+  MCP_CATALOG_PATH: "$ROOT/state/mcp-catalog.enc"
+  KILL_STORE_PATH: "$ROOT/state/kill.enc"
+  SEARCH_STORE_PATH: "$ROOT/state/search.enc"
+  EXIT_STORE_PATH: "$ROOT/state/exit.enc"
+  TAILSCALE_STORE_PATH: "$ROOT/state/tailscale.enc"
+  SSH_STATE_PATH: "$ROOT/state/ssh.json"
+  GBRAIN_STORE_PATH: "$ROOT/state/gbrain.enc"
+  MCP_SERVERS_STORE_PATH: "$ROOT/state/mcp-servers.enc"
+  MCP_ASKS_PATH: "$ROOT/state/mcp-asks.json"
+  CONNECTOR_GATE_BIND: "127.0.0.1"
+  GOOGLE_STORE_PATH: "$ROOT/state/google.enc"
+  DRIVE_STORE_PATH: "$ROOT/state/drive.enc"
+  LOGINS_STORE_PATH: "$ROOT/state/logins.enc"
+  LOCAL_PANEL_URL: "http://localhost:$PORT_PANEL"
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+steps:
+  - name: signed in; no Google account, and the address to register in the OAuth client is the panel's
+    panel_login: panel
+    request: {method: GET, path: /api/google, port: panel, jar: true}
+    expect: {status: 200, json_subset: {account: null}, body_contains: ["/oauth/callback"]}
+  - name: a client id that is not Google's is refused
+    request: {method: POST, path: /api/google, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {clientId: nope, clientSecret: s, services: [gmail], audience: internal}}
+    expect: {status: 400}
+  - name: connecting starts the sign-in at once, with no code (the answer has Google's address)
+    request: {method: POST, path: /api/google, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {clientId: 123-conformance.apps.googleusercontent.com, clientSecret: a-secret, services: [gmail, calendar], audience: external_testing}}
+    expect: {status: 200, json_subset: {ok: true}, body_contains: ["accounts.google.com"]}
+  - name: a forged answer to that sign-in is refused
+    request: {method: POST, path: /api/oauth/callback, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {state: forged, code: abc}}
+    expect: {status: 409, json_subset: {ok: false}}
+  - name: AgentMail has no account yet
+    request: {method: GET, path: /api/agentmail, port: panel, jar: true}
+    expect: {status: 200}
+  - name: an AgentMail action that does not exist
+    request: {method: POST, path: /api/agentmail/nope, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {}}
+    expect: {status: 404}
+  - name: an inbox for an agent this firewall does not know is refused
+    request: {method: POST, path: /api/agentmail/create, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {vmId: nobody, username: atlas}}
+    expect: {status: 404}
+  - name: the logins are listed, never their passwords
+    request: {method: GET, path: /api/logins, port: panel, jar: true}
+    expect: {status: 200, json_subset: {logins: []}}
+  - name: a change to a login that is not there is the firewall's own refusal
+    request: {method: POST, path: /api/logins/change, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {action: delete, id: lg_nothere}}
+    expect: {status: 409, json_subset: {ok: false, message: $string}}

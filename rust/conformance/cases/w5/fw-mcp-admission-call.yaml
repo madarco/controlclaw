@@ -1,0 +1,21 @@
+name: firewall 8796 admission checks a tool call with the Integrations rules
+agent: mitm-agent
+env:
+  APPS_RULES_PATH: state/apps-rules.enc
+  MCP_CATALOG_PATH: state/mcp-catalog.enc
+  MCP_ASKS_PATH: state/mcp-asks.json
+  MCP_SERVER_CALLS_PATH: state/mcp-server-calls.jsonl
+ports:
+  admission: MCP_ADMISSION_PORT
+steps:
+  - name: a tool with no kind meets the seeded Ask rule, and nobody can be asked here
+    request: {method: POST, path: /call, port: admission,
+              json: {vm_id: vm-a, host: mcp.example.com, url: "https://mcp.example.com/mcp", headers: {},
+                     body: '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"wipe","arguments":{}}}'}}
+    expect:
+      status: 200
+      json:
+        action: answer
+        status: 200
+        content_type: application/json
+        body: '{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"action_blocked\",\n    \"message\": \"Your organization''s integration rules want a person to approve this call (rule: Ask before destructive integration actions), and this firewall cannot ask anyone.\"\n  }\n}"}],"structuredContent":{"ok":false,"error":{"code":"action_blocked","message":"Your organization''s integration rules want a person to approve this call (rule: Ask before destructive integration actions), and this firewall cannot ask anyone."}},"isError":true}}'

@@ -1,0 +1,8472 @@
+[
+ {
+  "fn": "speechFamily",
+  "args": [
+   "gateway",
+   "openai/gpt-realtime"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "gateway",
+   "openai/gpt-realtime-2.1"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "gateway",
+   "openai/gpt-realtime-whisper"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "gateway",
+   "openai/gpt-realtime-mini-transcribe"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "gateway",
+   "openai/gpt-live-1"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "gateway",
+   "openai/gpt-live-1.25"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "gateway",
+   "gpt-live-1"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "openai",
+   "gpt-realtime-mini"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "openai",
+   "gpt-live-12"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "codex",
+   "gpt-realtime"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "codex",
+   "gpt-realtime-2"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "toString",
+   "x"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   [
+    "gateway"
+   ],
+   "openai/gpt-live-1"
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   "gateway",
+   5
+  ]
+ },
+ {
+  "fn": "speechFamily",
+  "args": [
+   null,
+   "gpt-realtime"
+  ]
+ },
+ {
+  "fn": "providerModelId",
+  "args": [
+   "gateway",
+   "openai/gpt-live-1"
+  ]
+ },
+ {
+  "fn": "providerModelId",
+  "args": [
+   "openai",
+   "openai/gpt-live-1"
+  ]
+ },
+ {
+  "fn": "providerModelId",
+  "args": [
+   "codex",
+   "gpt-realtime"
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   null
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": "gateway",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 30
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": "gateway",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 5.0
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": "gateway",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 61
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": "gateway",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 4
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": "gateway",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": "30"
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": "openai",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 30
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": "openai",
+    "credentialId": "key_1",
+    "model": "gpt-live-1",
+    "maxMinutes": 30
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": "gateway",
+    "credentialId": "bad id",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 30
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": "gateway",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 30,
+    "extra": 1
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": [
+     "gateway"
+    ],
+    "credentialId": "k",
+    "model": "openai/gpt-realtime-1.5",
+    "maxMinutes": 30
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   []
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   "x"
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   0
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": [
+   {
+    "provider": "gateway",
+    "credentialId": "included",
+    "model": "openai/gpt-realtime-translate",
+    "maxMinutes": 30
+   }
+  ]
+ },
+ {
+  "fn": "parseSpeechPolicy",
+  "args": []
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "ControlClaw"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "  Jev  "
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "Hey there"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "hey"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "hey ok"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "ok-team"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "Jo"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "Jev!"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "Ana Bel Cid Dee"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "Ö1 Ü2 Ä"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "12345"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "Jev’s"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "﻿Jev"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "Jevx"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   5
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   null
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "déjà vu"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "Sam"
+  ]
+ },
+ {
+  "fn": "wakeWordProblem",
+  "args": [
+   "Robert"
+  ]
+ },
+ {
+  "fn": "wakeWordWarning",
+  "args": [
+   "Sam"
+  ]
+ },
+ {
+  "fn": "wakeWordWarning",
+  "args": [
+   "Robert"
+  ]
+ },
+ {
+  "fn": "wakeWordWarning",
+  "args": [
+   "Jev"
+  ]
+ },
+ {
+  "fn": "wakeWordWarning",
+  "args": [
+   "Bo Bo"
+  ]
+ },
+ {
+  "fn": "wakeWordWarning",
+  "args": [
+   "Strength"
+  ]
+ },
+ {
+  "fn": "wakeWordWarning",
+  "args": [
+   "Ayy"
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": true,
+    "words": [
+     "Jev"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": true,
+    "words": [
+     "  Jev   Two "
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": false,
+    "words": []
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": true,
+    "words": [
+     "a",
+     "b",
+     "c",
+     "d",
+     "e",
+     "f"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": true,
+    "words": [
+     "Jev",
+     "jev"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": true,
+    "words": [
+     "Jev",
+     5
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": true,
+    "words": [
+     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": "yes",
+    "words": [
+     "Jev"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": true,
+    "words": [
+     "Jev"
+    ],
+    "x": 1
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   null
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   []
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": true,
+    "words": [
+     null
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": true,
+    "words": [
+     [
+      "Hey",
+      "you"
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "parseWakePolicy",
+  "args": [
+   {
+    "enabled": true,
+    "words": [
+     "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "bidi",
+    "email": true,
+    "calendar": "all",
+    "maxPerDay": 20
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 21
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 0
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 2.0
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "mode": [
+     "bidi"
+    ],
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": [
+     "all"
+    ],
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": "yes",
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5,
+    "extra": true
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   null
+  ]
+ },
+ {
+  "fn": "parseAutoJoinPolicy",
+  "args": [
+   "x"
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   null,
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   },
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   {
+    "enabled": false,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   },
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   },
+   {
+    "enabled": false,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": false,
+    "calendar": "off",
+    "maxPerDay": 5
+   },
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   },
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "invited",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "all",
+    "maxPerDay": 5
+   },
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "invited",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   },
+   {
+    "enabled": true,
+    "mode": "bidi",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   },
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 6
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   },
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 4
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   },
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": [
+     "all"
+    ],
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinWidens",
+  "args": [
+   null,
+   null
+  ]
+ },
+ {
+  "fn": "autoJoinSummary",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": true,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinSummary",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": false,
+    "calendar": "off",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinSummary",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "bidi",
+    "email": true,
+    "calendar": "invited",
+    "maxPerDay": 5
+   }
+  ]
+ },
+ {
+  "fn": "autoJoinSummary",
+  "args": [
+   {
+    "enabled": true,
+    "mode": "transcript",
+    "email": false,
+    "calendar": "all",
+    "maxPerDay": 12
+   }
+  ]
+ },
+ {
+  "fn": "parseFollowUpPolicy",
+  "args": [
+   {
+    "enabled": true
+   }
+  ]
+ },
+ {
+  "fn": "parseFollowUpPolicy",
+  "args": [
+   {
+    "enabled": false
+   }
+  ]
+ },
+ {
+  "fn": "parseFollowUpPolicy",
+  "args": [
+   {
+    "enabled": "x"
+   }
+  ]
+ },
+ {
+  "fn": "parseFollowUpPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "x": 1
+   }
+  ]
+ },
+ {
+  "fn": "parseFollowUpPolicy",
+  "args": [
+   {}
+  ]
+ },
+ {
+  "fn": "parseFollowUpPolicy",
+  "args": [
+   null
+  ]
+ },
+ {
+  "fn": "parseFollowUpPolicy",
+  "args": [
+   []
+  ]
+ },
+ {
+  "fn": "parseFollowUpPolicy",
+  "args": [
+   0
+  ]
+ },
+ {
+  "fn": "parseFullAgentPolicy",
+  "args": [
+   {
+    "enabled": true
+   }
+  ]
+ },
+ {
+  "fn": "parseFullAgentPolicy",
+  "args": [
+   {
+    "enabled": false
+   }
+  ]
+ },
+ {
+  "fn": "parseFullAgentPolicy",
+  "args": [
+   {
+    "enabled": "x"
+   }
+  ]
+ },
+ {
+  "fn": "parseFullAgentPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "x": 1
+   }
+  ]
+ },
+ {
+  "fn": "parseFullAgentPolicy",
+  "args": [
+   {}
+  ]
+ },
+ {
+  "fn": "parseFullAgentPolicy",
+  "args": [
+   null
+  ]
+ },
+ {
+  "fn": "parseFullAgentPolicy",
+  "args": [
+   []
+  ]
+ },
+ {
+  "fn": "parseFullAgentPolicy",
+  "args": [
+   0
+  ]
+ },
+ {
+  "fn": "fullAgentWidens",
+  "args": [
+   null,
+   {
+    "enabled": true
+   }
+  ]
+ },
+ {
+  "fn": "fullAgentWidens",
+  "args": [
+   {
+    "enabled": true
+   },
+   {
+    "enabled": true
+   }
+  ]
+ },
+ {
+  "fn": "fullAgentWidens",
+  "args": [
+   {
+    "enabled": false
+   },
+   {
+    "enabled": true
+   }
+  ]
+ },
+ {
+  "fn": "fullAgentWidens",
+  "args": [
+   {
+    "enabled": true
+   },
+   {
+    "enabled": false
+   }
+  ]
+ },
+ {
+  "fn": "fullAgentWidens",
+  "args": [
+   null,
+   null
+  ]
+ },
+ {
+  "fn": "fullAgentSummary",
+  "args": []
+ },
+ {
+  "fn": "presentSummary",
+  "args": []
+ },
+ {
+  "fn": "presentWidens",
+  "args": [
+   null,
+   true
+  ]
+ },
+ {
+  "fn": "presentWidens",
+  "args": [
+   true,
+   true
+  ]
+ },
+ {
+  "fn": "presentWidens",
+  "args": [
+   false,
+   true
+  ]
+ },
+ {
+  "fn": "presentWidens",
+  "args": [
+   true,
+   false
+  ]
+ },
+ {
+  "fn": "presentWidens",
+  "args": [
+   null,
+   null
+  ]
+ },
+ {
+  "fn": "presentWidens",
+  "args": [
+   "true",
+   true
+  ]
+ },
+ {
+  "fn": "fullAgentMeeting",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "fullAgent": {
+     "enabled": true
+    }
+   },
+   null,
+   null
+  ]
+ },
+ {
+  "fn": "fullAgentMeeting",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null
+   },
+   null,
+   null
+  ]
+ },
+ {
+  "fn": "fullAgentMeeting",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "fullAgent": {
+     "enabled": true
+    }
+   },
+   {
+    "source": "email",
+    "organizer": "a@b.c"
+   },
+   "a@b.c"
+  ]
+ },
+ {
+  "fn": "fullAgentMeeting",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "fullAgent": {
+     "enabled": true
+    }
+   },
+   {
+    "source": "calendar",
+    "organizer": "Owner@X.com"
+   },
+   "owner@x.com"
+  ]
+ },
+ {
+  "fn": "fullAgentMeeting",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "fullAgent": {
+     "enabled": true
+    }
+   },
+   {
+    "source": "calendar",
+    "organizer": "o@x.com"
+   },
+   ""
+  ]
+ },
+ {
+  "fn": "fullAgentMeeting",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "fullAgent": {
+     "enabled": true
+    }
+   },
+   {
+    "source": "calendar",
+    "organizer": "o@x.com"
+   },
+   "p@x.com"
+  ]
+ },
+ {
+  "fn": "wakeSessions",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-live-1",
+     "maxMinutes": 30
+    }
+   }
+  ]
+ },
+ {
+  "fn": "alwaysListening",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-live-1",
+     "maxMinutes": 30
+    }
+   }
+  ]
+ },
+ {
+  "fn": "wakeSessions",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-live-1",
+     "maxMinutes": 30
+    },
+    "wake": {
+     "enabled": false,
+     "words": [
+      "Jev"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "fn": "alwaysListening",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-live-1",
+     "maxMinutes": 30
+    },
+    "wake": {
+     "enabled": false,
+     "words": [
+      "Jev"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "fn": "wakeSessions",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-live-1",
+     "maxMinutes": 30
+    },
+    "wake": {
+     "enabled": false,
+     "words": [
+      "Jev"
+     ]
+    },
+    "always": true
+   }
+  ]
+ },
+ {
+  "fn": "alwaysListening",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-live-1",
+     "maxMinutes": 30
+    },
+    "wake": {
+     "enabled": false,
+     "words": [
+      "Jev"
+     ]
+    },
+    "always": true
+   }
+  ]
+ },
+ {
+  "fn": "wakeSessions",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-realtime-1.5",
+     "maxMinutes": 30
+    }
+   }
+  ]
+ },
+ {
+  "fn": "alwaysListening",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-realtime-1.5",
+     "maxMinutes": 30
+    }
+   }
+  ]
+ },
+ {
+  "fn": "wakeSessions",
+  "args": [
+   {
+    "enabled": false,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-live-1",
+     "maxMinutes": 30
+    }
+   }
+  ]
+ },
+ {
+  "fn": "alwaysListening",
+  "args": [
+   {
+    "enabled": false,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-live-1",
+     "maxMinutes": 30
+    }
+   }
+  ]
+ },
+ {
+  "fn": "wakeSessions",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-live-1",
+     "maxMinutes": 30
+    },
+    "wake": null
+   }
+  ]
+ },
+ {
+  "fn": "alwaysListening",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-live-1",
+     "maxMinutes": 30
+    },
+    "wake": null
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-realtime-1.5",
+     "maxMinutes": 30
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "bidi",
+    "invokers": "owner-browser",
+    "speech": null
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "bidi",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-realtime-1.5",
+     "maxMinutes": 30
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": [
+     "bidi"
+    ],
+    "invokers": "owner-browser",
+    "speech": null
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": "yes",
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "zoom"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet",
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "anyone",
+    "speech": null
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "extra": 1
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "always": null
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "always": true,
+    "reminders": false,
+    "present": true
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "consultModel": "main"
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "consultModel": "controlclaw/anthropic/claude-haiku-4.5"
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "consultModel": "Bad/x"
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "consultModel": ""
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "wake": {
+     "enabled": true,
+     "words": [
+      "  Jev "
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "wake": {
+     "enabled": true,
+     "words": [
+      "hey"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "autoJoin": {
+     "enabled": true,
+     "mode": "transcript",
+     "email": true,
+     "calendar": "off",
+     "maxPerDay": 5
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "autoJoin": {
+     "enabled": true,
+     "mode": "bidi",
+     "email": true,
+     "calendar": "off",
+     "maxPerDay": 5
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "autoJoin": {
+     "enabled": false,
+     "mode": "bidi",
+     "email": true,
+     "calendar": "off",
+     "maxPerDay": 5
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "autoJoin": {
+     "enabled": true,
+     "mode": "transcript",
+     "email": true,
+     "calendar": "off",
+     "maxPerDay": 99
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "followUp": {
+     "enabled": true
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "followUp": {
+     "enabled": 1
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "fullAgent": {
+     "enabled": true
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "fullAgent": null
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-realtime-1.5",
+     "maxMinutes": 1
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   null
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   []
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "consultModel": "main",
+    "present": false,
+    "fullAgent": {
+     "enabled": false
+    },
+    "reminders": true,
+    "always": false,
+    "followUp": {
+     "enabled": false
+    },
+    "autoJoin": {
+     "enabled": true,
+     "mode": "transcript",
+     "email": true,
+     "calendar": "off",
+     "maxPerDay": 5
+    },
+    "wake": {
+     "enabled": false,
+     "words": [
+      "Jev"
+     ]
+    },
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-realtime-1.5",
+     "maxMinutes": 30
+    },
+    "invokers": "owner-browser",
+    "defaultMode": "transcript",
+    "platforms": [
+     "google-meet"
+    ],
+    "enabled": true
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "transcript",
+    "invokers": "owner-browser",
+    "speech": null,
+    "wake": {
+     "enabled": true,
+     "words": [
+      "hey"
+     ]
+    },
+    "autoJoin": {
+     "enabled": true,
+     "mode": "transcript",
+     "email": true,
+     "calendar": "off",
+     "maxPerDay": 0
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": [
+   {
+    "enabled": true,
+    "platforms": [
+     "google-meet"
+    ],
+    "defaultMode": "bidi",
+    "invokers": "owner-browser",
+    "speech": {
+     "provider": "gateway",
+     "credentialId": "included",
+     "model": "openai/gpt-realtime-1.5",
+     "maxMinutes": 1
+    }
+   }
+  ]
+ },
+ {
+  "fn": "parseMeetingPolicy",
+  "args": []
+ },
+ {
+  "fn": "canonicalMeetUrl",
+  "args": [
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "canonicalMeetUrl",
+  "args": [
+   "https://meet.google.com/abc-defg-hijk"
+  ]
+ },
+ {
+  "fn": "canonicalMeetUrl",
+  "args": [
+   "http://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "canonicalMeetUrl",
+  "args": [
+   "https://meet.google.com/abc-defg-hij?x=1"
+  ]
+ },
+ {
+  "fn": "canonicalMeetUrl",
+  "args": [
+   5
+  ]
+ },
+ {
+  "fn": "canonicalMeetUrl",
+  "args": [
+   null
+  ]
+ },
+ {
+  "fn": "canonicalMeetUrl",
+  "args": [
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   "  meet.google.com/abc-defg-hij/ "
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   "https://meet.google.com/abc-defg-hij?authuser=0#x"
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   "https://meet.google.com/abc-defg-hij//"
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   "https://meet.google.com/abc-defg-hij#?"
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   "meet.google.com/abc-defg-hij\n?x"
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   "https://evil.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   null
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   7
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   "﻿meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  ]
+ },
+ {
+  "fn": "normalizeMeetLink",
+  "args": [
+   "https://meet.google.com/ABC-defg-hij"
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "Boss@Example.COM"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "calendar",
+    "organizer": "a@b"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "sms",
+    "organizer": "a@b"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "a b@c.d"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "a@b@c"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "@b.c"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "a@b_c"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@b.c"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@b.c"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀@b.c"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀@b.c"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "a@b.c",
+    "x": 1
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email"
+   }
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   null
+  ]
+ },
+ {
+  "fn": "parseAutoJoinClaim",
+  "args": [
+   {
+    "source": "email",
+    "organizer": "a﻿@b.c"
+   }
+  ]
+ },
+ {
+  "fn": "consultModelChoices",
+  "args": [
+   [
+    "openai",
+    "controlclaw"
+   ],
+   {
+    "openai": [
+     "openai/gpt-5.4-mini",
+     "openai/gpt-6-luna"
+    ],
+    "controlclaw": [
+     "controlclaw/openai/gpt-5.4-mini"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "consultModelChoices",
+  "args": [
+   [
+    "anthropic"
+   ],
+   {
+    "openai": [
+     "openai/gpt-6-luna"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "consultModelChoices",
+  "args": [
+   [],
+   {}
+  ]
+ },
+ {
+  "fn": "consultModelChoices",
+  "args": [
+   [
+    "controlclaw"
+   ],
+   {
+    "controlclaw": [
+     "controlclaw/anthropic/claude-haiku-4.5"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "effectiveConsultModel",
+  "args": [
+   "main",
+   [
+    {
+     "ref": "openai/gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    },
+    {
+     "ref": "controlclaw/openai/gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    }
+   ]
+  ]
+ },
+ {
+  "fn": "effectiveConsultModel",
+  "args": [
+   null,
+   [
+    {
+     "ref": "openai/gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    },
+    {
+     "ref": "controlclaw/openai/gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    }
+   ]
+  ]
+ },
+ {
+  "fn": "effectiveConsultModel",
+  "args": [
+   "controlclaw/openai/gpt-5.4-mini",
+   [
+    {
+     "ref": "openai/gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    },
+    {
+     "ref": "controlclaw/openai/gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    }
+   ]
+  ]
+ },
+ {
+  "fn": "effectiveConsultModel",
+  "args": [
+   "gone/model",
+   [
+    {
+     "ref": "openai/gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    },
+    {
+     "ref": "controlclaw/openai/gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    }
+   ]
+  ]
+ },
+ {
+  "fn": "effectiveConsultModel",
+  "args": [
+   "",
+   [
+    {
+     "ref": "openai/gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    },
+    {
+     "ref": "controlclaw/openai/gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    }
+   ]
+  ]
+ },
+ {
+  "fn": "effectiveConsultModel",
+  "args": [
+   null,
+   []
+  ]
+ },
+ {
+  "fn": "effectiveConsultModel",
+  "args": [
+   "x/y",
+   []
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:subagent:google-meet:meet_d81611be-3c2d-41d2-8aa3-f59bcbb0087f"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:meeting-565ba65b-task-1"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:main"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:telegram:12345"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:a:..:~b:x y/z"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:.:x"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "AGENT:Main:x"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:ü:é"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:a\nb"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "main"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:a::b"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent::x"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "javascript:alert(1)"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:Kmain:x"
+  ]
+ },
+ {
+  "fn": "sessionPath",
+  "args": [
+   "agent:main:(it's)*!"
+  ]
+ },
+ {
+  "fn": "meetingConsultSession",
+  "args": [
+   "meet_x"
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ],
+    "notes": "Summary"
+   }
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000002-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000003-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "state": "active",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000004-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ],
+    "error": "x"
+   }
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000005-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "failed",
+    "transcript": []
+   }
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000006-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ],
+    "mode": "bidi",
+    "meetingCode": "abc-defg-hij"
+   }
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000007-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "bad",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000008-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T09:00:00.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000009-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T10:00:00.500Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000010-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "leaving",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "summarizeMeeting",
+  "args": [
+   {
+    "id": "00000011-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ],
+    "notes": ""
+   }
+  ]
+ },
+ {
+  "fn": "meetingDetail",
+  "args": [
+   {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ],
+    "sessionIds": [
+     "native"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "meetingDetail",
+  "args": [
+   {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ],
+    "followUp": {
+     "state": "done",
+     "startedAt": "2026-10-10T10:00:00.000Z"
+    }
+   }
+  ]
+ },
+ {
+  "fn": "meetingDetail",
+  "args": [
+   {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ],
+    "mode": "bidi",
+    "sessionIds": [
+     "meet_d81611be-3c2d-41d2-8aa3-f59bcbb0087f",
+     "not-a-session"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "meetingDetail",
+  "args": [
+   {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ],
+    "mode": "transcript",
+    "sessionIds": [
+     "meet_d81611be-3c2d-41d2-8aa3-f59bcbb0087f"
+    ]
+   }
+  ]
+ },
+ {
+  "fn": "meetingDetail",
+  "args": [
+   {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ],
+    "mode": "bidi"
+   }
+  ]
+ },
+ {
+  "fn": "meetingDetail",
+  "args": [
+   {
+    "id": "00000001-1111-4111-8111-111111111111",
+    "startedAt": "2026-10-08T10:00:00.000Z",
+    "endedAt": "2026-10-08T11:01:30.000Z",
+    "state": "complete",
+    "transcript": [
+     {
+      "at": "2026-10-08T10:01:00.000Z",
+      "speaker": "Ada",
+      "text": "Hi"
+     }
+    ],
+    "gaps": [
+     {
+      "startedAt": "x",
+      "from": "transcript",
+      "to": "bidi"
+     }
+    ],
+    "voiceSeconds": 12,
+    "tasks": [],
+    "extra": "dropped",
+    "asked": []
+   }
+  ]
+ },
+ {
+  "fn": "meetingsPage",
+  "args": [
+   [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    }
+   ],
+   1
+  ]
+ },
+ {
+  "fn": "meetingsPage",
+  "args": [
+   [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    }
+   ],
+   2
+  ]
+ },
+ {
+  "fn": "meetingsPage",
+  "args": [
+   [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    }
+   ],
+   3
+  ]
+ },
+ {
+  "fn": "meetingsPage",
+  "args": [
+   [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    }
+   ],
+   9
+  ]
+ },
+ {
+  "fn": "meetingsPage",
+  "args": [
+   [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    }
+   ],
+   0
+  ]
+ },
+ {
+  "fn": "meetingsPage",
+  "args": [
+   [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    }
+   ],
+   -1
+  ]
+ },
+ {
+  "fn": "meetingsPage",
+  "args": [
+   [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    }
+   ],
+   2.7
+  ]
+ },
+ {
+  "fn": "meetingsPage",
+  "args": [
+   [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    }
+   ],
+   null
+  ]
+ },
+ {
+  "fn": "meetingsPage",
+  "args": [
+   [
+    {
+     "id": "00000001-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000002-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000003-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000004-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000005-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000006-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000007-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000008-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000009-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000010-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000011-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000012-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000013-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000014-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000015-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000016-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000017-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000018-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000019-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000020-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000021-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000022-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000023-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000024-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000025-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000026-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000027-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000028-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000029-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000030-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000031-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000032-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000033-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000034-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000035-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000036-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000037-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000038-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000039-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000040-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000041-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000042-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000043-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000044-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    },
+    {
+     "id": "00000045-1111-4111-8111-111111111111",
+     "startedAt": "2026-10-08T10:00:00.000Z",
+     "endedAt": "2026-10-08T11:01:30.000Z",
+     "state": "complete",
+     "transcript": [
+      {
+       "at": "2026-10-08T10:01:00.000Z",
+       "speaker": "Ada",
+       "text": "Hi"
+      }
+     ]
+    }
+   ],
+   "x"
+  ]
+ },
+ {
+  "fn": "meetingsPage",
+  "args": [
+   [],
+   2
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/abc-defg-hij/",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/abc-defg-hij?hl=en",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/meet/abc-defg-hij?hl=en",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/meet/abc-defg-hij/",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/meet/abc-defg-hij?authuser=0#x",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/xyz-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/meet/xyz-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/meet",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/meet/",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/meetx/abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/meet/meet/abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://accounts.google.com/meet/abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com.evil.example/abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "http://meet.google.com/abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://MEET.google.com/abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com:443/abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/ABC-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com//abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://meet.google.com/meet//abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "https://user@meet.google.com/abc-defg-hij",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "not a url",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ },
+ {
+  "fn": "isMeetPage",
+  "args": [
+   "",
+   "https://meet.google.com/abc-defg-hij"
+  ]
+ }
+]

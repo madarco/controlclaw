@@ -1,0 +1,245 @@
+{
+  "name": "k4 slack: Socket Mode events checked, a stopped one dropped and acknowledged here",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        },
+        {
+          "id": "pay",
+          "name": "pay",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [],
+          "detectors": [
+            "iban"
+          ],
+          "action": "hold",
+          "reason": "pay reason"
+        },
+        {
+          "id": "watch",
+          "name": "watch",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [
+            "budget"
+          ],
+          "detectors": [],
+          "action": "log",
+          "reason": "watch reason"
+        },
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "in",
+          "channels": [
+            "slack",
+            "email"
+          ],
+          "patterns": [
+            "salary"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "salary reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "a clean event passes, a blocked one is dropped and acked, a key from a person passes",
+      "ws": {
+        "host": "wss-primary.slack.com",
+        "path": "/link/?ticket=x",
+        "frames": [
+          {
+            "envelope_id": "e0"
+          }
+        ]
+      },
+      "upstream_ws": {
+        "frames": [
+          {
+            "type": "hello"
+          },
+          {
+            "envelope_id": "e1",
+            "type": "events_api",
+            "payload": {
+              "event": {
+                "type": "message",
+                "channel": "C1",
+                "user": "U1",
+                "text": "hello"
+              }
+            }
+          },
+          {
+            "envelope_id": "e2",
+            "type": "events_api",
+            "payload": {
+              "event": {
+                "type": "message",
+                "channel": "C1",
+                "user": "U1",
+                "text": "my salary is"
+              }
+            }
+          },
+          {
+            "envelope_id": "e5",
+            "type": "events_api",
+            "payload": {
+              "event": {
+                "type": "message",
+                "channel": "C1",
+                "user": "U1",
+                "text": "sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            }
+          },
+          {
+            "type": "disconnect",
+            "reason": "refresh_requested"
+          }
+        ]
+      },
+      "expect": {
+        "client_received": [
+          {
+            "type": "hello"
+          },
+          {
+            "envelope_id": "e1",
+            "type": "events_api",
+            "payload": {
+              "event": {
+                "type": "message",
+                "channel": "C1",
+                "user": "U1",
+                "text": "hello"
+              }
+            }
+          },
+          {
+            "envelope_id": "e5",
+            "type": "events_api",
+            "payload": {
+              "event": {
+                "type": "message",
+                "channel": "C1",
+                "user": "U1",
+                "text": "sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            }
+          },
+          {
+            "type": "disconnect",
+            "reason": "refresh_requested"
+          }
+        ],
+        "server_received": [
+          {
+            "envelope_id": "e0"
+          },
+          {
+            "envelope_id": "e2"
+          }
+        ],
+        "loopback": {
+          "content": {
+            "/notice": [
+              {
+                "kind": "in",
+                "channel": "slack",
+                "chatId": "C1",
+                "userId": "U1",
+                "vmId": "vm_test",
+                "reason": "salary reason"
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "salary",
+            "channel": "slack",
+            "direction": "in",
+            "action": "block"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rules unknown: held back, not acknowledged",
+      "files": {
+        "content-rules.json": "{"
+      },
+      "ws": {
+        "host": "wss-primary.slack.com",
+        "path": "/link/",
+        "frames": []
+      },
+      "upstream_ws": {
+        "frames": [
+          {
+            "envelope_id": "e8",
+            "type": "events_api",
+            "payload": {
+              "event": {
+                "type": "message",
+                "channel": "C1",
+                "user": "U1",
+                "text": "hello"
+              }
+            }
+          },
+          {
+            "type": "hello"
+          }
+        ]
+      },
+      "expect": {
+        "client_received": [
+          {
+            "type": "hello"
+          }
+        ],
+        "server_received": [],
+        "audit": [
+          {
+            "rule": "error",
+            "channel": "slack",
+            "direction": "in",
+            "action": "block"
+          }
+        ]
+      }
+    }
+  ]
+}

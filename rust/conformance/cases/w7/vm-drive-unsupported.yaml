@@ -1,0 +1,18 @@
+name: vm-agent /drive on a box without cc-drive-apply
+agent: vm-agent
+steps:
+  - name: the console never changes the folders
+    request: {method: POST, path: /drive/apply, json: {mounts: []}, token: {signer: console}}
+    expect: {status: 401, json: {error: Drive folder changes must come from the org firewall}}
+  - name: a Google token is not a Drive one
+    request: {method: POST, path: /drive/apply, json: {mounts: []}, token: {signer: firewall, bind: true, claims: {purpose: google}}}
+    expect: {status: 401, json: {error: Drive folder changes must come from the org firewall}}
+  - name: no token
+    request: {method: GET, path: /drive/status}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: the firewall's apply says to update the agent
+    request: {method: POST, path: /drive/apply, json: {mounts: []}, token: {signer: firewall, bind: true, claims: {purpose: drive}}}
+    expect: {status: 501, json: {error: "This agent's software does not support Drive folders yet. Update it."}}
+  - name: and so does the console's read
+    request: {method: GET, path: /drive/status, token: {signer: console}}
+    expect: {status: 501, json: {error: "This agent's software does not support Drive folders yet. Update it."}}

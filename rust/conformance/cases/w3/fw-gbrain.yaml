@@ -1,0 +1,34 @@
+name: firewall brain commands that need no code, and the emergency stop on the brain's gate
+agent: mitm-agent
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  GBRAIN_STORE_PATH: state/gbrain.enc
+fake_agent:
+  /gbrain/apply: [[200, {ok: true}]]
+  /gbrain/lock: [[200, {ok: true}]]
+  /kill/status: [[200, {active: true}]]
+  /kill/apply: [[200, {ok: true, active: false}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2", private_ip: 10.0.0.5}, {vm_id: vm_b, role: gbrain, hostname: "127.0.0.2", private_ip: 10.0.0.9}]}]]
+steps:
+  - name: the map is synced
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2", private_ip: 10.0.0.5, tailscale: false}, {vm_id: vm_b, role: gbrain, hostname: "127.0.0.2", private_ip: 10.0.0.9, tailscale: false}]}
+  - command: {id: g1, action: gbrain.propose, payload: {changeId: c1, agentVmId: vm_1, brainVmId: vm_b, scope: admin}, result: {command_id: g1, ok: false, status: failed, message: "malformed gbrain.propose payload"}}
+  - name: an agent the map does not have
+    command: {id: g2, action: gbrain.propose, payload: {changeId: c1, agentVmId: vm_x, brainVmId: vm_b, scope: read}, result: {command_id: g2, ok: false, status: failed, message: "That agent is not known to your firewall yet. Try again in a minute.", data: {changeId: c1}}}
+  - name: a brain that is an agent
+    command: {id: g3, action: gbrain.propose, payload: {changeId: c1, agentVmId: vm_1, brainVmId: vm_1, scope: read}, result: {command_id: g3, ok: false, status: failed, message: "The brain is not known to your firewall yet. Try again in a minute.", data: {changeId: c1}}}
+  - command: {id: g5, action: gbrain.confirm, payload: {changeId: c1, agentVmId: vm_1, code: "123456"}, result: {command_id: g5, ok: false, status: expired, message: "No change is waiting for a code, or the code expired.", data: {changeId: c1}}}
+  - command: {id: g6, action: gbrain.cancel, payload: {changeId: c1, agentVmId: vm_1}, result: {command_id: g6, ok: true, status: cancelled, data: {changeId: c1}}}
+  - name: disconnecting needs no code and takes the brain off the agent
+    command: {id: g7, action: gbrain.disconnect, payload: {agentVmId: vm_1}, result: {command_id: g7, ok: true, status: applied, data: {agentVmId: vm_1, removed: false, pending: false}}}
+    agent_received:
+      - {path: /gbrain/apply, method: POST, json_subset: {body: {remove: true}}}
+  - name: an emergency stop locks the agent on the brain's gate
+    command: {id: k1, action: kill.engage, payload: {changeId: c2, scope: agent, vmId: vm_1, agents: [{vmId: vm_1, name: atlas, hostname: "127.0.0.2"}]}, result: {command_id: k1, ok: true, status: applied}}
+    agent_received:
+      - {path: /gbrain/lock, method: POST, json_subset: {body: {all: false, vmIds: [vm_1]}}}

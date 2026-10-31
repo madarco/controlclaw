@@ -1,0 +1,23 @@
+name: brain box GET /status reports GBrain's unit with no gateway and no agent features
+agent: vm-agent
+service: gbrain
+shims:
+  - argv: [systemctl, is-active, gbrain]
+    stdout: "inactive\n"
+    code: 3
+  - argv: [systemctl, status, gbrain]
+    stdout: "gbrain.service - GBrain\n   Active: inactive (dead)\n"
+    code: 3
+steps:
+  - request: {method: GET, path: /status, token: {signer: console}}
+    expect:
+      status: 200
+      json_subset:
+        ok: true
+        action: status
+        active: false
+        status: inactive
+        state: stopped
+        message: "gbrain.service - GBrain\n   Active: inactive (dead)"
+        doctor: {fingerprint: null}
+      absent: [gateway, drive]

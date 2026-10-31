@@ -1,0 +1,40 @@
+name: vm-agent /tailscale (the key on stdin, status, logout, an old box)
+agent: vm-agent
+shims:
+  - argv: [sudo, -n, /usr/local/bin/cc-tailscale, up, ada, ssh1]
+    stdout: ""
+  - argv: [sudo, -n, /usr/local/bin/cc-tailscale, status]
+    stdout: '{"BackendState":"Running","Self":{"DNSName":"ada.tail1234.ts.net.","HostName":"ada","TailscaleIPs":["fd7a::1","100.101.102.103"],"sshHostKeys":["ssh-ed25519 AAAA"]}}'
+  - argv: [sudo, -n, /usr/local/bin/cc-tailscale, logout]
+    stdout: ""
+steps:
+  - name: the status, with the console's token
+    request: {method: GET, path: /tailscale/status, token: {signer: console}}
+    expect: {status: 200, json: {state: joined, name: ada.tail1234.ts.net, ip: 100.101.102.103, ssh: true, backendState: Running, message: null}}
+  - name: the console never joins one
+    request: {method: POST, path: /tailscale/apply, json: {authKey: tskey-auth-k1-SECRET, hostname: ada, ssh: true}, token: {signer: console}}
+    expect: {status: 401, json: {error: network changes must come from the org firewall}}
+  - name: a key that is not one, never echoed
+    request: {method: POST, path: /tailscale/apply, json: {authKey: "sk-not-a-key", hostname: ada}, token: {signer: firewall, bind: true, claims: {purpose: tailscale}}}
+    expect: {status: 400, json: {ok: false, error: authKey must be a Tailscale auth key}}
+  - name: no hostname
+    request: {method: POST, path: /tailscale/apply, json: {authKey: tskey-auth-k1-SECRET}, token: {signer: firewall, bind: true, claims: {purpose: tailscale}}}
+    expect: {status: 400, json: {ok: false, error: hostname required}}
+  - name: a hostname a tailnet would not take
+    request: {method: POST, path: /tailscale/apply, json: {authKey: tskey-auth-k1-SECRET, hostname: "-x-"}, token: {signer: firewall, bind: true, claims: {purpose: tailscale}}}
+    expect: {status: 500, json: {ok: false, error: that hostname is not one a tailnet will accept}}
+  - name: a join
+    request: {method: POST, path: /tailscale/apply, json: {authKey: tskey-auth-k1-SECRET, hostname: ada, ssh: true}, token: {signer: firewall, bind: true, claims: {purpose: tailscale}}}
+    expect:
+      status: 200
+      json: {ok: true, ssh: true, node: {name: ada.tail1234.ts.net, ip: 100.101.102.103}}
+      calls_include: [{argv: [sudo, -n, /usr/local/bin/cc-tailscale, up, ada, ssh1], stdin: "tskey-auth-k1-SECRET\n"}]
+  - name: logout
+    request: {method: POST, path: /tailscale/logout, json: {}, token: {signer: firewall, bind: true, claims: {purpose: tailscale}}}
+    expect: {status: 200, json: {ok: true}}
+  - name: a GET of a write route (not on the console's list)
+    request: {method: GET, path: /tailscale/apply, token: {signer: console}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: and with the firewall's token, no such route
+    request: {method: GET, path: /tailscale/apply, token: {signer: firewall, bind: true, claims: {purpose: tailscale}}}
+    expect: {status: 404, json: {error: Not found}}

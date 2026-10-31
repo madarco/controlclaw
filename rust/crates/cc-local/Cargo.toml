@@ -1,0 +1,51 @@
+[package]
+name = "cc-local"
+description = "A standalone firewall's own control plane: the contract in docs/standalone/control-plane-contract.md, in process and on SQLite."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# The conformance facade (`facade.rs`) and its binary: the contract over HTTP with test hooks that
+# empty the database. Never in the firewall agent; the scripts build it with this feature.
+contract = []
+
+[[bin]]
+name = "cc-local-contract"
+required-features = ["contract"]
+
+[[bin]]
+name = "cc-local-openapi"
+
+[dependencies]
+argon2.workspace = true
+cc-auth.workspace = true
+cc-contracts.workspace = true
+cc-http.workspace = true
+cc-store.workspace = true
+ed25519-dalek.workspace = true
+hmac.workspace = true
+http.workspace = true
+rand.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
+base64.workspace = true
+schemars.workspace = true
+serde_urlencoded.workspace = true
+
+[dev-dependencies]
+reqwest = { workspace = true, features = ["json", "cookies"] }
+tempfile.workspace = true
+cc-testkit.workspace = true

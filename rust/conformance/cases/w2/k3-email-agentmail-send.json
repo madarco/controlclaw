@@ -1,0 +1,366 @@
+{
+  "name": "k3 email: AgentMail sends are admitted, counted and settled; refusals and asks",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "allowed: it goes, and the reservation is settled after",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "message_id": "m9",
+          "thread_id": "t9"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/ana%40agentmail.to/messages/send",
+        "json": {
+          "to": [
+            "bob@y.com"
+          ],
+          "cc": "c@z.com",
+          "text": "body"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "message_id": "m9",
+          "thread_id": "t9"
+        },
+        "upstream": {
+          "json": {
+            "to": [
+              "bob@y.com"
+            ],
+            "cc": "c@z.com",
+            "text": "body"
+          }
+        },
+        "loopback": {
+          "email": {
+            "/": [
+              {
+                "action": "email.reserve",
+                "vmId": "vm_test",
+                "provider": "agentmail",
+                "to": [
+                  "bob@y.com"
+                ],
+                "cc": "c@z.com",
+                "bcc": null,
+                "inboxId": "ana@agentmail.to",
+                "op": "send"
+              },
+              {
+                "action": "email.settle",
+                "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "rejected": false
+              }
+            ]
+          }
+        },
+        "traffic": [
+          {
+            "effect": "allow",
+            "email": "sent",
+            "path": "/v0/inboxes/{id}/messages/send",
+            "status": 200
+          }
+        ]
+      }
+    },
+    {
+      "name": "a refused send gives its slot back",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 400,
+        "json": {
+          "error": "bad"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/%3Cm1%40x%3E/reply",
+        "json": {
+          "text": "hi",
+          "reply_all": true
+        }
+      },
+      "expect": {
+        "status": 400,
+        "loopback": {
+          "email": {
+            "/": [
+              {
+                "op": "reply_all",
+                "messageId": "<m1@x>"
+              },
+              {
+                "action": "email.settle",
+                "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "rejected": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a Bcc in the headers map",
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/send",
+        "json": {
+          "to": "bob@y.com",
+          "headers": {
+            "Bcc": "evil@x.com"
+          }
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "no_loopback": [
+          "email"
+        ],
+        "json": {
+          "error": "email_refused",
+          "reason": "headers_refused",
+          "message": "Custom headers may only be X-* headers, In-Reply-To or References."
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "email",
+            "email_reason": "headers_refused",
+            "status": 403
+          }
+        ]
+      }
+    },
+    {
+      "name": "a write that is not on the list",
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/webhooks",
+        "json": {
+          "url": "https://evil"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "unknown_write"
+        }
+      }
+    },
+    {
+      "name": "a scheduled draft",
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/drafts",
+        "json": {
+          "to": "x@y.com",
+          "send_at": "2030-01-01T00:00:00Z"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "scheduled_send"
+        }
+      }
+    },
+    {
+      "name": "a draft is checked when it is sent",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "draft_id": "d1"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/drafts",
+        "json": {
+          "to": "x@y.com",
+          "headers": {
+            "X-Tag": "1"
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "no_loopback": [
+          "email"
+        ]
+      }
+    },
+    {
+      "name": "ask: one pending request per new recipient, 451",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "ask",
+                "asks": [
+                  {
+                    "scope": "EMAIL agentmail:a@agentmail.to -> c@z.com",
+                    "summary": "Send email to c@z.com from a@agentmail.to",
+                    "recipient": "c@z.com",
+                    "mailbox": "agentmail:a@agentmail.to"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/send",
+        "json": {
+          "to": "c@z.com"
+        }
+      },
+      "expect": {
+        "status": 451,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "email_recipient_needs_approval",
+          "recipients": [
+            "c@z.com"
+          ],
+          "resend": "manual",
+          "permission_id": "$string"
+        },
+        "pending": [
+          {
+            "kind": "email_recipient",
+            "vm_id": "vm_test",
+            "recipient": "c@z.com",
+            "mailbox": "agentmail:a@agentmail.to",
+            "path": "/v0/inboxes/{id}/messages/send",
+            "scope": "EMAIL agentmail:a@agentmail.to -> c@z.com"
+          }
+        ],
+        "traffic": [
+          {
+            "effect": "require_permission",
+            "rule": "email",
+            "status": 451
+          }
+        ]
+      }
+    },
+    {
+      "name": "the admission service fails: refused",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 403,
+              "json": {
+                "ok": false
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/send",
+        "json": {
+          "to": "bob@y.com"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "email_rules_unavailable",
+          "message": "Email rules are unavailable on the firewall, so email is refused."
+        }
+      }
+    },
+    {
+      "name": "the admission service is slow past nothing: an answer that is not ok refuses with its reason",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "block",
+                "reason": "hourly_limit"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/send",
+        "json": {
+          "to": "bob@y.com"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "hourly_limit",
+          "message": "This mailbox has reached its hourly sending limit."
+        }
+      }
+    }
+  ]
+}

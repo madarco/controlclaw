@@ -1,0 +1,111 @@
+name: content rules commands with no rules
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+  CHANNEL_STORE_PATH: state/channels.enc
+steps:
+  - name: no rules yet
+    command:
+      id: r_read
+      action: rules.read
+      payload: {}
+      result:
+        ok: true
+        status: read
+        data:
+          rules: []
+          core: [{id: core-leaking-secrets, name: Leaking secrets, direction: out, action: block}]
+          held: 0
+          ai: {pinned: null, current: null, allowed: false, matches: false}
+    files:
+      run/content-rules.json: {json: {version: 1, rules: []}}
+  - name: a rule that could never fire is refused, and no code goes out
+    command:
+      id: r_bad
+      action: rules.propose
+      payload: {changeId: c1, change: {op: put, rule: {id: in-hold, name: In hold, direction: in, channels: [telegram], patterns: [salary], detectors: [], action: hold, reason: no, enabled: true}}}
+      result: {ok: false, status: failed, message: "Content rules change could not be applied. Check the input, then retry."}
+  - name: deleting a rule that is not there
+    command:
+      id: r_gone
+      action: rules.propose
+      payload: {changeId: c2, change: {op: delete, id: nothing-here}}
+      result: {ok: false, status: failed, message: "Content rules change could not be applied. Check the input, then retry."}
+  - name: nobody to send a code to
+    command:
+      id: r_nobody
+      action: rules.propose
+      payload: {changeId: c3, change: {op: put, rule: {id: pay, name: Pay, direction: out, channels: [telegram], patterns: [salary], detectors: [], action: block, reason: pay stays private, enabled: true}}}
+      result: {ok: false, status: failed, message: "No confirmation code could be delivered. Add a recipient on the Firewall page."}
+    files:
+      run/content-rules.json: {json: {version: 1, rules: []}}
+  - name: the ai change with the AI review off
+    command:
+      id: r_ai
+      action: rules.propose
+      payload: {changeId: c4, change: {op: ai}}
+      result: {ok: false, status: failed, message: "Your AI review is off: turn it on in AI review on the Firewall page first."}
+  - name: no code is waiting
+    command:
+      id: r_conf
+      action: rules.confirm
+      payload: {changeId: c3, code: "123456"}
+      result: {ok: false, status: expired, data: {}}
+  - name: a change id that is not one
+    command:
+      id: r_noid
+      action: rules.cancel
+      payload: {}
+      result: {ok: false, status: failed, message: "Content rules change could not be applied. Check the input, then retry."}
+  - name: cancel
+    command:
+      id: r_cancel
+      action: rules.cancel
+      payload: {changeId: c3}
+      result: {ok: true, status: cancelled}
+  - name: try a message against a draft rule and Leaking secrets
+    command:
+      id: r_try
+      action: rules.try
+      payload: {text: "the salary list", direction: out, channel: telegram, draft: {id: pay, name: Pay, direction: out, channels: [telegram], patterns: [salary], detectors: [], action: hold, reason: pay stays private, enabled: true}}
+      result:
+        ok: true
+        status: tried
+        data: {rule: {id: pay, name: Pay, action: hold}, hits: [{id: pay, name: Pay, action: hold}], asked: []}
+  - name: try a secret
+    command:
+      id: r_try2
+      action: rules.try
+      payload: {text: "key ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", direction: out, channel: slack}
+      result:
+        ok: true
+        status: tried
+        data: {rule: {id: core-leaking-secrets, name: Leaking secrets, action: block}, hits: [{id: core-leaking-secrets, name: Leaking secrets, action: block}], asked: []}
+  - name: an empty text is not tried
+    command:
+      id: r_try3
+      action: rules.try
+      payload: {text: "", direction: out, channel: slack}
+      result: {ok: false, status: failed, message: "Content rules change could not be applied. Check the input, then retry."}
+  - name: a message with none of the firewall's own text in it (8794)
+    request: {method: POST, path: /own, listener: !port 8794, json: {text: "hello there"}}
+    expect: {status: 200, json: {rest: null}}
+  - name: a notice is answered at once (8794)
+    request: {method: POST, path: /notice, listener: !port 8794, json: {}}
+    expect: {status: 200, json: {ok: true}}
+  - name: a hold that does not read (8794)
+    request: {method: POST, path: /hold, listener: !port 8794, json: {}}
+    expect: {status: 403, json: {ok: false}}
+  - name: a cancel that does not read (8794)
+    request: {method: POST, path: /cancel, listener: !port 8794, json: {}}
+    expect: {status: 403, json: {ok: false}}
+  - name: another path (8794)
+    request: {method: POST, path: /other, listener: !port 8794, json: {}}
+    expect: {status: 403, json: {ok: false}}
+  - name: anything but a POST (8794)
+    request: {method: GET, path: /hold, listener: !port 8794}
+    expect: {status: 403}

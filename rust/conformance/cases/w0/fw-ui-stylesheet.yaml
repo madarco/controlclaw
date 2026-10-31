@@ -1,0 +1,9 @@
+name: firewall pages get their stylesheet (the console's globals.css from dist-ui), not an empty one
+agent: mitm-agent
+steps:
+  - name: the stylesheet under an older name is served with no cache, and is the real one
+    request: {method: GET, path: /__cc/doctor/ui/shell-000000000000.css, listener: ingress}
+    expect:
+      status: 200
+      headers: {content-type: "text/css; charset=utf-8", cache-control: no-store}
+      body_contains: ['@font-face{font-family:"Inter Variable"', "--background:var(--bg)"]

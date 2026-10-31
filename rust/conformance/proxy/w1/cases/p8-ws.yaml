@@ -1,0 +1,54 @@
+# P8: websockets (the frame pumps W2 builds on) and the Meet TURN media relay (feature 27).
+name: a websocket is intercepted and frames go both ways
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - ws: {url: "wss://origin.test:9443/socket", send: ["hello", {binary: "00ff10"}, "again"]}
+    expect: {status: 101, recv: ["echo:hello", {binary: "00ff10"}, "echo:again"]}
+  - seen: {server: ws, connections: 1, received: "hello\n\u0000ÿ\u0010\nagain\n"}
+  - seen: {server: ws, last: {path: /socket}}
+  - log: {last: {effect: allow, host: origin.test, path: /socket, status: 101}}
+---
+name: the site closing a websocket closes the agent's
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - ws: {url: "wss://origin.test:9443/socket", send: ["close-me"]}
+    expect: {status: 101, closed: true}
+---
+name: a websocket to a blocked site is refused before the site is dialled
+files:
+  rules.json: [{name: no-ws, effect: block, match_domain: origin.test, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - ws: {url: "wss://origin.test:9443/socket", send: ["hello"]}
+    expect: {status: 403}
+  - seen: {server: ws, connections: 0}
+  - log: {last: {effect: block, rule: no-ws}}
+---
+name: a plain websocket inside a CONNECT tunnel is intercepted too
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - ws: {url: "ws://origin.test:9080/plain", send: ["x"]}
+    expect: {status: 101, recv: ["echo:x"]}
+---
+name: permessage-deflate is taken out of the agent's offer (owner decision 8)
+skip: {mitmproxy: "mitmproxy inflates frames itself and passes the offer on"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - ws: {url: "wss://origin.test:9443/socket", send: ["hi"]}
+    expect: {status: 101, recv: ["echo:hi"]}
+  - seen: {server: ws, last: {path: /socket, extensions: []}}
+---
+name: a plain websocket on a residential rule goes out through the exit
+files:
+  rules.json: [{name: shop, effect: allow, match_domain: origin.test, exit: residential, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  exit.json: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p}}
+steps:
+  - ws: {url: "ws://origin.test:9080/via-exit", send: ["x"]}
+    expect: {status: 101, recv: ["echo:x"]}
+  - seen: {server: upstream, upstream: ["CONNECT origin.test:9080"]}
+  - upstream: {auths: ["u:p"]}

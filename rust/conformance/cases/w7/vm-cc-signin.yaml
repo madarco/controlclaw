@@ -1,0 +1,126 @@
+name: vm-agent sign-in through the firewall (Open, bind cookie, tickets, sessions)
+agent: vm-agent
+files:
+  keys/config_api_url: "https://console.example/api/vm-agent/config\n"
+  keys/openclaw_gateway_token: "gw-token\n"
+env: {OPENCLAW_BIN: /nonexistent/openclaw}
+steps:
+  - name: the firewall says where it is
+    request:
+      method: POST
+      path: /access/config
+      json: {firewallOrigin: "https://FW.Example.com"}
+      token: {signer: firewall, bind: true, claims: {purpose: access}}
+    expect: {status: 200, headers: {cache-control: $absent}, json: {ok: true, firewallOrigin: "https://fw.example.com"}}
+  - name: the enroll page posts the code to that firewall
+    request: {method: GET, path: /__cc/enroll}
+    expect: {status: 200, body_file: golden/enroll.html}
+  - name: Open begin from another box
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://other.example"}}
+    expect: {status: 403, json: {error: This request did not come from your agent's own page.}, set_cookies: []}
+  - name: Open begin with no Origin
+    request: {method: POST, path: /__cc/open/begin, json: {}}
+    expect: {status: 403}
+  - name: Open begin
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect:
+      status: 200
+      headers: {cache-control: no-store}
+      json: {c: $string, firewall: "https://fw.example.com"}
+      set_cookies: ["__Host-cc_bind_*=*; Path=/; Max-Age=900; HttpOnly; Secure; SameSite=Lax"]
+  - name: a ticket in a browser without the binding
+    request: {method: POST, path: /__cc/session, headers: {origin: "https://box.example"}, ticket: {}}
+    expect: {status: 401, json: {error: This link was opened in a different browser. Open the agent again from this one.}}
+  - name: a view ticket on the login exchange
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {purpose: browser-view}}
+    expect: {status: 401, json: {error: This link is not valid for this agent. Open it from your ControlClaw console again.}}
+  - name: a ticket for another agent
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {claims: {vmId: vm_2}}}
+    expect: {status: 401, json: {error: This link is not valid for this agent. Open it from your ControlClaw console again.}}
+  - name: a ticket that lives too long
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {lifetime: 121}}
+    expect: {status: 401}
+  - name: a ticket the console signed is no ticket
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, json: {token: $ticket}, ticket: {claims: {iss: console}}}
+    expect: {status: 401}
+  - name: the exchange refuses another box's page
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://other.example"}, ticket: {}}
+    expect: {status: 403, json: {error: This request did not come from your agent's own page.}}
+  - name: an owner's ticket, OpenClaw not there
+    request: {method: POST, path: /__cc/session, jar: true, keep_jar: true, headers: {origin: "https://box.example"}, ticket: {claims: {canWrite: true}}}
+    expect:
+      status: 200
+      json: {next: "/#token=gw-token", install: $string, paired: false, pairError: the OpenClaw CLI is not installed}
+      set_cookies:
+        - "__Host-cc_session=*; Path=/; Max-Age=43200; HttpOnly; Secure; SameSite=Lax"
+        - "__Host-cc_bind_*=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"
+  - name: the same ticket again
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {reuse: "an owner's ticket, OpenClaw not there"}}
+    expect: {status: 401, json: {error: This link was already used. Open the agent from your ControlClaw console again.}}
+  - name: the session opens the agent
+    request: {method: GET, path: /__cc/verify, jar: true}
+    expect: {status: 200, headers: {cache-control: no-store}, body: ""}
+  - name: and the live browser
+    request: {method: GET, path: /__cc/verify-view, jar: true}
+    expect: {status: 200, body: ""}
+  - name: the files page knows the session may write
+    request: {method: GET, path: /__cc/files, jar: true}
+    expect: {status: 200, body_file: golden/files-owner.html}
+  - name: the WhatsApp page for an owner
+    request: {method: GET, path: /__cc/whatsapp, jar: true}
+    expect: {status: 200, headers: {referrer-policy: no-referrer}, body_file: golden/whatsapp.html}
+  - name: no WhatsApp link is waiting
+    request: {method: GET, path: /__cc/whatsapp/qr, jar: true}
+    expect: {status: 200, json: {state: idle, qrDataUrl: null, message: null}}
+  - name: the WhatsApp code is not for another box's page
+    request: {method: GET, path: /__cc/whatsapp/qr, jar: true, headers: {origin: "https://other.example"}}
+    expect: {status: 403}
+  - name: Open begin for Files
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect: {status: 200}
+  - name: a member's Files ticket lands on the explorer without asking OpenClaw
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {claims: {next: files}}}
+    expect: {status: 200, json: {next: /__cc/files, view: files, paired: true}}
+  - name: the member's files page is read-only
+    request: {method: GET, path: /__cc/files, jar: true}
+    expect: {status: 200, body_contains: ['{"canWrite":false,"agentName":"box","consoleUrl":"https://console.example/dashboard/agents/vm_1"}']}
+  - name: the WhatsApp page is not for a member
+    request: {method: GET, path: /__cc/whatsapp/qr, jar: true}
+    expect: {status: 401}
+  - name: Open begin for a page it does not know
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect: {status: 200}
+  - name: an unknown next is an ordinary Open
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {claims: {next: "https://evil.example/"}}}
+    expect: {status: 200, json_subset: {next: "/#token=gw-token", paired: false}}
+  - name: Open begin for the screen
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect: {status: 200}
+  - name: a login ticket on the view exchange
+    request: {method: POST, path: /__cc/view-session, jar: true, headers: {origin: "https://box.example"}, ticket: {}}
+    expect: {status: 401, json: {error: This link is not valid for this agent. Open the browser from your ControlClaw console again.}}
+  - name: a view ticket
+    request: {method: POST, path: /__cc/view-session, jar: true, keep_jar: true, headers: {origin: "https://box.example"}, ticket: {purpose: browser-view}}
+    expect:
+      status: 200
+      json: {ok: true}
+      set_cookies:
+        - "__Secure-cc_view=*; Path=/__cc/novnc; Max-Age=43200; HttpOnly; Secure; SameSite=None"
+        - "__Host-cc_bind_*=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"
+  - name: the view ticket again
+    request: {method: POST, path: /__cc/view-session, jar: true, headers: {origin: "https://box.example"}, ticket: {reuse: a view ticket}}
+    expect: {status: 401, json: {error: This link was already used. Press Screen again in your ControlClaw console.}}
+  - name: logout from another box
+    request: {method: POST, path: /__cc/logout, jar: true, headers: {origin: "https://other.example"}}
+    expect: {status: 403, set_cookies: []}
+  - name: logout from the console
+    request: {method: POST, path: /__cc/logout, jar: true, headers: {origin: "https://console.example"}}
+    expect:
+      status: 200
+      json: {ok: true}
+      set_cookies:
+        - "__Host-cc_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"
+        - "__Secure-cc_view=; Path=/__cc/novnc; Max-Age=0; HttpOnly; Secure; SameSite=None"
+  - name: signed out
+    request: {method: GET, path: /__cc/verify, jar: true}
+    expect: {status: 401}

@@ -1,0 +1,20 @@
+name: cp POST /ready
+agent: control-plane
+endpoint: /ready
+scope: saas-only
+seed:
+  vms:
+    - {id: cprd_fw, role: mitm, name: fw, private_ip: 10.0.0.2, status: creating}
+steps:
+  - name: no token
+    request: {method: POST, path: /api/vm-agent/ready, json: {}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: a key the control plane does not know
+    request: {method: POST, path: /api/vm-agent/ready, as: cprd_fw, broken: wrong-key, json: {}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: the firewall says it is ready
+    request: {method: POST, path: /api/vm-agent/ready, as: cprd_fw, json: {}}
+    expect: {status: 200}
+  - name: the box is running
+    request: {method: POST, path: /__conformance/read, json: {org_id: "${org_id}", what: vm, id: cprd_fw}}
+    expect: {status: 200, json_subset: {status: running}}

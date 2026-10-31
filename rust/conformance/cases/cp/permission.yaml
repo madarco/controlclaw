@@ -1,0 +1,56 @@
+name: cp /permission (raise, poll, answer)
+agent: control-plane
+endpoint: /permission
+scope: both
+seed:
+  vms:
+    - {id: cppm_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+    - {id: cppm_a1, role: openclaw, name: cppm-a1, private_ip: 10.0.0.3}
+steps:
+  - name: no token
+    request: {method: POST, path: /api/vm-agent/permission, json: {permission_id: p1}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: a raise with no id
+    request: {method: POST, path: /api/vm-agent/permission, as: cppm_fw, json: {kind: access, host: example.com}}
+    expect: {status: 400, json_subset: {error: Invalid body}}
+  - name: an agent may not raise a network ask
+    request: {method: POST, path: /api/vm-agent/permission, as: cppm_a1, json: {permission_id: p2, kind: access, host: example.com}}
+    expect: {status: 403, json: {error: $string}}
+  - name: the firewall raises an ask for an agent
+    request:
+      method: POST
+      path: /api/vm-agent/permission
+      as: cppm_fw
+      json: {permission_id: p1, kind: access, scope: "POST api.example.com/v1/send", summary: "POST api.example.com/v1/send", host: api.example.com, method: POST, path: /v1/send, agent_vm_id: cppm_a1}
+    expect: {status: 200, json: {ok: true, status: pending}}
+  - name: raising it again is the same request
+    request:
+      method: POST
+      path: /api/vm-agent/permission
+      as: cppm_fw
+      json: {permission_id: p1, kind: access, scope: "POST api.example.com/v1/send", host: api.example.com, method: POST, path: /v1/send}
+    expect: {status: 200, json: {ok: true, status: pending, deduped: true}}
+  - name: the firewall's open requests
+    request: {method: GET, path: /api/vm-agent/permission, as: cppm_fw}
+    expect: {status: 200, json: {pending: [{permission_id: p1, summary: "POST api.example.com/v1/send", created_at: $string}]}}
+  - name: the poll sees it pending
+    request: {method: GET, path: "/api/vm-agent/permission?permission_id=p1", as: cppm_fw}
+    expect: {status: 200, json: {status: pending, expiresAt: $any, kind: access, alwaysAllowed: false, validUntil: null}}
+  - name: an unknown id
+    request: {method: GET, path: "/api/vm-agent/permission?permission_id=nope", as: cppm_fw}
+    expect: {status: 200, json: {status: unknown, expiresAt: null, kind: null, alwaysAllowed: false, validUntil: null}}
+  - name: a person approves it
+    request: {method: POST, path: /__conformance/answer-permission, json: {org_id: "${org_id}", permission_id: p1, resolution: approved}}
+    expect: {status: 200, json: {status: approved}}
+  - name: the poll sees the answer
+    request: {method: GET, path: "/api/vm-agent/permission?permission_id=p1", as: cppm_fw}
+    expect: {status: 200, json_subset: {status: approved, kind: access}}
+  - name: the agent it was for can read it too
+    request: {method: GET, path: "/api/vm-agent/permission?permission_id=p1", as: cppm_a1}
+    expect: {status: 200, json_subset: {status: approved}}
+  - name: a settled request stays settled
+    request: {method: POST, path: /api/vm-agent/permission, as: cppm_fw, json: {permission_id: p1, resolution: expired}}
+    expect: {status: 200, json: {ok: true, status: approved}}
+  - name: the console's request names the call
+    request: {method: POST, path: /__conformance/read, json: {org_id: "${org_id}", what: permission, id: p1}}
+    expect: {status: 200, json: {status: approved, kind: access, title: "POST api.example.com/v1/send"}}

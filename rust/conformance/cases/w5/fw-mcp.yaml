@@ -1,0 +1,115 @@
+name: firewall mcpservers.* and mcpcatalog.read, the 8796 admission service and the 3940 tools gate
+agent: mitm-agent
+env:
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  APPS_RULES_PATH: state/apps-rules.enc
+  MCP_SERVERS_STORE_PATH: state/mcp-servers.enc
+  MCP_CATALOG_PATH: state/mcp-catalog.enc
+  MCP_ASKS_PATH: state/mcp-asks.json
+  MCP_SERVER_CALLS_PATH: state/mcp-server-calls.jsonl
+ports:
+  admission: MCP_ADMISSION_PORT
+  tools: CONTROLPLANE_MCP_GATE_PORT
+steps:
+  - name: no servers yet
+    command:
+      id: m1
+      action: mcpservers.read
+      result: {command_id: m1, ok: true, status: done, message: "", data: {servers: []}}
+  - name: the catalog is empty
+    command:
+      id: m2
+      action: mcpcatalog.read
+      result: {command_id: m2, ok: true, status: done, message: "", data: {servers: []}}
+  - name: a malformed proposal
+    command:
+      id: m3
+      action: mcpservers.propose
+      payload: {changeId: c1, kind: add, name: Bad Name}
+      result: {command_id: m3, ok: false, status: failed, message: malformed mcpservers.propose payload, data: {changeId: c1}}
+  - name: an address that is not on the internet
+    command:
+      id: m4
+      action: mcpservers.propose
+      payload: {changeId: c2, kind: add, name: docs, url: "https://10.0.0.3/mcp"}
+      result: {command_id: m4, ok: false, status: failed, data: {changeId: c2},
+               message: "The address must be https, on the internet, with no user name, password or query in it."}
+  - name: a change to a server it does not have
+    command:
+      id: m5
+      action: mcpservers.propose
+      payload: {changeId: c3, kind: assign, name: docs, agents: [{vmId: vm-a}]}
+      result: {command_id: m5, ok: false, status: failed, message: This firewall has no MCP server called docs., data: {changeId: c3}}
+  - name: an agent it does not know
+    command:
+      id: m6
+      action: mcpservers.propose
+      payload: {changeId: c4, kind: add, name: docs, url: "https://mcp.example.com/mcp", agents: [{vmId: vm-unknown}]}
+      result: {command_id: m6, ok: false, status: failed, data: {changeId: c4},
+               message: "This firewall does not know that agent. If it was just created, try again in a minute."}
+  - name: confirm with nothing waiting
+    command:
+      id: m7
+      action: mcpservers.confirm
+      payload: {changeId: c5, code: "1"}
+      result: {command_id: m7, ok: false, status: expired, message: "No change is waiting for a code, or the code expired.", data: {changeId: c5}}
+  - name: cancel
+    command:
+      id: m8
+      action: mcpservers.cancel
+      payload: {changeId: c5}
+      result: {command_id: m8, ok: true, status: cancelled, message: "", data: {changeId: c5}}
+  - name: a callback for a state it did not mint
+    command:
+      id: m9
+      action: mcpservers.callback
+      payload: {state: nope, code: x}
+      result: {command_id: m9, ok: false, status: expired, data: {state: nope},
+               message: This sign-in is no longer waiting on your firewall. Start it again.}
+  - name: tools of a server it does not have
+    command:
+      id: m10
+      action: mcpservers.tools
+      payload: {name: docs}
+      result: {command_id: m10, ok: false, status: failed, message: This firewall has no MCP server by that name., data: {name: docs}}
+  - name: forget an agent
+    command:
+      id: m11
+      action: mcpservers.forget
+      payload: {vmId: vm-a}
+      result: {command_id: m11, ok: true, status: applied, message: "", data: {vmId: vm-a}}
+  - name: admission takes POST only
+    request: {method: GET, path: /call, port: admission}
+    expect: {status: 405, json: {error: POST only}}
+  - name: admission refuses a call with fields missing
+    request: {method: POST, path: /call, port: admission, json: {vm_id: vm-a}}
+    expect: {status: 400, json: {error: "vm_id, host, url and body are required"}}
+  - name: admission passes traffic that runs nothing
+    request: {method: POST, path: /call, port: admission,
+              json: {vm_id: vm-a, host: mcp.example.com, url: "https://mcp.example.com/mcp", headers: {}, body: '{"jsonrpc":"2.0","id":1,"method":"initialize"}'}}
+    expect: {status: 200, json: {action: pass}}
+  - name: admission, a result for a ticket it never gave
+    request: {method: POST, path: /result, port: admission, json: {ticket: unknown, status: 200, body: ""}}
+    expect: {status: 200, json: {action: pass}}
+  - name: admission, a tool list with nothing to hide
+    request: {method: POST, path: /tools, port: admission,
+              json: {vm_id: vm-a, host: mcp.example.com, content_type: application/json, body: '{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"read_doc","annotations":{"readOnlyHint":true}}]}}'}}
+    expect: {status: 200, json: {action: pass}}
+  - name: admission, headers for a hold it never named
+    request: {method: POST, path: /held, port: admission, json: {hold_ref: made-up, headers: {authorization: Bearer x}}}
+    expect: {status: 200, json: {}}
+  - name: admission, the end of a call it never gave a ticket for
+    request: {method: POST, path: /done, port: admission, json: {ticket: unknown, status: 200, ok: true}}
+    expect: {status: 200, json: {action: pass}}
+  - name: admission, an unknown path
+    request: {method: POST, path: /nope, port: admission, json: {}}
+    expect: {status: 404, json: {error: not found}}
+  - name: the tools gate has three paths
+    request: {method: POST, path: /other, port: tools, json: {}}
+    expect: {status: 404, body: ""}
+  - name: the tools gate refuses a caller that is no agent of the organization
+    request: {method: POST, path: /mcp, port: tools, json: {}}
+    expect: {status: 403, body: ""}
+  - name: the server gate too
+    request: {method: POST, path: /servers/docs/mcp, port: tools, json: {}}
+    expect: {status: 403, body: ""}

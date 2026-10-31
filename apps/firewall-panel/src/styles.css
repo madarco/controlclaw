@@ -1,0 +1,22 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@controlclaw/console-ui/theme.css";
+
+@source "./";
+@source "../../../packages/console-ui/src";
+
+/* Inter, latin, one variable file for every weight, as the firewall's other pages have it; the
+   build inlines it, so the page loads nothing else. */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2");
+}
+
+:root {
+  --font-inter: "Inter Variable";
+  --font-jetbrains-mono: ui-monospace;
+  --font-instrument-serif: Georgia;
+}

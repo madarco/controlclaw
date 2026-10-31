@@ -1,0 +1,60 @@
+name: vm-agent template routes the org firewall calls, each with its own purpose
+agent: vm-agent
+steps:
+  - name: the console's token opens none of them
+    request: {method: GET, path: "/apply/pending?ref=preview-0001", token: {signer: console}}
+    expect:
+      status: 401
+      json: {error: this must come from the org firewall}
+  - name: the read's purpose does not hand out a ticket
+    request: {method: POST, path: /apply/ticket, json: {ref: preview-0001, hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, token: {signer: firewall, bind: true, claims: {purpose: apply-read}}}
+    expect:
+      status: 401
+      json: {error: this must come from the org firewall}
+  - request: {method: GET, path: "/apply/pending?ref=preview-0001", token: {signer: firewall, bind: true, claims: {purpose: apply-read}}}
+    expect:
+      status: 404
+      json: {ok: false, error: no such preview}
+  - request: {method: POST, path: /apply/pending, json: {}, token: {signer: firewall, bind: true, claims: {purpose: apply-read}}}
+    expect:
+      status: 404
+      json: {error: Not found}
+  - request: {method: POST, path: /apply/ticket, json: {ref: x}, token: {signer: firewall, bind: true, claims: {purpose: apply-ticket}}}
+    expect:
+      status: 400
+      json: {ok: false, error: ref and hash are needed}
+  - name: no preview, no ticket
+    request: {method: POST, path: /apply/ticket, json: {ref: preview-0001, hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, token: {signer: firewall, bind: true, claims: {purpose: apply-ticket}}}
+    expect:
+      status: 409
+      json: {ok: false, error: no such preview}
+  - request: {method: GET, path: /templates/repair/facts, token: {signer: firewall, bind: true, claims: {purpose: template-check}}}
+    expect:
+      status: 401
+      json: {error: this must come from the org firewall}
+  - name: an agent with no template has nothing to repair
+    request: {method: GET, path: /templates/repair/facts, token: {signer: firewall, bind: true, claims: {purpose: template-repair}}}
+    expect:
+      status: 404
+      json: {ok: false, error: no template}
+  - request: {method: POST, path: /templates/repair/done, json: {sessionId: "x"}, token: {signer: firewall, bind: true, claims: {purpose: template-repair}}}
+    expect:
+      status: 400
+      json: {ok: false, error: a session id is needed}
+  - request: {method: POST, path: /templates/capture/done, json: {}, token: {signer: firewall, bind: true, claims: {purpose: template-capture}}}
+    expect:
+      status: 400
+      json: {ok: false, error: a session id is needed}
+  - request: {method: GET, path: /templates/check/facts, token: {signer: firewall, bind: true, claims: {purpose: template-check}}}
+    expect:
+      status: 404
+      json: {ok: false, error: no template}
+  - name: an argument that could read as an option is refused
+    request: {method: POST, path: /templates/check/probe, json: {verb: config, arg: "--all"}, token: {signer: firewall, bind: true, claims: {purpose: template-check}}}
+    expect:
+      status: 200
+      json: {ok: false, text: That command or its argument is not one this agent answers.}
+  - request: {method: POST, path: /templates/check/probe, json: {verb: config, arg: models.default}, token: {signer: firewall, bind: true, claims: {purpose: template-check}}}
+    expect:
+      status: 200
+      json: {ok: false, text: This agent has no template.}

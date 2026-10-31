@@ -1,0 +1,15 @@
+name: vm-agent POST /templates/poke answers 202 and needs the console's token
+agent: vm-agent
+steps:
+  - request: {method: POST, path: /templates/poke, token: {signer: console}}
+    expect:
+      status: 202
+      json: {ok: true}
+      headers: {cache-control: no-store}
+  - request: {method: POST, path: /templates/poke}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - request: {method: GET, path: /templates/poke, token: {signer: console}}
+    expect:
+      status: 401

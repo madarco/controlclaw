@@ -1,0 +1,28 @@
+name: firewall sync writes the proxy config from the sealed record, the rules and the map
+agent: mitm-agent
+env:
+  ACCESS_STORE_PATH: state/access.enc
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+console:
+  /api/vm-agent/store: [[200, {"alg":"AES-256-GCM","version":3,"salt":"EOAs1CQu5G+TauJ9Vr3rGA==","payload_box":{"nonce":"+YiBQEkV9gqfkwgw","ct":"toh5QvWD2tHplOMcVi5LEyTJNqDVg2yQAC3yP2PzhmN/dDr4VEHKJCrZH0NUbhKCWq+n03F7/zBfXmQhL/I5fO/g9oxQ//o3TP22BpXh6fHOb+I9EQ9ccKbcrpuz033jnKRoBJK1gl+bSNB4wmdTDxcXKgTmipHxDMjKdYdvJtvP4RoccSCUlAypqz/82MiBfie16MA3xrcCHuk5TLQiAVrhFrfa71xTfag3f1W0v+Jv25/eX8dxWL+yp+b8S+VBCvkutcgUmEFEB8WRhu1GcR0EOtkrlLRuHN75RCr6GHc2butnGlo6TpLGHwI2xU3nst2tMgjNCVJD5fk="},"payload_user":{"nonce":"uHdb9w+WFDr6ReZl","ct":"8awnwLeJby/fhRhIdpdAxo0bLvmeiWrsTWcuG5ClyDWxayDvypjnRUOikEtTb8XULqUpnso45CY/0ot4wYiZa5IsTgbe3FlIgEOTbrUhsIhebDmIucGYc2+aHbtIAYs/6EB7RptVjLiU0cPBCNTkfxHMKChdtSv0K1KPs26vVJt/2Bw+hQZTjDVojYtoXGFUk5NclU/RZ7LycCGKqlOOh/NF7OCrM7phbH/C+IULFttOGjde/b9CKst4vCG9bv+e01scbHxrVZfWHxRZXJVS7LaBt7jQT4GJj43nrHssCyWo09QCvyJBSyD+1YE2ZbYKA/I2IB2KbAoQMxI="}}]]
+  /api/vm-agent/egress-rules:
+    - [200, {rules: [{name: block-evil, match_domain: blocked.test, effect: block, priority: 10}, {name: "é ünïcode  ", match_domain: "*", effect: allow, n: 1.5, big: 12345678901}], ai: null}]
+  /api/vm-agent/identities:
+    - [200, {identities: [{vm_id: vm_1, private_ip: 10.0.0.2, tailscale: true, locked: true, code_until: 5, hostname: a.example, update_until: 9, name: alpha}, {vm_id: 7, private_ip: 10.0.0.3}]}]
+  /api/vm-agent/webhooks: [[200, {hooks: []}]]
+steps:
+  - name: the four files, byte for byte
+    files:
+      run/credentials.json:
+        text: "[\n  {\n    \"match_domain\": \"echo.test\",\n    \"placeholder\": \"__ECHO_TOKEN\",\n    \"secret\": \"REAL-SECRET-abc123\",\n    \"locations\": [\n      \"header:authorization\"\n    ]\n  }\n]"
+      run/rules.json:
+        text: "[\n  {\n    \"name\": \"block-evil\",\n    \"match_domain\": \"blocked.test\",\n    \"effect\": \"block\",\n    \"priority\": 10\n  },\n  {\n    \"name\": \"é ünïcode  \",\n    \"match_domain\": \"*\",\n    \"effect\": \"allow\",\n    \"n\": 1.5,\n    \"big\": 12345678901\n  }\n]"
+      run/identities.json:
+        text: "[\n  {\n    \"vm_id\": \"vm_1\",\n    \"private_ip\": \"10.0.0.2\",\n    \"tailscale\": false,\n    \"hostname\": \"a.example\",\n    \"name\": \"alpha\"\n  },\n  {\n    \"vm_id\": 7,\n    \"private_ip\": \"10.0.0.3\",\n    \"tailscale\": false\n  }\n]"
+      run/exit.json: {text: "{\n  \"enabled\": false\n}"}
+  - name: the CA publish is skipped without CA_CERT_PATH; the store and rules were read with a box token
+    received:
+      - {path: /api/vm-agent/store, method: GET}
+      - {path: /api/vm-agent/egress-rules, method: GET}
+      - {path: /api/vm-agent/identities, method: GET}

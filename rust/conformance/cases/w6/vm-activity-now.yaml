@@ -1,0 +1,21 @@
+name: vm-agent GET /activity/now, the console's token only
+agent: vm-agent
+steps:
+  - name: any other method is refused before the token is read
+    request: {method: POST, path: /activity/now, json: {}}
+    expect:
+      status: 405
+      json: {error: Method not allowed}
+  - request: {method: GET, path: /activity/now}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - request: {method: GET, path: /activity/now, token: {signer: firewall, bind: true, claims: {purpose: health}}}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - name: nothing running on a box with no gateway
+    request: {method: GET, path: /activity/now, token: {signer: console}}
+    expect:
+      status: 200
+      json: {ok: true, now: $number, run: null}

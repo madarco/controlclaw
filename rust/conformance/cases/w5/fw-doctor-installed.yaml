@@ -1,0 +1,62 @@
+name: "Doctor, Firewall Doctor and the Final check installed (helpers in the case's folder): a change paid with a credential this firewall does not hold is refused, the beat carries the checks' state"
+agent: mitm-agent
+skip: {ts: "the TS build looks for its helpers only in /usr/local/bin: fw-doctor-ts.yaml is this case for it, in the Docker rig"}
+# Needs ssh-keygen on the machine that runs it (the rig has openssh-client): the Doctor key store
+# makes its key at start, and without one Doctor does not register.
+files:
+  bin/cc-doctor-run: "#!/bin/sh\n"
+  bin/cc-fw-repair: "#!/bin/sh\n"
+  bin/cc-fwdoctor: "#!/bin/sh\n"
+  bin/cc-tplcheck: "#!/bin/sh\n"
+env:
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  APPS_RULES_PATH: state/apps-rules.enc
+  MCP_SERVERS_STORE_PATH: state/mcp-servers.enc
+  MCP_CATALOG_PATH: state/mcp-catalog.enc
+  MCP_ASKS_PATH: state/mcp-asks.json
+  MCP_SERVER_CALLS_PATH: state/mcp-server-calls.jsonl
+  TEAMCHAT_STORE_PATH: state/teamchat.enc
+  TEAMCHAT_STATS_PATH: state/teamchat-stats.json
+  DOCTOR_KEY_PATH: state/doctor.enc
+  DOCTOR_RUN_HELPER: bin/cc-doctor-run
+  DOCTOR_TRANSCRIPTS_DIR: state/doctor-transcripts
+  DOCTOR_RESERVE_PATH: state/doctor-reserve
+  FW_REPAIR_HELPER: bin/cc-fw-repair
+  FW_DOCTOR_CLIENT: bin/cc-fwdoctor
+  TPLCHECK_CLIENT: bin/cc-tplcheck
+  TPLCHECK_STORE_PATH: state/template-checks.enc
+steps:
+  - name: a Final check paid with a credential this firewall does not hold
+    command:
+      id: d1
+      action: tplcheck.propose
+      payload: {changeId: c1, agents: [vm-a], cli: claude, credentialId: c1, model: claude-haiku-4-5}
+      result: {command_id: d1, ok: false, status: failed, message: "That coding agent, credential and model cannot be used together on your firewall. Choose another.", data: {changeId: c1}}
+  - name: a request this firewall does not read
+    command:
+      id: d2
+      action: tplcheck.propose
+      payload: {changeId: c1, agents: [vm-a, vm-a], cli: claude, credentialId: c1, model: claude-haiku-4-5}
+      result: {command_id: d2, ok: false, status: failed, message: "The test request was not one this firewall reads.", data: {changeId: c1}}
+  - name: nothing waits for a code
+    command:
+      id: d3
+      action: tplcheck.confirm
+      payload: {changeId: c1, code: "123456"}
+      result: {command_id: d3, ok: false, status: expired, message: "Nothing is waiting for a code, or the code expired.", data: {changeId: c1}}
+  - name: cancel answers for its change
+    command:
+      id: d4
+      action: tplcheck.cancel
+      payload: {changeId: c1}
+      result: {command_id: d4, ok: true, status: cancelled, data: {changeId: c1}}
+  - name: a Firewall Doctor repair paid with a credential this firewall does not hold
+    command:
+      id: d5
+      action: doctor.propose
+      payload: {sessionId: session-1234, vmId: fw_1, cli: claude, credentialId: c1, model: claude-sonnet-4-5, preset: pages}
+      result: {command_id: d5, ok: false, status: failed, message: "The doctor request could not be completed. Check the selected model, credentials and firewall software."}
+  - name: the beat carries the checks' state (no sentence, no template name)
+    beat:
+      json_subset:
+        template_checks: {consent: [], waiting: null, agents: []}

@@ -1,0 +1,25 @@
+name: vm-agent calls pages refuse a browser without this box's session, and other origins
+agent: vm-agent
+# The rig cannot hold a browser session, so the signed-in reads and the delete are covered by
+# rust/bins/vm-agent/src/phone/page/tests.rs (and routes/phone-page.test.ts on the TS side).
+files:
+  keys/access_hostname: "agent.example"
+steps:
+  - name: the page without a session
+    request: {method: GET, path: /__cc/phone}
+    expect: {status: 401, headers: {content-type: text/html; charset=utf-8, x-frame-options: DENY, cache-control: no-store}}
+  - name: a read from another site
+    request:
+      method: GET
+      path: /__cc/phone/calls
+      headers: {origin: "https://evil.ccl.bot", sec-fetch-site: cross-site, cookie: "__Host-cc_session=x"}
+    expect: {status: 403, json: {error: Not from this agent's own page.}, headers: {cache-control: no-store}}
+  - name: a read from this box without a session
+    request: {method: GET, path: /__cc/phone/calls, headers: {origin: "https://box.example", sec-fetch-site: same-origin}}
+    expect: {status: 401, json: {error: "Your session on this agent has expired. Open Call history again from your ControlClaw console."}}
+  - name: a delete without a session
+    request: {method: POST, path: /__cc/phone/delete, json: {all: true}, headers: {origin: "https://box.example", sec-fetch-site: same-origin}}
+    expect: {status: 401}
+  - name: a page this box does not have
+    request: {method: GET, path: /__cc/phonebook}
+    expect: {status: 404}

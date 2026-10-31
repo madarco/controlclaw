@@ -1,0 +1,71 @@
+name: brain box W7 routes (the Open exchange's allow-list, /access pushes, /logs, /mitm-ca/refresh)
+agent: vm-agent
+service: gbrain
+files:
+  keys/session_secret: "0909090909090909090909090909090909090909090909090909090909090909\n"
+shims:
+  - argv: [sudo, /usr/local/bin/cc-gbrain-login-link]
+    stdout: "https://brain.example/admin/auth/abc123\n"
+  - argv: [sudo, journalctl, -u, gbrain]
+    stdout: |
+      {"MESSAGE":"Started gbrain.service.","SYSLOG_IDENTIFIER":"systemd","__REALTIME_TIMESTAMP":"1793179840000000"}
+      {"MESSAGE":"TypeError: x is not a function","SYSLOG_IDENTIFIER":"node","__REALTIME_TIMESTAMP":"1793179842500000"}
+  - argv: [systemctl, show, gbrain]
+    stdout: "ActiveState=active\nSubState=running\nResult=success\nExecMainStatus=0\nExecMainStartTimestamp=Wed 2026-10-28 09:30:40 UTC\nNRestarts=0\n"
+steps:
+  - name: the shell script, as on an agent
+    request: {method: GET, path: /__cc/shell.js}
+    expect: {status: 200}
+  - name: the Open page
+    request: {method: GET, path: /__cc/open}
+    expect: {status: 200}
+  - name: the login page with the brain's steps
+    request: {method: GET, path: /__cc/login}
+    expect: {status: 200, body_contains: [Signing you in to GBrain]}
+  - name: the firewall says where it is
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://fw.example.com"}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 200, json: {ok: true, firewallOrigin: "https://fw.example.com"}}
+  - name: Open begin
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect: {status: 200, json_subset: {c: $string}}
+  - name: a member's ticket cannot open the brain
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {}}
+    expect: {status: 403, json: {error: Only owners and admins can open the brain.}}
+  # Rust clears the spent bind cookie on a refusal (w8/brain-signin-bind-cleared.yaml), so the owner
+  # begins Open again, as a browser does after a refusal; the TS passes either way.
+  - name: Open begin again
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect: {status: 200, json_subset: {c: $string}}
+  - name: an owner's ticket lands on GBrain's own login link
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {claims: {canWrite: true}}}
+    expect: {status: 200, json_subset: {next: /admin/auth/abc123, view: direct}}
+  - name: an agent's page the brain does not serve
+    request: {method: GET, path: /__cc/logs}
+    expect: {status: 404, json: {error: Not found}}
+  - name: an agent's sandbox route either
+    request: {method: GET, path: /__cc/sandbox/x}
+    expect: {status: 404, json: {error: Not found}}
+  - name: the check Caddy asks, without a session
+    request: {method: GET, path: /__cc/verify}
+    expect: {status: 401}
+  - name: an access push without a token
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://fw.example.com"}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: nor with the console's
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://fw.example.com"}, token: {signer: console}}
+    expect: {status: 401}
+  - name: the firewall's revoke
+    request: {method: POST, path: /access/revoke, json: {deviceIds: ["a", "b"]}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 200, json: {ok: true, revoked: 2}}
+  - name: the unit journal, for the console
+    request: {method: GET, path: "/logs?lines=1", token: {signer: console}}
+    expect: {status: 200, json_subset: {service: {active: active}}}
+  - name: the journal needs the console's token
+    request: {method: GET, path: /logs}
+    expect: {status: 401}
+  - name: the CA refresh on a brain with no firewall
+    request: {method: POST, path: /mitm-ca/refresh, token: {signer: console}}
+    expect: {status: 200, json: {ok: true, installed: false, message: This box is not behind a firewall proxy.}}
+  - name: the CA refresh needs the console's token
+    request: {method: POST, path: /mitm-ca/refresh}
+    expect: {status: 401, json: {error: Unauthorized}}

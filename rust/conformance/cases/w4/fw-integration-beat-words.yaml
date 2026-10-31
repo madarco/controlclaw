@@ -1,0 +1,28 @@
+name: the integrations' feature words on the beat, with a private address, a connector runtime and the gates up
+agent: mitm-agent
+env:
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  CONNECTOR_URL: "http://127.0.0.1:9"
+  CONNECTOR_ADMIN_TOKEN: admin-token
+  CONNECTOR_STORE_PATH: state/connectors.enc
+  APPS_RULES_PATH: state/apps-rules.enc
+  MCP_SERVERS_STORE_PATH: state/mcp-servers.enc
+  MCP_CATALOG_PATH: state/mcp-catalog.enc
+  MCP_ASKS_PATH: state/mcp-asks.json
+  MCP_SERVER_CALLS_PATH: state/mcp-server-calls.jsonl
+  LOGINS_STORE_PATH: state/logins.enc
+  TEAMCHAT_STORE_PATH: state/teamchat.enc
+  TEAMCHAT_STATS_PATH: state/teamchat-stats.json
+ports:
+  admission: MCP_ADMISSION_PORT
+  tools: CONTROLPLANE_MCP_GATE_PORT
+  chat: TEAMCHAT_GATE_PORT
+  connector: CONNECTOR_GATE_PORT
+steps:
+  - name: the tools gate is listening
+    request: {method: GET, path: /nothing, port: tools}
+    expect: {status: 404}
+  - name: "the words, logins, connectors, mcp_servers, mcp_rules and controlplane_mcp among them (team_chat needs ClickClack, which the rig does not have)"
+    beat:
+      json_subset:
+        features: [included_ai, web_search, meetings_transcript, meetings_autojoin, tailscale, devices, gbrain, drive_folders, google_account, agentmail, phone, secrets, logins, connectors, mcp_servers, mcp_rules, templates_code, skills_apply, notes_apply, apply_overwrite, bound_tokens, update_all, auto_update, backups, residential_exit, kill_switch, open_v1, ai_log_review, open_fw_content_rules, speech_families, speech_wake, speech_wake_sessions, meeting_followup, meeting_instructions, speech_always, meeting_full_agent, meeting_present, content_rules, meeting_consult_model, phone_voice_edit, controlplane_mcp, open_logs, open_whatsapp, open_phone]

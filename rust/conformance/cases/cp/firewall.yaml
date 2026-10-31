@@ -1,0 +1,55 @@
+name: cp POST /firewall (heartbeat and commands)
+agent: control-plane
+endpoint: /firewall
+scope: both
+seed:
+  vms:
+    - {id: cpfw_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+    - {id: cpfw_a1, role: openclaw, name: cpfw-a1, private_ip: 10.0.0.3}
+steps:
+  - name: no token
+    request: {method: POST, path: /api/vm-agent/firewall, json: {proxy: active}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: an agent may not beat
+    request: {method: POST, path: /api/vm-agent/firewall, as: cpfw_a1, json: {proxy: active}}
+    expect: {status: 403, json: {error: $string}}
+  - name: a beat with no proxy state
+    request: {method: POST, path: /api/vm-agent/firewall, as: cpfw_fw, json: {uptime_s: 3}}
+    expect: {status: 400, json_subset: {error: Invalid body}}
+  - name: nothing queued
+    request: {method: POST, path: /api/vm-agent/firewall, as: cpfw_fw, json: {proxy: active, agent_version: "0.1.0", uptime_s: 3}}
+    expect: {status: 200, json: {command: null}}
+  - name: the console queues a restart
+    scope: saas-only
+    request: {method: POST, path: /__conformance/enqueue, json: {org_id: "${org_id}", vm_id: cpfw_fw, action: restart}}
+    save: cmd
+  - name: the next beat takes it
+    scope: saas-only
+    request: {method: POST, path: /api/vm-agent/firewall, as: cpfw_fw, json: {proxy: active, uptime_s: 8}}
+    expect: {status: 200, json: {command: {id: "${cmd.id}", action: restart, payload: {}}}}
+  - name: it is handed out once
+    scope: saas-only
+    request: {method: POST, path: /api/vm-agent/firewall, as: cpfw_fw, json: {proxy: active, uptime_s: 13}}
+    expect: {status: 200, json: {command: null}}
+  - name: the result rides the next beat
+    scope: saas-only
+    request:
+      method: POST
+      path: /api/vm-agent/firewall
+      as: cpfw_fw
+      json:
+        proxy: active
+        uptime_s: 18
+        results: [{command_id: "${cmd.id}", ok: true, status: active, message: restarted}]
+    expect: {status: 200, json: {command: null}}
+  - name: the console has the result
+    scope: saas-only
+    request: {method: POST, path: /__conformance/read, json: {org_id: "${org_id}", what: command, id: "${cmd.id}"}}
+    expect: {status: 200, json_subset: {action: restart, result: {ok: true, status: active}}}
+  - name: a result for no command is dropped
+    request:
+      method: POST
+      path: /api/vm-agent/firewall
+      as: cpfw_fw
+      json: {proxy: active, results: [{command_id: no_such_command, ok: true, status: done}]}
+    expect: {status: 200, json: {command: null}}

@@ -1,0 +1,1 @@
+{"vm_abc":{"id":"0123456789abcdef0123456789abcdef","started":1767225000.123,"expires":1767225060,"deadline":1767239400,"max_bytes":536870912,"wake_sessions":2,"full_agent":true,"speech":{"provider":"openai","model":"gpt-realtime"},"voice_placeholder":"CC-VOICE-y"}}

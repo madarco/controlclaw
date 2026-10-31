@@ -1,0 +1,11 @@
+{
+  "name": "controlclaw-oss",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@9.15.0",
+  "engines": { "node": ">=24.16.0" },
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}

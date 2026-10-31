@@ -1,0 +1,317 @@
+{
+ "name": "k5 logins (main #617): an all-digit stand-in's password goes only into the field that holds it, written once and plainly",
+ "needs_443": true,
+ "needs_hosts": true,
+ "files": {
+  "credentials.json": [
+   {
+    "login_id": "lg_test0010",
+    "login_name": "Door PIN",
+    "vm_id": "vm_test",
+    "placeholder": "48213907",
+    "secret": "90215543",
+    "allowed_hosts": [
+     "door.example"
+    ],
+    "login_url": "https://door.example/login"
+   },
+   {
+    "login_id": "lg_test0011",
+    "login_name": "G PIN",
+    "vm_id": "vm_test",
+    "placeholder": "55190342",
+    "secret": "66001122",
+    "allowed_hosts": [
+     "accounts.google.com"
+    ]
+   },
+   {
+    "login_id": "lg_test0008",
+    "login_name": "Short PIN",
+    "vm_id": "vm_test",
+    "placeholder": "4827",
+    "secret": "9135",
+    "allowed_hosts": [
+     "pin.example"
+    ],
+    "login_url": "https://pin.example/login"
+   }
+  ],
+  "content-rules.json": {
+   "version": 1,
+   "rules": []
+  }
+ },
+ "steps": [
+  {
+   "name": "a digit stand-in in JSON: the holder in escapes, the one match a number",
+   "request": {
+    "method": "POST",
+    "host": "door.example",
+    "path": "/login",
+    "body": "{\"password\":\"\\u00348213907\",\"note\":48213907}",
+    "headers": {
+     "Content-Type": "application/json"
+    }
+   },
+   "expect": {
+    "status": 403,
+    "upstream": "none",
+    "traffic": [
+     {
+      "login_why": "body"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a digit stand-in in JSON: the number in a list",
+   "request": {
+    "method": "POST",
+    "host": "door.example",
+    "path": "/login",
+    "body": "{\"password\":\"\\u0034\\u0038213907\",\"note\":[48213907]}",
+    "headers": {
+     "Content-Type": "application/json"
+    }
+   },
+   "expect": {
+    "status": 403,
+    "upstream": "none",
+    "traffic": [
+     {
+      "login_why": "body"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a digit stand-in in JSON: the number one level down",
+   "request": {
+    "method": "POST",
+    "host": "door.example",
+    "path": "/login",
+    "body": "{\"password\":\"\\u00348213907\",\"note\":{\"n\":48213907}}",
+    "headers": {
+     "Content-Type": "application/json"
+    }
+   },
+   "expect": {
+    "status": 403,
+    "upstream": "none",
+    "traffic": [
+     {
+      "login_why": "body"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a digit stand-in in JSON: escapes in the middle",
+   "request": {
+    "method": "POST",
+    "host": "door.example",
+    "path": "/login",
+    "body": "{\"password\":\"4821\\u00330\\u0037\",\"note\":48213907}",
+    "headers": {
+     "Content-Type": "application/json"
+    }
+   },
+   "expect": {
+    "status": 403,
+    "upstream": "none",
+    "traffic": [
+     {
+      "login_why": "body"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a digit stand-in in JSON: the one match a member name",
+   "request": {
+    "method": "POST",
+    "host": "door.example",
+    "path": "/login",
+    "body": "{\"password\":\"\\u00348213907\",\"48213907\":1}",
+    "headers": {
+     "Content-Type": "application/json"
+    }
+   },
+   "expect": {
+    "status": 403,
+    "upstream": "none",
+    "traffic": [
+     {
+      "login_why": "body"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a digit stand-in in JSON: a number Python reads as infinity, refused like Infinity",
+   "request": {
+    "method": "POST",
+    "host": "door.example",
+    "path": "/login",
+    "body": "{\"n\":1e400,\"password\":\"48213907\"}",
+    "headers": {
+     "Content-Type": "application/json"
+    }
+   },
+   "expect": {
+    "status": 403,
+    "upstream": "none",
+    "traffic": [
+     {
+      "login_why": "body"
+     }
+    ]
+   }
+  },
+  {
+   "name": "not swapped: a short PIN",
+   "upstream": {
+    "status": 200,
+    "json": {}
+   },
+   "request": {
+    "method": "POST",
+    "host": "pin.example",
+    "path": "/login",
+    "body": "{\"password\":\"\\u0034827\",\"note\":4827}",
+    "headers": {
+     "Content-Type": "application/json"
+    }
+   },
+   "expect": {
+    "upstream": {
+     "body_lacks": [
+      "9135"
+     ]
+    }
+   }
+  },
+  {
+   "name": "not swapped: a short PIN, a decimal",
+   "upstream": {
+    "status": 200,
+    "json": {}
+   },
+   "request": {
+    "method": "POST",
+    "host": "pin.example",
+    "path": "/login",
+    "body": "{\"password\":\"482\\u0037\",\"n\":4827.0}",
+    "headers": {
+     "Content-Type": "application/json"
+    }
+   },
+   "expect": {
+    "upstream": {
+     "body_lacks": [
+      "9135"
+     ]
+    }
+   }
+  },
+  {
+   "name": "written out plainly: swapped there",
+   "upstream": {
+    "status": 200,
+    "json": {}
+   },
+   "request": {
+    "method": "POST",
+    "host": "door.example",
+    "path": "/login",
+    "body": "{\"password\":\"48213907\",\"note\":1, \"n\": 48213906}",
+    "headers": {
+     "Content-Type": "application/json"
+    }
+   },
+   "expect": {
+    "status": 200,
+    "upstream": {
+     "json": {
+      "password": "90215543",
+      "note": 1,
+      "n": 48213906
+     }
+    }
+   }
+  },
+  {
+   "name": "escapes elsewhere are fine",
+   "upstream": {
+    "status": 200,
+    "json": {}
+   },
+   "request": {
+    "method": "POST",
+    "host": "door.example",
+    "path": "/login",
+    "body": "{\"user\":\"ops\\u0040x.example\",\"password\":\"48213907\"}",
+    "headers": {
+     "Content-Type": "application/json"
+    }
+   },
+   "expect": {
+    "status": 200,
+    "upstream": {
+     "json": {
+      "user": "ops@x.example",
+      "password": "90215543"
+     }
+    }
+   }
+  },
+  {
+   "name": "Google: the payload's stand-in in escapes, the one match a number",
+   "request": {
+    "method": "POST",
+    "host": "accounts.google.com",
+    "path": "/v3/signin/_/AccountsSignInUi/data/batchexecute?rpcids=B4hajb&bl=x&f.sid=1&hl=en&_reqid=1&rt=c",
+    "body": "f.req=%5B%5B%5B%22B4hajb%22%2C+%22%5B1%2C1%2Cnull%2C%5B1%2Cnull%2Cnull%2Cnull%2C%5B%5C%22%5C%5Cu00355190342%5C%22%2Cnull%2C1%5D%5D%2C55190342%5D%22%2C+null%2C+%22generic%22%5D%5D%5D&at=tok",
+    "headers": {
+     "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+    }
+   },
+   "expect": {
+    "status": 403,
+    "upstream": "none",
+    "traffic": [
+     {
+      "login_why": "body"
+     }
+    ]
+   }
+  },
+  {
+   "name": "Google: the one match is the tail of an escape elsewhere; the password lands at [3][4][0] only",
+   "upstream": {
+    "status": 200,
+    "body": ")]}'"
+   },
+   "request": {
+    "method": "POST",
+    "host": "accounts.google.com",
+    "path": "/v3/signin/_/AccountsSignInUi/data/batchexecute?rpcids=B4hajb&bl=x&f.sid=1&hl=en&_reqid=1&rt=c",
+    "body": "f.req=%5B%5B%5B%22B4hajb%22%2C%22%5B1%2C1%2Cnull%2C%5B1%2Cnull%2Cnull%2Cnull%2C%5B%5C%22%5Cu00355190342%5C%22%2Cnull%2C1%5D%5D%2C%5C%22%5Cu55190342%5C%22%5D%22%2Cnull%2C%22generic%22%5D%5D%5D&at=tok",
+    "headers": {
+     "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+    }
+   },
+   "expect": {
+    "status": 200,
+    "upstream": {
+     "body_contains": [
+      "66001122",
+      "&at=tok",
+      "%5C%5Cu55190342"
+     ]
+    }
+   }
+  }
+ ]
+}

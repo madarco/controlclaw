@@ -1,0 +1,8 @@
+{
+  "cli": "/home/claw/.npm-global/bin/openclaw",
+  "version": "2026.10.9",
+  "config_file": "/home/claw/.openclaw/openclaw.json",
+  "state_dir": "/home/claw/.openclaw",
+  "runs": { "kind": "systemd-user", "unit": "openclaw-gateway.service" },
+  "gateway_port": 18789
+}

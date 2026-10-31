@@ -1,0 +1,39 @@
+[
+  {
+    "id": "rule_01",
+    "name": "block-evil",
+    "match_domain": "blocked.test",
+    "effect": "block",
+    "priority": 10
+  },
+  {
+    "id": "rule_02",
+    "name": "github api via residential",
+    "match_domain": "*.github.com",
+    "match_path": "/repos",
+    "match_method": "GET",
+    "vm_id": "vm_abc",
+    "effect": "allow",
+    "exit": "residential",
+    "exit_country": "de",
+    "priority": 20,
+    "ai_review": true,
+    "ai_policy": "Only reads of public repositories."
+  },
+  {
+    "id": "rule_03",
+    "name": "ssh tunnel",
+    "match_domain": "git.example.com",
+    "match_port": 22,
+    "effect": "tunnel",
+    "priority": 30
+  },
+  {
+    "id": "rule_04",
+    "name": "default-allow",
+    "match_domain": "*",
+    "effect": "allow",
+    "priority": 1000,
+    "future_field": {"kept": true}
+  }
+]

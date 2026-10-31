@@ -1,0 +1,3 @@
+{"ts": 1767225000.1, "tenant": "org_1", "vm_id": "vm_abc", "permission_id": "perm_0123456789abcdef0123456789abcdef", "scope": "GET api.example.com/v1/items", "host": "api.example.com", "method": "GET", "path": "/v1/items"}
+{"permission_id": "perm_aa", "vm_id": "vm_abc", "scope": "email bob@example.com", "summary": "Email bob@example.com", "kind": "email_recipient", "host": "api.agentmail.to", "method": "POST", "path": "/v0/inboxes/{id}/messages/send", "recipient": "bob@example.com", "mailbox": "agentmail:inbox_1"}
+{"permission_id": "perm_bb", "vm_id": "vm_abc", "scope": "app github issues.create", "kind": "app_call", "service": "github", "action": "issues.create", "operation": "write", "connection": null, "rule": "r1", "expires_at": "2026-10-28T12:00:00.000Z"}

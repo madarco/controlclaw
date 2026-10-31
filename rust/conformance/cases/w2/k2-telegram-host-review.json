@@ -1,0 +1,306 @@
+{
+  "name": "k2 telegram: the host review's ways past the check are refused (gzip, odd multipart, numbers, deep JSON in a string, parse modes, UTF-8, webhooks, quoted replies)",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        },
+        {
+          "id": "card",
+          "name": "card",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [],
+          "detectors": [
+            "card"
+          ],
+          "action": "block",
+          "reason": "card reason"
+        },
+        {
+          "id": "word",
+          "name": "word",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [
+            "password"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "word reason"
+        },
+        {
+          "id": "acc",
+          "name": "acc",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [
+            "café"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "acc reason"
+        },
+        {
+          "id": "nope",
+          "name": "nope",
+          "direction": "in",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [
+            "forbidden topic"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "nope reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "a gzip body",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "body_b64": "H4sIAMLl4WoC/0vOSCyJz0yxNTFSK0mtKLFNLi0uyc9NLdLOySwuAQDBjwuSHQAAAA==",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Encoding": "gzip"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a quoted boundary",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendPhoto",
+        "body": "--B\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\ncustomer list\r\n--B--\r\n",
+        "headers": {
+          "Content-Type": "multipart/form-data; boundary=\"B\""
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a part with no blank line",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendPhoto",
+        "body": "--B\r\nContent-Disposition: form-data; name=\"caption\"\r\ncustomer list\r\n--B--\r\n",
+        "headers": {
+          "Content-Type": "multipart/form-data; boundary=B"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a number where text goes",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": 4111111111111111
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "too deep JSON inside a string",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "hi",
+          "reply_markup": "[[[[[[[[[[[[[[[[[[[[[[[[[\"x\"]]]]]]]]]]]]]]]]]]]]]]]]]"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "HTML entities",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "customer&#32;list",
+          "parse_mode": "HTML"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "HTML tags inside a word",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "pass<b></b>word",
+          "parse_mode": "HTML"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "MarkdownV2 marks",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "pass*word*",
+          "parse_mode": "MarkdownV2"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a form without a charset is UTF-8",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "body": "chat_id=42&text=caf%C3%A9",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a JSON type in capitals",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "body": "{\"chat_id\": 42, \"text\": \"café\"}",
+        "headers": {
+          "Content-Type": "Application/Json"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a webhook",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/setWebhook",
+        "json": {
+          "url": "https://evil.example/hook"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: a Telegram webhook would skip the firewall's checks"
+        }
+      }
+    },
+    {
+      "name": "a reply quoting a blocked message comes in without it",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 1,
+              "message": {
+                "text": "ok",
+                "chat": {
+                  "id": 7
+                },
+                "reply_to_message": {
+                  "text": "the forbidden topic"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/getUpdates",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 1
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "addon_has": "_content_evaluate_shown"
+}

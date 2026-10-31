@@ -1,0 +1,5 @@
+/* The firewall's own pages (Logs, Doctor, Logins, ...): the console's tokens and components, built by
+   scripts/build-fw-files.mjs into dist-ui/app.css, which every one of them links. */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@controlclaw/console-ui/theme.css";

@@ -1,0 +1,64 @@
+name: vm-agent meetings routes take only the firewall or the console, and refuse a browser without this box's session
+agent: vm-agent
+# No OpenClaw gateway in the rig, so no meetings service (the TS builds it only with a gateway
+# client): authorized calls answer "Meetings unavailable". The rig cannot hold a browser session,
+# so joining, the state, the list and a meeting are covered by
+# rust/bins/vm-agent/src/meetings/service/tests.rs (and meetings.test.ts on the TS side).
+steps:
+  - name: status without a token
+    request: {method: GET, path: /meetings/status}
+    expect: {status: 401, json: {error: Unauthorized}, headers: {cache-control: no-store, referrer-policy: no-referrer}}
+  - name: status for the console, with no service
+    request: {method: GET, path: /meetings/status, token: {signer: console}}
+    expect: {status: 503, json: {error: Meetings unavailable}}
+  - name: status for the firewall, with no service
+    request: {method: GET, path: /meetings/status, token: {signer: firewall, bind: true, claims: {purpose: meetings}}}
+    expect: {status: 503, json: {error: Meetings unavailable}}
+  - name: status with another purpose
+    request: {method: GET, path: /meetings/status, token: {signer: firewall, bind: true, claims: {purpose: phone}}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: an apply without the firewall
+    request: {method: POST, path: /meetings/apply, json: {vmId: vm_1, revision: 1}, token: {signer: console}}
+    expect: {status: 401, json: {error: Firewall signature required}}
+  - name: an apply from the firewall, with no service
+    request: {method: POST, path: /meetings/apply, json: {vmId: vm_1, revision: 1}, token: {signer: firewall, bind: true, claims: {purpose: meetings}}}
+    expect: {status: 503, json: {error: Meetings unavailable}}
+  - name: the instructions read by the console, with no service
+    request: {method: GET, path: /meetings/instructions, token: {signer: console}}
+    expect: {status: 503, json: {error: Meetings unavailable}}
+  - name: the instructions written by the console
+    request: {method: POST, path: /meetings/instructions, json: {text: x}, token: {signer: console}}
+    expect: {status: 401, json: {error: Firewall signature required}}
+  - name: the instructions without a token
+    request: {method: GET, path: /meetings/instructions}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: the page without a session
+    request: {method: GET, path: /__cc/meetings}
+    expect: {status: 403, headers: {content-type: text/html; charset=utf-8, x-frame-options: DENY, cache-control: no-store, referrer-policy: no-referrer}}
+  - name: one meeting's page without a session
+    request: {method: GET, path: /__cc/meetings/0f8e2b1a-1c2d-4e5f-8a9b-0c1d2e3f4a5b}
+    expect: {status: 403, headers: {content-type: text/html; charset=utf-8}}
+  - name: a dashboard session from another site
+    request: {method: GET, path: "/__cc/meetings/session?key=agent:main:main", headers: {sec-fetch-site: cross-site, sec-fetch-mode: navigate, sec-fetch-dest: document}}
+    expect: {status: 403, json: {error: "Open this link from the agent's Meetings page"}}
+  - name: a dashboard session by a navigation without a session
+    request: {method: GET, path: "/__cc/meetings/session?key=agent:main:main", headers: {sec-fetch-site: none, sec-fetch-mode: navigate, sec-fetch-dest: document}}
+    expect: {status: 403, headers: {content-type: text/html; charset=utf-8}}
+  - name: the state without a session
+    request: {method: GET, path: /__cc/meetings/state, headers: {origin: "https://box.example", sec-fetch-site: same-origin}}
+    expect: {status: 403, json: {error: "Press Meeting controls on the agent’s Meetings tab in the console, from an enrolled owner browser."}}
+  - name: a join without a session
+    request: {method: POST, path: /__cc/meetings/join, json: {url: "https://meet.google.com/abc-defg-hij", mode: transcript}, headers: {origin: "https://box.example", sec-fetch-site: same-origin}}
+    expect: {status: 403, json: {error: "Press Meeting controls on the agent’s Meetings tab in the console, from an enrolled owner browser."}}
+  - name: another path under /meetings/ reads as a page command
+    request: {method: GET, path: /meetings/other, token: {signer: console}}
+    expect: {status: 403, json: {error: "Press Meeting controls on the agent’s Meetings tab in the console, from an enrolled owner browser."}}
+  - name: a scheduled meeting cancelled without a session
+    request: {method: POST, path: /__cc/meetings/schedule/cancel, json: {id: "0f8e2b1a-1c2d-4e5f-8a9b-0c1d2e3f4a5b"}, headers: {origin: "https://box.example", sec-fetch-site: same-origin}}
+    expect: {status: 403, json: {error: "Press Meeting controls on the agent’s Meetings tab in the console, from an enrolled owner browser."}}
+  - name: a Google sign-in started without a session
+    request: {method: POST, path: /__cc/meetings/signin/start, json: {}, headers: {origin: "https://box.example", sec-fetch-site: same-origin}}
+    expect: {status: 403, json: {error: "Press Meeting controls on the agent’s Meetings tab in the console, from an enrolled owner browser."}}
+  - name: a request from a meeting approved without a session
+    request: {method: POST, path: /__cc/meetings/followup/approve, json: {meetingId: "0f8e2b1a-1c2d-4e5f-8a9b-0c1d2e3f4a5b", requestId: "r"}, headers: {origin: "https://box.example", sec-fetch-site: same-origin}}
+    expect: {status: 403, json: {error: "Press Meeting controls on the agent’s Meetings tab in the console, from an enrolled owner browser."}}

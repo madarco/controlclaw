@@ -1,0 +1,63 @@
+name: firewall teamchat.* commands on a box without ClickClack, the 3930 gate's refusals and verify
+agent: mitm-agent
+env:
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  APPS_RULES_PATH: state/apps-rules.enc
+  MCP_SERVERS_STORE_PATH: state/mcp-servers.enc
+  MCP_CATALOG_PATH: state/mcp-catalog.enc
+  MCP_ASKS_PATH: state/mcp-asks.json
+  MCP_SERVER_CALLS_PATH: state/mcp-server-calls.jsonl
+  TEAMCHAT_STORE_PATH: state/teamchat.enc
+  TEAMCHAT_STATS_PATH: state/teamchat-stats.json
+ports:
+  chat: TEAMCHAT_GATE_PORT
+steps:
+  - name: turning it on where ClickClack is not installed
+    command:
+      id: t1
+      action: teamchat.propose
+      payload: {changeId: c1}
+      result: {command_id: t1, ok: false, status: failed, message: Team chat is not installed on this firewall yet. Update the firewall first.,
+               data: {changeId: c1, summary: "Turn on Team chat: a chat room on your firewall that all your agents and your team can read and write"}}
+  - name: a proposal without a change id
+    command:
+      id: t2
+      action: teamchat.propose
+      result: {command_id: t2, ok: false, status: failed, message: malformed teamchat.propose payload}
+  - name: confirm with nothing waiting
+    command:
+      id: t3
+      action: teamchat.confirm
+      payload: {changeId: c1, code: "1"}
+      result: {command_id: t3, ok: false, status: expired, message: "No change is waiting for a code, or the code expired.", data: {changeId: c1}}
+  - name: cancel
+    command:
+      id: t4
+      action: teamchat.cancel
+      payload: {changeId: c1}
+      result: {command_id: t4, ok: true, status: cancelled, message: "", data: {changeId: c1}}
+  - name: turning it off when it is off
+    command:
+      id: t5
+      action: teamchat.disable
+      result: {command_id: t5, ok: true, status: applied, message: "", data: {enabled: false}}
+  - name: push and forget an agent it never had
+    command:
+      id: t6
+      action: teamchat.forget
+      payload: {vmId: vm-x}
+      result: {command_id: t6, ok: true, status: applied, message: "", data: {vmId: vm-x, revoked: false}}
+  - name: push without an agent
+    command:
+      id: t7
+      action: teamchat.push
+      result: {command_id: t7, ok: false, status: failed, message: malformed teamchat.push payload}
+  - name: the chat gate takes the chat API only
+    request: {method: GET, path: /app, port: chat}
+    expect: {status: 404, body: ""}
+  - name: the chat gate refuses an unknown token
+    request: {method: GET, path: /api/me, port: chat, headers: {authorization: Bearer cctc_nope}}
+    expect: {status: 404, body: ""}
+  - name: Caddy's check without a grant
+    request: {method: GET, path: /__cc/team-chat/verify, listener: ingress}
+    expect: {status: 404, body: ""}

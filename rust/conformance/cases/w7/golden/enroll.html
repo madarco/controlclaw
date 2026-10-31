@@ -1,0 +1,101 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Confirm this browser</title><script src="/__cc/shell.js"></script><link rel="stylesheet" href="/__cc/files-ui/tw.css"><style>
+h1{font-size:1.2rem;font-weight:600;margin:0 0 .25rem;letter-spacing:-.01em}
+.host{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink-2);margin:0 0 1.5rem;word-break:break-all}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:.6rem}
+.steps li{display:flex;align-items:center;gap:.7rem;color:var(--ink-2);transition:color .2s}
+.steps li.active{color:var(--ink)}.steps li.done{color:var(--ink)}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;flex:none;transition:all .2s}
+.active .dot{border-color:var(--brand);border-top-color:transparent;animation:spin .8s linear infinite}
+.done .dot{border-color:var(--allow);background:var(--allow)}
+.done .dot::after{content:"";width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err{display:none;margin-top:1.25rem;padding:.9rem 1rem;border-radius:12px;background:var(--block-soft);color:var(--block-fg);font-size:14px}
+.err.show{display:block}
+a.btn{display:inline-block;margin-top:1.25rem;padding:.55rem .9rem;border-radius:10px;background:var(--brand);color:#fff;text-decoration:none;font-weight:600;font-size:14px}
+a.btn.alt{margin-left:.5rem;background:transparent;color:var(--brand-ink);border:1px solid var(--line)}
+p.note{margin:1.25rem 0 0;font-size:13px;color:var(--ink-2)}
+.foot{margin-top:1.5rem;font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:.4rem}
+.foot::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--brand)}
+p.lead{margin:0 0 1rem;color:var(--ink-2)}
+input.code{width:100%;font:600 1.6rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.3em;text-align:center;padding:.7rem;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
+input.code:focus{outline:2px solid var(--brand);outline-offset:1px}
+button.btn{margin-top:1rem;width:100%;padding:.7rem;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:600;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.4rem}
+button.btn:disabled{opacity:.5;cursor:not-allowed}
+[hidden]{display:none!important}
+.otp{display:flex;align-items:center;justify-content:center;gap:8px}
+.otp .g{display:flex;align-items:center}
+.otp input{position:relative;width:36px;height:36px;margin:0;padding:0;border:1px solid var(--line);border-left-width:0;border-radius:0;background:transparent;color:var(--ink);font-family:inherit;font-size:14px;text-align:center;box-shadow:0 1px 2px 0 rgb(0 0 0/.05);outline:none;transition:border-color .15s,box-shadow .15s}
+.otp .g input:first-child{border-left-width:1px;border-radius:8px 0 0 8px}
+.otp .g input:last-child{border-radius:0 8px 8px 0}
+.otp input:focus{z-index:1;border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 50%,transparent)}
+.otp .sep{display:flex;color:var(--ink)}
+.otp.busy{opacity:.5}.otp.busy input{cursor:not-allowed}
+.line{display:flex;align-items:center;justify-content:center;gap:.4rem;margin:.75rem 0 0;font-size:12.5px;color:var(--ink-2)}
+.spin{width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;flex:none}
+</style></head><body class="bg-bg-2 font-sans text-ink antialiased"><div class="grid min-h-dvh grid-rows-[58px_1fr]"><header class="flex h-full min-w-0 items-center gap-3 px-4 md:px-5"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand"><svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span><div class="min-w-0 leading-tight"><div class="truncate text-[14px] font-semibold text-ink">box</div><div class="truncate font-mono text-[11.5px] text-ink-2">box.example</div></div><span class="flex-1"></span><a href="https://console.example/dashboard/agents/vm_1" class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink shadow-sm hover:bg-bg"><svg class="h-4 w-4 text-ink-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg><span class="hidden sm:inline">Back to console</span><span class="sm:hidden">Console</span></a></header><div class="grid place-items-center px-4 py-8"><main class="w-full max-w-[26rem] rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8"><h1>Confirm this browser</h1><p class="host">box.example</p>
+<p class="lead" id="lead">This browser has not opened your organization's agents before. We sent a 6-digit code to your organization's chat channel. Type it here to open box.</p>
+<form id="f" method="post" action="https://fw.example.com/__cc/enroll/confirm">
+  <input type="hidden" name="p" id="p">
+  <input class="code" name="code" id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus aria-label="6-digit code">
+  <div class="otp" id="otp" role="group" aria-label="6-digit code" hidden><div class="g"><input id="d0" inputmode="numeric" autocomplete="one-time-code" aria-label="Digit 1 of 6"><input id="d1" inputmode="numeric" autocomplete="off" aria-label="Digit 2 of 6"><input id="d2" inputmode="numeric" autocomplete="off" aria-label="Digit 3 of 6"></div><div class="sep" role="separator"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></div><div class="g"><input id="d3" inputmode="numeric" autocomplete="off" aria-label="Digit 4 of 6"><input id="d4" inputmode="numeric" autocomplete="off" aria-label="Digit 5 of 6"><input id="d5" inputmode="numeric" autocomplete="off" aria-label="Digit 6 of 6"></div></div>
+  <p class="line" id="line" hidden></p>
+  <div class="err" id="err"></div>
+  <button class="btn" id="go" type="submit">Continue</button>
+</form>
+<p class="note">Only type the code on this page, at box.example. If you did not just press Open, close this tab.</p><div class="foot">Secured by ControlClaw</div></main></div></div><script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const NAMES = {"telegram":"Telegram","slack":"Slack","whatsapp":"WhatsApp"};
+  const h = new URLSearchParams(location.hash.slice(1));
+  const p = h.get('p'), via = h.get('via'), e = h.get('e'), left = h.get('left');
+  if (!p) { location.replace('/__cc/open#e=code_expired'); return; }
+  $('p').value = p;
+  // Keep the pending id in the fragment for a reload, drop the rest.
+  history.replaceState(null, '', location.pathname + '#p=' + encodeURIComponent(p) + (via ? '&via=' + encodeURIComponent(via) : ''));
+  if (via && NAMES[via]) $('lead').textContent = "This browser has not opened your organization's agents before. We sent a 6-digit code to your " + NAMES[via] + ". Type it here to open box.";
+  if (e === 'invalid_code') { $('err').textContent = 'Wrong code. ' + (left === '1' ? '1 try left.' : (left || 'A few') + ' tries left.'); $('err').className = 'err show'; }
+  
+  const plain = $('code'), go = $('go'), line = $('line'), otp = $('otp');
+  const boxes = [0, 1, 2, 3, 4, 5].map((i) => $('d' + i));
+  plain.hidden = true; plain.required = false; plain.removeAttribute('pattern');
+  otp.hidden = false;
+  let busy = false;
+  const digits = (s) => String(s || '').replace(/[^0-9]/g, '');
+  const sync = () => { plain.value = boxes.map((b) => b.value).join(''); go.disabled = busy || plain.value.length !== 6; };
+  const fill = (i, d) => { for (const ch of d) { if (i > 5) break; boxes[i++].value = ch; } sync(); boxes[Math.min(i, 5)].focus(); };
+  const idle = () => { busy = false; otp.className = 'otp'; for (const b of boxes) b.readOnly = false; go.textContent = 'Continue'; line.hidden = true; sync(); };
+  boxes.forEach((b, i) => {
+    b.addEventListener('focus', () => b.select());
+    b.addEventListener('input', () => { const d = digits(b.value); b.value = ''; if (d.length >= 6) fill(0, d.slice(0, 6)); else if (d) fill(i, d); else sync(); });
+    b.addEventListener('paste', (ev) => {
+      ev.preventDefault();
+      if (busy) return;
+      const d = digits(ev.clipboardData && ev.clipboardData.getData('text'));
+      if (d.length >= 6) fill(0, d.slice(0, 6)); else if (d) fill(i, d);
+    });
+    b.addEventListener('keydown', (ev) => {
+      if (busy) return;
+      if (ev.key === 'Backspace') {
+        ev.preventDefault();
+        if (b.value) b.value = ''; else if (i > 0) { boxes[i - 1].value = ''; boxes[i - 1].focus(); }
+        sync();
+      } else if (ev.key === 'ArrowLeft' && i > 0) { ev.preventDefault(); boxes[i - 1].focus(); }
+      else if (ev.key === 'ArrowRight' && i < 5) { ev.preventDefault(); boxes[i + 1].focus(); }
+    });
+  });
+  $('f').addEventListener('submit', (ev) => {
+    if (busy || plain.value.length !== 6) { ev.preventDefault(); return; }
+    busy = true;
+    otp.className = 'otp busy';
+    for (const b of boxes) { b.readOnly = true; if (b.blur) { b.setSelectionRange(1, 1); b.blur(); } }
+    go.disabled = true;
+    go.innerHTML = '<span class="spin"></span>Confirming…';
+    line.innerHTML = '<span class="spin"></span>Checking the code with your firewall…';
+    line.hidden = false;
+    $('err').className = 'err';
+  });
+  // Back from the firewall to a page the browser kept: ready again, not stuck busy.
+  addEventListener('pageshow', (ev) => { if (ev.persisted) { for (const b of boxes) b.value = ''; idle(); } });
+  sync();
+  boxes[0].focus();
+})();</script></body></html>

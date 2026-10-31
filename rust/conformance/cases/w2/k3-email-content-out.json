@@ -1,0 +1,343 @@
+{
+  "name": "k3 email: content rules on what is sent (AgentMail JSON and HTML, Gmail MIME, holds)",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        },
+        {
+          "id": "pay",
+          "name": "pay",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [],
+          "detectors": [
+            "iban"
+          ],
+          "action": "hold",
+          "reason": "pay reason"
+        },
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "in",
+          "channels": [
+            "slack",
+            "email"
+          ],
+          "patterns": [
+            "salary"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "salary reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "words in the subject",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/send",
+        "json": {
+          "to": [
+            "x@y.com"
+          ],
+          "subject": "the Customer List",
+          "text": "see"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json": {
+          "error": "email_refused",
+          "reason": "content_rule",
+          "message": "Blocked by your organization's rules: cust reason"
+        },
+        "audit": [
+          {
+            "rule": "cust",
+            "channel": "email",
+            "direction": "out",
+            "action": "block"
+          }
+        ],
+        "traffic": [
+          {
+            "rule": "content: cust",
+            "email_reason": "content_rule",
+            "status": 403
+          }
+        ]
+      }
+    },
+    {
+      "name": "HTML read as text",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/m1/reply",
+        "json": {
+          "html": "<p>the <b>customer</b>&nbsp;list</p>"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "a draft is read when it is written",
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/drafts",
+        "json": {
+          "text": "the customer list"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "held: told it was sent",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        },
+        "content": {
+          "/hold": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "holdId": "h7"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/send",
+        "json": {
+          "to": [
+            "x@y.com"
+          ],
+          "subject": "hi",
+          "text": "hi",
+          "html": "<p>pay GB82 WEST 1234 5698 7654 32</p>"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json": {
+          "message_id": "held-h7",
+          "thread_id": "held-h7"
+        },
+        "loopback": {
+          "content": {
+            "/hold": [
+              {
+                "channel": "email",
+                "method": "POST",
+                "path": "/v0/inboxes/a%40agentmail.to/messages/send",
+                "chatId": "a@agentmail.to",
+                "vmId": "vm_test",
+                "rule": {
+                  "id": "pay"
+                },
+                "key": "$string"
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "pay",
+            "action": "hold",
+            "hold": "h7"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a draft cannot be held",
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/drafts",
+        "json": {
+          "text": "IBAN GB82 WEST 1234 5698 7654 32"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "message": "Blocked by your organization's rules: pay reason (it could not be held for approval)"
+        }
+      }
+    },
+    {
+      "name": "Gmail: a base64 HTML part",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IGhpDQpNSU1FLVZlcnNpb246IDEuMA0KQ29udGVudC1UeXBlOiBtdWx0aXBhcnQvYWx0ZXJuYXRpdmU7IGJvdW5kYXJ5PWINCg0KLS1iDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW4NCg0KaGVsbG8NCi0tYg0KQ29udGVudC1UeXBlOiB0ZXh0L2h0bWwNCkNvbnRlbnQtVHJhbnNmZXItRW5jb2Rpbmc6IGJhc2U2NA0KDQpQSEErZEdobElHTjFjM1J2YldWeUlHeHBjM1E4TDNBKw0KLS1iLS0NCg"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule",
+          "error": {
+            "code": 403,
+            "status": "PERMISSION_DENIED"
+          }
+        }
+      }
+    },
+    {
+      "name": "Gmail: a clean message goes",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "allow",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "id": "g1"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IGhpDQpNSU1FLVZlcnNpb246IDEuMA0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04DQoNCmhlbGxv"
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "Gmail: a resumable draft upload cannot be read",
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/upload/gmail/v1/users/me/drafts?uploadType=resumable",
+        "body": "To: x@y.com\r\nSubject: hi\r\n\r\nhello",
+        "headers": {
+          "Content-Type": "message/rfc822"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "reason": "content_rule"
+        },
+        "audit": [
+          {
+            "rule": "error",
+            "action": "block",
+            "channel": "email"
+          }
+        ]
+      }
+    }
+  ]
+}

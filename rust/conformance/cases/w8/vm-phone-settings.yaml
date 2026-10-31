@@ -1,0 +1,45 @@
+name: vm-agent /phone/status and /phone/apply take only the firewall, and fail closed without a gateway
+agent: vm-agent
+# No OpenClaw gateway in the rig: an apply is taken (pending) and fails with gateway_unavailable,
+# as the TS does with no gateway client. A relayed call needs active settings, so a gateway; it is
+# covered by the unit tests (phone/stream/tests.rs) until the rig has a fake gateway.
+steps:
+  - name: no token
+    request: {method: GET, path: /phone/status}
+    expect: {status: 401, json: {error: Phone changes require the org firewall}, headers: {cache-control: no-store}}
+  - name: the console's token is not the firewall's
+    request: {method: GET, path: /phone/status, token: {signer: console}}
+    expect: {status: 401, json: {error: Phone changes require the org firewall}}
+  - name: another purpose
+    request: {method: GET, path: /phone/status, token: {signer: firewall, bind: true, claims: {purpose: meetings}}}
+    expect: {status: 401}
+  - name: nothing applied yet
+    request: {method: GET, path: /phone/status, token: {signer: firewall, bind: true, claims: {purpose: phone}}}
+    expect: {status: 200, json: {apply: null}}
+  - name: another path under /phone/
+    request: {method: GET, path: /phone/other, token: {signer: firewall, bind: true, claims: {purpose: phone}}}
+    expect: {status: 404, json: {error: Not found}}
+  - name: a real auth token is refused
+    request:
+      method: POST
+      path: /phone/apply
+      json: {generation: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", placeholder: "CC-TWILIO-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", accountSid: "ACcccccccccccccccccccccccccccccccc", fromNumber: "+14155550123", publicUrl: "https://firewall.example/hook/hk_dddddddddddddddddddddddddddddddd", allowFrom: [], allowAll: false, authToken: real}
+      token: {signer: firewall, bind: true, claims: {purpose: phone}}
+    expect: {status: 400, json: {error: Invalid phone configuration}}
+  - name: a public URL that is not the firewall's hook
+    request:
+      method: POST
+      path: /phone/apply
+      json: {generation: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", placeholder: "CC-TWILIO-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", accountSid: "ACcccccccccccccccccccccccccccccccc", fromNumber: "+14155550123", publicUrl: "http://evil.test/hook/hk_test", allowFrom: [], allowAll: false}
+      token: {signer: firewall, bind: true, claims: {purpose: phone}}
+    expect: {status: 400, json: {error: Invalid phone configuration}}
+  - name: settings are taken and start pending
+    request:
+      method: POST
+      path: /phone/apply
+      json: {generation: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", placeholder: "CC-TWILIO-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", accountSid: "ACcccccccccccccccccccccccccccccccc", fromNumber: "+14155550123", publicUrl: "https://firewall.example/hook/hk_dddddddddddddddddddddddddddddddd", allowFrom: ["+14155550999"], allowAll: false}
+      token: {signer: firewall, bind: true, claims: {purpose: phone}}
+    expect: {status: 200, json: {ok: true, generation: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", status: pending}}
+  - name: with no gateway the setup fails closed
+    request: {method: GET, path: /phone/status, token: {signer: firewall, bind: true, claims: {purpose: phone}}}
+    expect: {status: 200, json: {apply: {generation: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", status: failed, error: gateway_unavailable}}}

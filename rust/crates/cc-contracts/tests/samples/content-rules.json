@@ -1,0 +1,1 @@
+{"version":1,"rules":[{"id":"no-salaries","name":"No salaries","direction":"out","channels":["telegram","slack","email"],"patterns":["salary"],"detectors":["iban"],"policy":"Don't share salaries or pay details","action":"hold","reason":"Pay details stay inside the company","enabled":true}]}

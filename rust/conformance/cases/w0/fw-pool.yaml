@@ -1,0 +1,8 @@
+name: firewall on an unclaimed pool box answers only its health, on loopback
+agent: mitm-agent
+pool: true
+steps:
+  - request: {method: GET, path: /health}
+    expect: {status: 200, json: {unclaimed: true}}
+  - request: {method: POST, path: /health}
+    expect: {status: 503, json: {unclaimed: true}}

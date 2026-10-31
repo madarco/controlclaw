@@ -1,0 +1,68 @@
+name: vm-agent /channels/* splits firewall writes from reads, keeps approvals to the firewall, and answers with OpenClaw down
+agent: vm-agent
+steps:
+  - request: {method: POST, path: /channels/apply, json: {type: telegram, secrets: {botToken: t}}, token: {signer: console}}
+    expect:
+      status: 401
+      json: {error: channel changes must come from the org firewall}
+      headers: {cache-control: no-store}
+  - request: {method: POST, path: /channels/apply, json: {type: telegram, secrets: {botToken: t}}, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect:
+      status: 401
+  - request: {method: GET, path: /channels/status}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - name: status answers with OpenClaw down
+    request: {method: GET, path: /channels/status, token: {signer: console}}
+    expect:
+      status: 200
+      json: {channels: {}, pairings: [], pairingsError: null, whatsappLogin: null}
+  - name: approvals are the firewall's to read
+    request: {method: GET, path: /channels/approved, token: {signer: console}}
+    expect:
+      status: 401
+  - request: {method: GET, path: /channels/approved, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 200
+      json: {approved: [], allowedByAgent: {senders: [], error: null}}
+  - request: {method: GET, path: /channels/whatsapp/login, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 200
+      json: {state: idle, qrDataUrl: null, message: null}
+  - request: {method: POST, path: /channels/apply, json: {type: irc}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 400
+      json: {ok: false, error: "type must be telegram, slack, whatsapp or clickclack"}
+  - request: {method: POST, path: /channels/apply, json: {type: slack, secrets: {botToken: b}}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 400
+      json: {ok: false, error: botToken and appToken required}
+  - request: {method: POST, path: /channels/apply, json: {type: clickclack, settings: {}}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 400
+      json: {ok: false, error: invalid Team chat settings}
+  - request: {method: POST, path: /channels/apply, json: {type: telegram, secrets: {botToken: "123:abc"}}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 503
+      json: {ok: false, error: OpenClaw is not running on this box}
+  - request: {method: POST, path: /channels/send, json: {type: telegram, to: "", text: hi}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 400
+      json: {ok: false, error: "type, to and text required"}
+  - request: {method: POST, path: /channels/send, json: {type: telegram, to: "8734", text: hi}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 503
+      json: {ok: false, error: OpenClaw is not running on this box}
+  - request: {method: POST, path: /channels/pairings/approve, json: {type: telegram, code: "ab"}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 400
+      json: {ok: false, error: type and code required}
+  - request: {method: POST, path: /channels/whatsapp/login, json: {personal: true}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 503
+      json: {ok: false, error: OpenClaw is not running on this box}
+  - request: {method: POST, path: /channels/nope, json: {}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 404
+      json: {error: Not found}

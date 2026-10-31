@@ -1,0 +1,27 @@
+name: firewall stops a locked agent that came back running, with no command since its own start
+agent: mitm-agent
+skip:
+  # The TS reconcile only reaches boxes a command named since the start (its `known` map), so after
+  # a restart it never stops one; Rust reaches every locked box by its id (host review of #580).
+  ts: "TS skips boxes no command named since a restart (fixed in Rust)"
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+  state/kill.enc: '{"alg":"AES-256-GCM","nonce":"gvv6XDrw5xw7xTRH","ct":"2pSaia8KAP2OlzgLRzVk50+HsNHGIvT4aGwRPnrNmtR+CHDwTiLXnD09E6ua8ICakTBDyixRcx/1gfUBcKb4e+3lJNJZTqwwU6Y0HXTTciFoem+Gs+EkKfpO0tdmdRf6RcrlF0n/jRFEuwp4HMZIqWCJWvSKmkO6729NSw8oFEguG2N1j2/vLLjRzvVl+WWX9/SytV5BYoM1lwsycCeheg=="}'
+fake_agent:
+  /kill/status: [[200, {active: true}]]
+  /kill/apply: [[200, {ok: true, active: false}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, hostname: "127.0.0.2", private_ip: 10.0.0.2}]}]]
+steps:
+  - name: the stop from the store is in the proxy config
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, hostname: "127.0.0.2", private_ip: 10.0.0.2, tailscale: false, locked: true}]}
+  - name: no command named the agent, yet the reconcile finds it running and stops it
+    agent_received:
+      - {path: /kill/status, method: GET, json_subset: {claims: {purpose: kill}}}
+      - {path: /kill/apply, method: POST, json_subset: {claims: {purpose: kill}, body: {locked: true}}}

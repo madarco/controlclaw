@@ -1,0 +1,28 @@
+name: phone disconnect with no Twilio account is a no-op that is applied
+agent: mitm-agent
+skip:
+  ts: "TS saves the phone store to a hard-coded /opt/controlclaw/state path, so its answer depends on who runs the rig (fixed in Rust: PHONE_STORE_PATH)"
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+  CHANNEL_STORE_PATH: state/channels.enc
+  PHONE_STORE_PATH: state/twilio-voice.enc
+steps:
+  - name: disconnect with no account
+    command:
+      id: p_disconnect
+      action: phone.disconnect
+      payload: {changeId: a10}
+      result:
+        ok: true
+        status: applied
+        data: {realtimeSupported: true, accountSid: null, accountType: null, status: disconnected, numbers: [], assignment: null, cleanupPending: false}
+  - name: the same change again is applied once more, without a second save
+    command:
+      id: p_disconnect2
+      action: phone.disconnect
+      payload: {changeId: a10}
+      result: {ok: true, status: applied}

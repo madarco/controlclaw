@@ -1,0 +1,33 @@
+name: cp GET /egress-rules
+agent: control-plane
+endpoint: /egress-rules
+scope: both
+seed:
+  vms:
+    - {id: cper_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+    - {id: cper_a1, role: openclaw, name: cper-a1, private_ip: 10.0.0.3}
+  egress_rules:
+    - {name: Allow example, match_domain: example.com, effect: allow, priority: 10}
+    - {name: Ask before posting, match_domain: api.example.com, match_method: POST, match_path: /v1/*, effect: require_permission, priority: 20}
+    - {name: Block bad, match_domain: bad.example, effect: block, priority: 5, vm_id: cper_a1}
+    - {name: Off, match_domain: off.example, effect: block, enabled: false}
+steps:
+  - name: no token
+    request: {method: GET, path: /api/vm-agent/egress-rules}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: a key the control plane does not know
+    request: {method: GET, path: /api/vm-agent/egress-rules, as: cper_fw, broken: wrong-key}
+    expect: {status: 401}
+  - name: the enabled rules, by priority, and the AI settings
+    request: {method: GET, path: /api/vm-agent/egress-rules, as: cper_fw}
+    expect:
+      status: 200
+      json:
+        rules:
+          - {id: $string, name: Block bad, match_domain: bad.example, vm_id: cper_a1, effect: block, priority: 5}
+          - {id: $string, name: Allow example, match_domain: example.com, effect: allow, priority: 10}
+          - {id: $string, name: Ask before posting, match_domain: api.example.com, match_path: /v1/*, match_method: POST, effect: require_permission, priority: 20}
+        ai: $any
+  - name: POST answers the same
+    request: {method: POST, path: /api/vm-agent/egress-rules, as: cper_fw}
+    expect: {status: 200, json_subset: {rules: [{name: Block bad}, {name: Allow example}, {name: Ask before posting}]}}

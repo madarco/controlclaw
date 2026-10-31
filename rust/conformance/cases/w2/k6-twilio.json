@@ -1,0 +1,163 @@
+{
+  "name": "k6 twilio: one agent's own number, narrow operations, a hard duration, a reserved slot",
+  "needs_443": true,
+  "needs_hosts": true,
+  "files": {
+    "credentials.json": [
+      {
+        "placeholder": "CC-TWILIO-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "secret": "cccccccccccccccccccccccccccccccc",
+        "match_domain": "api.twilio.com",
+        "vm_id": "vm_test",
+        "locations": [
+          "basic:authorization"
+        ],
+        "phone": {
+          "account_sid": "ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "from_number": "+14155550123",
+          "hook_url": "https://firewall.example/hook/hk_test"
+        }
+      }
+    ],
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "a call: reserved, TimeLimit written, the real key swapped in, settled",
+      "loopback": {
+        "phone": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd"
+              }
+            },
+            {
+              "status": 200,
+              "json": {
+                "ok": true
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 201,
+        "json": {
+          "sid": "CA1"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.twilio.com",
+        "path": "/2010-04-01/Accounts/ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Calls.json",
+        "body": "From=%2B14155550123&To=%2B14155550999&Url=https%3A%2F%2Ffirewall.example%2Fhook%2Fhk_test%3FcallId%3Dx&StatusCallback=https%3A%2F%2Ffirewall.example%2Fhook%2Fhk_test%3FcallId%3Dx%26type%3Dstatus",
+        "headers": {
+          "Authorization": "Basic QUNhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYTpDQy1UV0lMSU8tYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=",
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 201,
+        "upstream": {
+          "headers": {
+            "authorization": "Basic QUNhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYTpjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYw=="
+          },
+          "body": "From=%2B14155550123&To=%2B14155550999&Url=https%3A%2F%2Ffirewall.example%2Fhook%2Fhk_test%3FcallId%3Dx%26ccCall%3Ddddddddddddddddddddddddddddddddddddddddddddddddd&StatusCallback=https%3A%2F%2Ffirewall.example%2Fhook%2Fhk_test%3FcallId%3Dx%26type%3Dstatus%26ccCall%3Ddddddddddddddddddddddddddddddddddddddddddddddddd&TimeLimit=300"
+        },
+        "loopback": {
+          "phone": {
+            "/": [
+              {
+                "action": "reserve",
+                "vmId": "vm_test",
+                "placeholder": "CC-TWILIO-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              {
+                "action": "settle",
+                "id": "dddddddddddddddddddddddddddddddddddddddddddddddd",
+                "sid": "CA1",
+                "rejected": false
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "another number to call from: refused",
+      "request": {
+        "method": "POST",
+        "host": "api.twilio.com",
+        "path": "/2010-04-01/Accounts/ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Calls.json",
+        "body": "From=%2B14155550888&To=%2B14155550999&Url=https%3A%2F%2Ffirewall.example%2Fhook%2Fhk_test%3FcallId%3Dx&StatusCallback=https%3A%2F%2Ffirewall.example%2Fhook%2Fhk_test%3FcallId%3Dx%26type%3Dstatus",
+        "headers": {
+          "Authorization": "Basic QUNhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYTpDQy1UV0lMSU8tYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=",
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "body": "{\"error\":\"phone_assignment_required_or_operation_refused\"}",
+        "traffic": [
+          {
+            "effect": "block",
+            "rule": "phone: outbound ****0999"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TwiML off the list: refused",
+      "request": {
+        "method": "POST",
+        "host": "api.twilio.com",
+        "path": "/2010-04-01/Accounts/ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Calls/CAdddddddddddddddddddddddddddddddd.json",
+        "body": "Twiml=%3CResponse%3E%3CDial%3E%2B14155550888%3C%2FDial%3E%3C%2FResponse%3E",
+        "headers": {
+          "Authorization": "Basic QUNhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYTpDQy1UV0lMSU8tYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=",
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "the slot cannot be reserved: refused",
+      "loopback": {
+        "phone": {
+          "/": [
+            {
+              "status": 503,
+              "json": {
+                "ok": false
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.twilio.com",
+        "path": "/2010-04-01/Accounts/ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Calls.json",
+        "body": "From=%2B14155550123&To=%2B14155550999&Url=https%3A%2F%2Ffirewall.example%2Fhook%2Fhk_test%3FcallId%3Dx&StatusCallback=https%3A%2F%2Ffirewall.example%2Fhook%2Fhk_test%3FcallId%3Dx%26type%3Dstatus",
+        "headers": {
+          "Authorization": "Basic QUNhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYTpDQy1UV0lMSU8tYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=",
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none"
+      }
+    }
+  ]
+}

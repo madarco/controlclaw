@@ -1,0 +1,11 @@
+{
+  "perm_0123456789abcdef0123456789abcdef": {
+    "expires_at": 1767225600,
+    "scope": "GET api.example.com/v1/items"
+  },
+  "perm_fedcba9876543210fedcba9876543210": {
+    "expires_at": 1767225900.25,
+    "scope": "POST api.example.com/v1/orders",
+    "by": "ai"
+  }
+}

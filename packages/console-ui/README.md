@@ -1,0 +1,76 @@
+# @controlclaw/console-ui
+
+The UI shared by the ControlClaw console (`apps/saas`) and the standalone firewall's local panel
+(plan: [`docs/plans/standalone-firewall.md`](../../docs/plans/standalone-firewall.md), §7).
+
+## What is in it
+
+| Path | What |
+| --- | --- |
+| `src/ui/` | The shadcn components the console uses. |
+| `src/kit/` | The console kit: `console-ui.tsx` (Card, Sec, AnchorTabs, ActionMenu…), `PageHead`, `StatusPill`, `StatCard`, `charts`, `icons`, `people`, `RelativeTime`. |
+| `src/firewall/<area>/` | Firewall views. Import an area by its name, for example `@controlclaw/console-ui/firewall/egress`:<br>`panel`: the Firewall page (`FirewallPanel`, AI Log Review).<br>`overview`: its Overview tab.<br>`egress`: Internet access (`EgressPageView`, the Exit card, site rules).<br>`rules`: Security rules (`SecurityRulesView`, content, email, app and Auto approve rules).<br>`channels`: an agent's channels and the channel dialogs.<br>`integrations`: connectors and MCP servers.<br>`change`: the confirmation-code flow every change goes through (`useFirewallChange`, `RecoveryKeyConfirm`; `ConfirmCodeDialog` is in `channels`).<br>`logs`: the firewall's Logs. |
+| `src/lib/` | Pure helpers and schemas the views need (`cn`, rule types, egress and connector schemas, stats). |
+| `src/styles/theme.css` | The theme: Tailwind tokens, light and dark colours, base styles. |
+
+The package is TSX source, with no build step. The console compiles it (`transpilePackages` in
+`next.config.ts`), and `apps/firewall-panel/scripts/build-fw-files.mjs` and `apps/saas/scripts/build-box-files.mjs` bundle it with esbuild.
+
+## Rules
+
+- **No data fetching.** A view gets its data from a source instead of calling oRPC:
+  - Small views take it as a prop: `FwLogSource` for `FirewallLogs`, `EgressRuleSource` for
+    `EgressRulesList`, `RulesChangeRpc` for `useRulesChange`.
+  - The big views read it from `ApiProvider` (`lib/api.tsx`, the `ConsoleApi` interface), one
+    namespace per area.
+  - The console passes its oRPC client. The panel will pass a client of its REST API with the same
+    names.
+- **Routes from the app.** Views link through `RoutesProvider` (`lib/routes.tsx`, `ConsoleRoutes`),
+  never to a hard-coded `/dashboard/...`.
+- **Slots for what only one control plane has.** A view renders the firewall's parts and takes the
+  rest as props. The console's wrappers at the old paths pass them in:
+  - `FirewallPanel`: `settings` (Doctor, agent MCP, Support access, the encrypted disk, automatic
+    updates) and `hardReboot`.
+  - `EgressPageView` and `ExitCard`: `allowance` (ControlClaw's relay) and `webhooks`.
+  - `IntegrationsPageView`: `official` (Google, Drive, AgentMail, Phone).
+  - `ChannelsPanel`: `afterCards` (Team chat).
+- **No routes.** Links use `AppLink` (`lib/link`), which renders the router link given to
+  `LinkProvider`, or a plain `<a>` when there is none. The console mounts `LinkProvider` with
+  `next/link` in `app/layout.tsx` (`components/ConsoleUiProvider.tsx`), along with `ApiProvider`,
+  `RoutesProvider` and `PageHelpProvider` (the tour's "?" in every `PageHead`).
+- **No SaaS imports.** `pnpm lint` fails on any import of `apps/saas` (`@/…`), `next`, Drizzle,
+  better-auth, oRPC or `server-only` (`eslint.config.mjs`). What only the SaaS has is passed in as a
+  prop or a slot.
+
+## Using it from a new app
+
+- Import the theme after Tailwind, and let Tailwind scan the package. The console does this in
+  `app/console.css`. The firewall's and the box's pages list only the package folders they use.
+
+  ```css
+  @import "tailwindcss";
+  @import "tw-animate-css";
+  @import "@controlclaw/console-ui/theme.css";
+  @source "<path to>/packages/console-ui/src";
+  ```
+
+- The font variables `--font-inter`, `--font-jetbrains-mono` and `--font-instrument-serif` must be
+  set by the app. The console sets them with `next/font`, the firewall's pages in `build-fw-files.mjs`.
+
+## In the console
+
+The old paths (`@/components/ui/*`, `@/app/(dashboard)/components/console-ui`, the moved views and
+helpers) are one-line re-exports of this package. A view that needs the console's data source has a
+small wrapper instead, for example `app/(mitm)/components/EgressRulesList.tsx`. These shims keep
+merges from main cheap while `feature/standalone` is open. They go away after it merges (see
+`docs/plans/standalone-backlog.md`).
+
+`PageHead` in the console is a wrapper that adds the tour's "?" button through the `help` prop.
+
+`components/ui/rating.tsx` and the unused ui files stay in `apps/saas`. `rating` is not a shadcn
+component and looks like it came from a paid registry.
+
+## Tests
+
+`pnpm --filter @controlclaw/console-ui test` runs the `*.test.ts` files here. The console's
+`pnpm test` (`apps/saas/scripts/run-tests.mjs`) runs them too.

@@ -1,0 +1,37 @@
+name: brain box /start and /stop run GBrain's own unit, for the console only
+agent: vm-agent
+service: gbrain
+shims:
+  - argv: [sudo, -n, systemctl, start, gbrain]
+  - argv: [sudo, -n, systemctl, stop, gbrain]
+  - argv: [sudo, -n, systemctl, restart, gbrain]
+    stderr: "Failed to restart gbrain.service: Unit gbrain.service not found.\nsecond line\n"
+    code: 5
+  - argv: [systemctl, is-active, gbrain]
+    stdout: "active\n"
+  - argv: [systemctl, status, gbrain]
+    stdout: "gbrain.service - GBrain\n   Active: active (running)\n"
+steps:
+  - name: start
+    request: {method: POST, path: /start, token: {signer: console}}
+    expect:
+      status: 200
+      json_subset: {ok: true, action: start, active: true, status: active}
+      calls_include:
+        - [sudo, -n, systemctl, start, gbrain]
+  - name: stop
+    request: {method: POST, path: /stop, token: {signer: console}}
+    expect:
+      status: 200
+      json_subset: {ok: true, action: stop}
+      calls_include:
+        - [sudo, -n, systemctl, stop, gbrain]
+  - name: a restart that fails gives the last line of its stderr
+    request: {method: POST, path: /restart, token: {signer: console}}
+    expect: {status: 500, json_subset: {ok: false, action: restart, message: second line}}
+  - name: no token
+    request: {method: POST, path: /stop}
+    expect: {status: 401}
+  - name: the firewall's token is not the console's
+    request: {method: POST, path: /start, token: {signer: firewall, bind: true, claims: {purpose: update}}}
+    expect: {status: 401}

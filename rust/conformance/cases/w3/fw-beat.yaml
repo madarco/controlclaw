@@ -1,0 +1,11 @@
+name: firewall beat carries its stores, its software and the token feature
+agent: mitm-agent
+env:
+  RELEASE_FILE: state/no-release.json
+steps:
+  - beat:
+      json_subset:
+        stores: []
+        # The builds differ here on purpose: the Rust one adds `rust_runtime` after `llm_blocks`
+        # (core/software.rs and software.ts test the lists).
+        software: {agent: {version: $string, commit: $string, builtAt: $string}, release: null, rebootRequired: $any, bootedAt: $string, features: $any}

@@ -1,0 +1,52 @@
+name: firewall ingress checks a webhook delivery and forwards it to the agent
+agent: mitm-agent
+env:
+  # No control channel: the registrations come from the plain file and the content rules do not
+  # run, so the delivery path is the same on both builds.
+  FIREWALL_URL: ""
+  WEBHOOKS_PATH: state/webhooks.json
+files:
+  state/webhooks.json: '[{"id":"hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","name":"Test hook","target":{"vmId":"vm_1","hostname":"127.0.0.2","port":8788,"path":"/x"},"verify":[{"kind":"hmac","header":"x-cc-signature","algo":"sha256","encoding":"hex","secret":"s3cret"}],"maxBodyBytes":64,"perMinute":60},{"id":"hk_port","name":"Bad port","target":{"vmId":"vm_1","hostname":"h","port":3100},"verify":[]},{"id":"hk_nochecks","name":"No checks","target":{"vmId":"vm_1","hostname":"h","port":8700}}]'
+fake_agent:
+  /hooks/deliver: [[200, {status: 200}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, hostname: "127.0.0.2"}]}]]
+steps:
+  - name: a delivery is a POST
+    request: {method: GET, path: /hook/hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, listener: ingress}
+    expect: {status: 405, body: ""}
+  - name: an unknown id is a 404 with no body
+    request: {method: POST, path: /hook/hk_nobody, listener: ingress, json: {a: 1}}
+    expect: {status: 404, body: ""}
+  - name: a registration aimed at the box's control port was dropped when the set was read
+    request: {method: POST, path: /hook/hk_port, listener: ingress, json: {a: 1}}
+    expect: {status: 404, body: ""}
+  - name: a registration with no checks on this firewall waits (503), it is not refused
+    request: {method: POST, path: /hook/hk_nochecks, listener: ingress, json: {a: 1}}
+    expect: {status: 503, body: ""}
+  - name: a wrong signature is a 401 with no body
+    request: {method: POST, path: /hook/hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, listener: ingress, json: {a: 1}, headers: {x-cc-signature: deadbeef}}
+    expect: {status: 401, body: ""}
+  - name: a missing signature is refused too
+    request: {method: POST, path: /hook/hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, listener: ingress, json: {a: 1}}
+    expect: {status: 401, body: ""}
+  - name: a body over the cap is a 413
+    request: {method: POST, path: /hook/hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, listener: ingress, json: {a: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}, headers: {x-cc-signature: 5910e62016ef5034272c926c27071992a465c2335cecf41851bda071577f4f6d}}
+    expect: {status: 413, body: ""}
+  - name: a signed delivery is forwarded and answered 204, with only the allowed headers
+    request: {method: POST, path: /hook/hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, listener: ingress, json: {a: 1}, headers: {x-cc-signature: 5910e62016ef5034272c926c27071992a465c2335cecf41851bda071577f4f6d, cookie: "sess=1", authorization: "Bearer abc", x-github-event: push}}
+    expect: {status: 204, body: ""}
+    agent_received:
+      - path: /hooks/deliver
+        method: POST
+        json_subset:
+          claims: {purpose: hooks, vmId: vm_1, h: "127.0.0.2", p: /hooks/deliver, m: POST}
+          body: {port: 8788, path: /x, method: POST, headers: {content-type: application/json, authorization: "Bearer abc", x-github-event: push}, bodyB64: eyJhIjoxfQ==}
+  - name: a listener that refuses is passed through; a 5xx becomes a 503 for the provider to retry
+    agent_answers:
+      /hooks/deliver: [[200, {status: 404}], [200, {status: 500}]]
+    request: {method: POST, path: /hook/hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, listener: ingress, json: {a: 1}, headers: {x-cc-signature: 5910e62016ef5034272c926c27071992a465c2335cecf41851bda071577f4f6d}}
+    expect: {status: 404, body: ""}
+  - request: {method: POST, path: /hook/hk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, listener: ingress, json: {a: 1}, headers: {x-cc-signature: 5910e62016ef5034272c926c27071992a465c2335cecf41851bda071577f4f6d}}
+    expect: {status: 503, body: ""}

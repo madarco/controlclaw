@@ -1,0 +1,209 @@
+{
+ "admissionDigests": [
+  "e9f7717502261327a4fe58a7f18fa0e60fa2e7a6193e18fdabebf98a9481b387",
+  "03ee4a4d4f0fbabe7420f8766a5fa3b8af789e3f5b4729f2f31d7785a8e69c0e",
+  "6cd00b695a57dedd6535e52c27daa11bbed793df42251ed4644bf9625547e75c"
+ ],
+ "noReplyText": "Sorry, I could not get an answer in time. Please ask again.",
+ "patches": [
+  {
+   "file": "runtime-entry-BNOQRXii.mjs",
+   "before": "2042cdc3c6ba0e8e0762ff87cf30a6fdfd38dd6fd2f982f1249fbdaeaf0c4984",
+   "after": "3cd13a4dde64bfb0909bd8ed5e6288b67436dfb816affd27b09e12f7f9837ee6",
+   "changes": [
+    [
+     "initialMessage: params.direction === \"inbound\" ? effectiveConfig.inboundGreeting",
+     "initialMessage: params.direction === \"inbound\" && (params.ctx.provider?.name !== \"twilio\" || effectiveConfig.streaming.enabled) ? effectiveConfig.inboundGreeting"
+    ],
+    [
+     "senderIsOwner: call.direction === \"inbound\" ? false : void 0,",
+     "senderIsOwner: false,"
+    ],
+    [
+     "if (!ctx.config.streaming.enabled) return true;",
+     "if (!ctx.config.streaming.enabled) return false;"
+    ],
+    [
+     "const playbackOptions = options?.listenAfterPlayback ? { listenAfterPlayback: true } : {};",
+     "const playbackOptions = { ...(options?.listenAfterPlayback ? { listenAfterPlayback: true } : {}), ...(options?.turnToken ? { turnToken: options.turnToken } : {}) };"
+    ],
+    [
+     "const speakResult = await speak(ctx, callId, prompt);",
+     "const speakResult = await speak(ctx, callId, prompt, { turnToken });"
+    ],
+    [
+     "await provider.startListening({\n\t\t\tcallId,\n\t\t\tproviderCallId: call.providerCallId ?? providerCallId,\n\t\t\tturnToken\n\t\t});",
+     "if (provider.name !== \"twilio\" || ctx.config.streaming.enabled) await provider.startListening({\n\t\t\tcallId,\n\t\t\tproviderCallId: call.providerCallId ?? providerCallId,\n\t\t\tturnToken\n\t\t});"
+    ],
+    [
+     "const modelRef = params.voiceConfig.responseModel ?? `${params.agentRuntime.defaults.provider}/${params.agentRuntime.defaults.model}`;",
+     "const selectedRef = params.voiceConfig.responseModel ?? `${params.agentRuntime.defaults.provider}/${params.agentRuntime.defaults.model}`;\n\tconst at = selectedRef.lastIndexOf(\"@\");\n\tconst authProfileId = at > 0 ? selectedRef.slice(at + 1) : void 0;\n\tconst modelRef = at > 0 ? selectedRef.slice(0, at) : selectedRef;"
+    ],
+    [
+     "\t\tmodelRef,\n\t\tprovider:",
+     "\t\tmodelRef,\n\t\tauthProfileId,\n\t\tprovider:"
+    ]
+   ]
+  },
+  {
+   "file": "response-generator-BzKrJMEb.mjs",
+   "before": "0b61f858a71311f0db28ea46bff9c2de9a6bc8e610dc22ffe07ecb7b46a07b17",
+   "after": "6a67ea52c400eb8c309a1e361fcbc577fb3a16a480dbe21e6c94b7abd035fb04",
+   "changes": [
+    [
+     "const { provider, model } = resolveVoiceResponseModel({",
+     "const { provider, model, authProfileId } = resolveVoiceResponseModel({"
+    ],
+    [
+     "\t\t\t\tprovider,\n\t\t\t\tmodel,\n\t\t\t\tmodelSelectionLocked,",
+     "\t\t\t\tprovider,\n\t\t\t\tmodel,\n\t\t\t\tauthProfileId,\n\t\t\t\tauthProfileIdSource: authProfileId ? \"user\" : void 0,\n\t\t\t\tmodelSelectionLocked,"
+    ]
+   ]
+  },
+  {
+   "file": "twilio-Bp3gfmUB.mjs",
+   "before": "923879d7b93a1bf291733dedebfac1aac88b85d10144d8f1cf46f6770bafb406",
+   "after": "c019ce1c3fe0f6bf49d80d2e6f98f53f2c06b1d254f57eee681406c6ff942337",
+   "changes": [
+    [
+     "case \"pause\": return TwilioProvider.PAUSE_TWIML;",
+     "case \"pause\": return controlClawInboundTwiml(ctx, this.currentPublicUrl) ?? controlClawWaitTwiml(ctx.rawBody) ?? TwilioProvider.PAUSE_TWIML;"
+    ],
+    [
+     "var TwilioProvider = class TwilioProvider {",
+     "function controlClawPlainSpeech(text) {\n  return String(text)\n    .replace(/```[^\\n]*\\n?([\\s\\S]*?)```/g, \"$1\")\n    .replace(/!?\\[([^\\]]+)\\]\\([^)]*\\)/g, \"$1\")\n    .replace(/\\\\([\\\\`*_{}\\[\\]()#+\\-.!>~])/g, \"$1\")\n    .replace(/<[^>]*>/g, \"\")\n    .replace(/^\\s*(?:#{1,6}\\s+|>\\s*|[-*+]\\s+|\\d+[.)]\\s+)/gm, \"\")\n    .replace(/[`*_~]/g, \"\")\n    .replace(/\\s+/g, \" \").trim();\n}\nfunction controlClawWaitTwiml(rawBody) {\n  if (!new URLSearchParams(rawBody).get(\"SpeechResult\")?.trim()) return null;\n  return '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say voice=\"Polly.Joanna\">One moment.</Say><Pause length=\"30\"/></Response>';\n}\nfunction controlClawInboundTwiml(ctx, hook) {\n  const p = new URLSearchParams(ctx.rawBody);\n  if (!hook || ctx.query?.type === \"status\" || p.get(\"Direction\") !== \"inbound\" || p.get(\"CallStatus\") !== \"ringing\") return null;\n  return '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say voice=\"Polly.Joanna\">Hello! How can I help you today?</Say><Gather input=\"speech\" speechTimeout=\"auto\" timeout=\"5\" action=\"' + escapeXml(hook) + '\" method=\"POST\"/></Response>';\n}\n\nvar TwilioProvider = class TwilioProvider {"
+    ],
+    [
+     "${escapeXml(input.text)}</Say>",
+     "${escapeXml(controlClawPlainSpeech(input.text))}</Say>"
+    ],
+    [
+     "    <Say>.</Say>\n",
+     ""
+    ],
+    [
+     "const webhookUrl = this.callWebhookUrls.get(input.providerCallId);\n\t\tif (!webhookUrl) throw new Error(\"Missing webhook URL for this call (provider state not initialized)\");\n\t\tconsole.warn",
+     "let webhookUrl = this.callWebhookUrls.get(input.providerCallId);\n\t\tif (!webhookUrl) throw new Error(\"Missing webhook URL for this call (provider state not initialized)\");\n\t\tif (input.turnToken) { const action = new URL(webhookUrl); action.searchParams.set(\"turnToken\", input.turnToken); webhookUrl = action.toString(); }\n\t\tconsole.warn"
+    ]
+   ]
+  },
+  {
+   "file": "runtime-entry-BNOQRXii.mjs",
+   "before": "3cd13a4dde64bfb0909bd8ed5e6288b67436dfb816affd27b09e12f7f9837ee6",
+   "after": "480dec4e7be9cb5d50a984c728fdfed3cbba4ebc5f17debefa00bb52c62e9fc4",
+   "changes": [
+    [
+     "params.ctx.provider?.name !== \"twilio\" || effectiveConfig.streaming.enabled",
+     "params.ctx.provider?.name !== \"twilio\" || effectiveConfig.streaming.enabled || effectiveConfig.realtime.enabled"
+    ],
+    [
+     "if (!this.realtimeHandler || this.provider.name !== \"twilio\") return null;",
+     "if (!this.realtimeHandler || this.provider.name !== \"twilio\" || ctx.headers[\"x-cc-phone-mode\"] !== \"realtime\") return null;"
+    ],
+    [
+     "const requesterSessionKey = typeof call.metadata?.requesterSessionKey === \"string\" ? call.metadata.requesterSessionKey : void 0;",
+     "const requesterSessionKey = void 0; // Phone speech never inherits owner delivery or authority."
+    ],
+    [
+     "explicitSessionKey: call.sessionKey,\n\t\t\t\tcoreSession: cfg.session",
+     "explicitSessionKey: void 0,\n\t\t\t\tcoreSession: cfg.session"
+    ],
+    [
+     "const { provider: agentProvider, model } = resolveVoiceResponseModel({",
+     "const { provider: agentProvider, model, authProfileId } = resolveVoiceResponseModel({"
+    ],
+    [
+     "return await consultRealtimeVoiceAgent({\n\t\t\t\tcfg,\n\t\t\t\tagentRuntime,",
+     "const { E: beginPhoneConsult } = await import(\"/usr/lib/node_modules/openclaw/dist/gateway-work-admission-DPOFUg7J.mjs\");\n\t\t\tconst admission = beginPhoneConsult(\"phone-read-only-consult\");\n\t\t\tif (!admission) throw new Error(\"Main agent temporarily unavailable\");\n\t\t\ttry { return await admission.run(() => consultRealtimeVoiceAgent({\n\t\t\t\tcfg,\n\t\t\t\tsenderIsOwner: false,\n\t\t\t\tagentRuntime: { ...agentRuntime, runEmbeddedAgent: (params) => agentRuntime.runEmbeddedAgent({ ...params, authProfileId, authProfileIdSource: authProfileId ? \"user\" : void 0 }) },"
+    ],
+    [
+     "abortSignal: handlerContext.abortSignal\n\t\t\t});",
+     "abortSignal: handlerContext.abortSignal\n\t\t\t})); } finally { admission.release(); }"
+    ]
+   ]
+  },
+  {
+   "file": "twilio-Bp3gfmUB.mjs",
+   "before": "c019ce1c3fe0f6bf49d80d2e6f98f53f2c06b1d254f57eee681406c6ff942337",
+   "after": "7a3f4089458a2108a5466d2aa442e3606e1819da096f339a8f681bd22412092b",
+   "changes": [
+    [
+     "if (!hook || ctx.query?.type === \"status\" || p.get(\"Direction\") !== \"inbound\" || p.get(\"CallStatus\") !== \"ringing\") return null;",
+     "if (!hook || ctx.query?.type === \"status\" || (!(ctx.headers?.[\"x-cc-phone-mode\"] === \"classic\" && ctx.query?.turnToken === \"classic\") && (p.get(\"Direction\") !== \"inbound\" || p.get(\"CallStatus\") !== \"ringing\")) || p.get(\"SpeechResult\") || p.get(\"Digits\")) return null;"
+    ]
+   ]
+  },
+  {
+   "file": "realtime-handler-BgDPcPZt.mjs",
+   "before": "226f3ea2203d44537c4380c50e6ccff412dcae7e5156e63cf31e7f05d999cbb0",
+   "after": "04f63ed216d37669493a748df66f1b6469941fb8d88996a100629722099565ed",
+   "changes": [
+    [
+     "this.publicPathPrefix = resolveVoiceCallPublicPathPrefix(parsed.pathname, this.servePath);",
+     "this.publicPathPrefix = \"\"; // Managed fixed loopback route; firewall rewrites the external stream URL."
+    ],
+    [
+     "const DEFAULT_MAX_QUEUED_AUDIO_BYTES = TELEPHONY_SAMPLE_RATE * 120;",
+     "const DEFAULT_MAX_QUEUED_AUDIO_BYTES = TELEPHONY_SAMPLE_RATE * 30;"
+    ],
+    [
+     "if (cause === \"disconnect\") this.streamDisconnectLifecycle.disconnect(callSid, streamSid);\n\t\t\t\telse this.streamDisconnectLifecycle.retire(callSid, streamSid);",
+     "this.streamDisconnectLifecycle.retire(callSid, streamSid); // Firewall owns fallback and the absolute call deadline."
+    ],
+    [
+     "if (!this.activeBridgesByCallId.has(callId)) emitCallEnd(\"error\");",
+     "/* Firewall performs bounded classic fallback if provider resolution fails. */"
+    ],
+    [
+     "if (!this.activeBridgesByCallId.has(callId)) emitCallEnd(reason);",
+     "if (!this.activeBridgesByCallId.has(callId) && reason !== \"error\") emitCallEnd(reason);"
+    ],
+    [
+     "if (ownsCall && stillOwnsCall && cause && cause !== \"disconnect\") return emitCallEnd(cause);",
+     "if (ownsCall && stillOwnsCall && cause && cause !== \"disconnect\" && cause !== \"error\") return emitCallEnd(cause);"
+    ]
+   ]
+  },
+  {
+   "file": "runtime-entry-BNOQRXii.mjs",
+   "before": "480dec4e7be9cb5d50a984c728fdfed3cbba4ebc5f17debefa00bb52c62e9fc4",
+   "after": "aa0e18119e8e22857e850ba3c07c4c37ea789d52004b16af1d58115bd846b94b",
+   "changes": [
+    [
+     "const { E: beginPhoneConsult } = await import(\"/usr/lib/node_modules/openclaw/dist/gateway-work-admission-DPOFUg7J.mjs\");",
+     "const admissionDir = \"/usr/lib/node_modules/openclaw/dist\";\n            const { readdir, readFile } = await import(\"node:fs/promises\");\n            const { createHash } = await import(\"node:crypto\");\n            const admissionFiles = (await readdir(admissionDir)).filter(file => /^gateway-work-admission-[A-Za-z0-9_-]{8}\\.mjs$/.test(file));\n            if (admissionFiles.length !== 1) throw new Error(\"Unsupported realtime consult runtime\");\n            const admissionPath = admissionDir + \"/\" + admissionFiles[0];\n            const admissionSource = (await readFile(admissionPath, \"utf8\")).replace(/-[A-Za-z0-9_-]{8}(?=\\.mjs[\"'])/g, \"-BUILDHASH\");\n            if (createHash(\"sha256\").update(admissionSource).digest(\"hex\") !== \"e9f7717502261327a4fe58a7f18fa0e60fa2e7a6193e18fdabebf98a9481b387\") throw new Error(\"Unsupported realtime consult runtime\");\n            const { E: beginPhoneConsult } = await import(admissionPath);"
+    ]
+   ]
+  },
+  {
+   "file": "runtime-entry-BNOQRXii.mjs",
+   "before": "aa0e18119e8e22857e850ba3c07c4c37ea789d52004b16af1d58115bd846b94b",
+   "after": "5c9aed4c9cd6fe491625d42b6f99474d7cc5d1f63da94494dd3ed7d8acca8f4b",
+   "changes": [
+    [
+     "\t\ttry {\n\t\t\tconst { generateVoiceResponse } = await loadResponseGeneratorModule();",
+     "\t\tlet controlClawApologized = false;\n\t\tconst controlClawNoReply = () => {\n\t\t\tif (controlClawApologized) return false;\n\t\t\tcontrolClawApologized = true;\n\t\t\treturn speakResponse(\"Sorry, I could not get an answer in time. Please ask again.\").catch(() => false);\n\t\t};\n\t\ttry {\n\t\t\tconst { generateVoiceResponse } = await loadResponseGeneratorModule();"
+    ],
+    [
+     "\t\t\tconst result = await generateVoiceResponse({",
+     "\t\t\tlet controlClawTimer;\n\t\t\tconst result = await Promise.race([generateVoiceResponse({"
+    ],
+    [
+     "\t\t\t\tonEarlyText: speakResponse\n\t\t\t});\n\t\t\tif (result.error) {\n\t\t\t\tthis.logger.error(`Response generation error: ${result.error}`);\n\t\t\t\treturn;\n\t\t\t}\n\t\t\tif (result.text && !result.deliveredEarly) await speakResponse(result.text);\n\t\t} catch (err) {\n\t\t\tthis.logger.error(`Auto-response error: ${String(err)}`);\n\t\t}",
+     "\t\t\t\tonEarlyText: speakResponse\n\t\t\t}), new Promise((resolve) => {\n\t\t\t\tcontrolClawTimer = setTimeout(() => resolve({ text: null, deliveredEarly: false, error: \"reply deadline exceeded\" }), 26000);\n\t\t\t\tcontrolClawTimer.unref?.();\n\t\t\t})]).finally(() => clearTimeout(controlClawTimer));\n\t\t\tif (result.error) {\n\t\t\t\tthis.logger.error(`Response generation error: ${result.error}`);\n\t\t\t\tawait controlClawNoReply();\n\t\t\t\treturn;\n\t\t\t}\n\t\t\tif (result.text && !result.deliveredEarly) await speakResponse(result.text);\n\t\t\telse if (!result.deliveredEarly) await controlClawNoReply();\n\t\t} catch (err) {\n\t\t\tthis.logger.error(`Auto-response error: ${String(err)}`);\n\t\t\tawait controlClawNoReply();\n\t\t}"
+    ]
+   ]
+  },
+  {
+   "file": "runtime-entry-BNOQRXii.mjs",
+   "before": "5c9aed4c9cd6fe491625d42b6f99474d7cc5d1f63da94494dd3ed7d8acca8f4b",
+   "after": "38baa0c8036a5179f9b589eb69d40188746e17a8c9b680019e4d68e907e4b93f",
+   "changes": [
+    [
+     "if (createHash(\"sha256\").update(admissionSource).digest(\"hex\") !== \"e9f7717502261327a4fe58a7f18fa0e60fa2e7a6193e18fdabebf98a9481b387\") throw new Error(\"Unsupported realtime consult runtime\");",
+     "if (![\"e9f7717502261327a4fe58a7f18fa0e60fa2e7a6193e18fdabebf98a9481b387\",\"03ee4a4d4f0fbabe7420f8766a5fa3b8af789e3f5b4729f2f31d7785a8e69c0e\",\"6cd00b695a57dedd6535e52c27daa11bbed793df42251ed4644bf9625547e75c\"].includes(createHash(\"sha256\").update(admissionSource).digest(\"hex\"))) throw new Error(\"Unsupported realtime consult runtime\");"
+    ]
+   ]
+  }
+ ]
+}

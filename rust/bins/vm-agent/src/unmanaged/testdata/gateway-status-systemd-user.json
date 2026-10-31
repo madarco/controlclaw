@@ -1,0 +1,171 @@
+{
+ "cli": {
+  "version": "2026.10.9",
+  "entrypoint": "/home/claw/.npm-global/bin/openclaw"
+ },
+ "logFile": "/tmp/openclaw/openclaw-2026-10-30.log",
+ "service": {
+  "label": "systemd user",
+  "systemdInstallation": {
+   "kind": "user",
+   "user": {
+    "scope": "user",
+    "unitName": "openclaw-gateway.service",
+    "unitPath": "/home/claw/.config/systemd/user/openclaw-gateway.service"
+   }
+  },
+  "loaded": true,
+  "loadState": {
+   "status": "loaded"
+  },
+  "loadedText": "enabled",
+  "notLoadedText": "disabled",
+  "targetRole": "target",
+  "command": {
+   "programArguments": [
+    "/usr/bin/node",
+    "--max-old-space-size=3875",
+    "/home/claw/.npm-global/lib/node_modules/openclaw/dist/index.js",
+    "gateway",
+    "--port",
+    "18789"
+   ],
+   "workingDirectory": "/home/claw",
+   "environment": {
+    "OPENCLAW_GATEWAY_PORT": "18789"
+   },
+   "environmentValueSources": {
+    "HOME": "inline",
+    "TMPDIR": "inline",
+    "PATH": "inline",
+    "NODE_OPTIONS": "inline",
+    "OPENCLAW_GATEWAY_PORT": "inline",
+    "OPENCLAW_SYSTEMD_UNIT": "inline",
+    "OPENCLAW_WINDOWS_TASK_NAME": "inline",
+    "OPENCLAW_WINDOWS_TASK_HIDDEN_LAUNCHER": "inline",
+    "OPENCLAW_SERVICE_MARKER": "inline",
+    "OPENCLAW_SERVICE_KIND": "inline"
+   },
+   "sourcePath": "/home/claw/.config/systemd/user/openclaw-gateway.service"
+  },
+  "layout": {
+   "execStart": "/usr/bin/node --max-old-space-size=3875 /home/claw/.npm-global/lib/node_modules/openclaw/dist/index.js gateway --port 18789",
+   "sourcePath": "/home/claw/.config/systemd/user/openclaw-gateway.service",
+   "sourcePathReal": "/home/claw/.config/systemd/user/openclaw-gateway.service",
+   "sourceScope": "user",
+   "entrypoint": "/home/claw/.npm-global/lib/node_modules/openclaw/dist/index.js",
+   "entrypointReal": "/home/claw/.npm-global/lib/node_modules/openclaw/dist/index.js",
+   "packageRoot": "/home/claw/.npm-global/lib/node_modules/openclaw",
+   "packageRootReal": "/home/claw/.npm-global/lib/node_modules/openclaw",
+   "packageVersion": "2026.10.9",
+   "entrypointSourceCheckout": false
+  },
+  "runtime": {
+   "status": "running",
+   "state": "active",
+   "subState": "running",
+   "pid": 11127,
+   "lastExitStatus": 0,
+   "lastExitReason": "0",
+   "systemd": {
+    "scope": "user",
+    "transport": {
+     "kind": "session-bus",
+     "address": "unix:path=/run/user/1000/bus",
+     "runtimeDir": "/run/user/1000"
+    },
+    "unit": "openclaw-gateway.service",
+    "controlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/openclaw-gateway.service",
+    "killMode": "mixed",
+    "tasksCurrent": 46,
+    "memoryCurrent": 1258487808,
+    "result": "success",
+    "nRestarts": 0,
+    "startLimitBurst": 10
+   }
+  },
+  "configAudit": {
+   "ok": true,
+   "issues": []
+  },
+  "gatewayHeap": {
+   "maxOldSpaceSizeMiB": 3875,
+   "availableMemoryMiB": 7751,
+   "memorySource": "physical",
+   "floorMiB": 2048,
+   "capMiB": 8192,
+   "headroomCapMiB": 5813,
+   "nodeOptions": "",
+   "execArgv": [
+    "--max-old-space-size=3875"
+   ]
+  }
+ },
+ "config": {
+  "cli": {
+   "path": "/home/claw/.openclaw/openclaw.json",
+   "exists": true,
+   "valid": true
+  },
+  "daemon": {
+   "path": "/home/claw/.openclaw/openclaw.json",
+   "exists": true,
+   "valid": true
+  }
+ },
+ "gateway": {
+  "bindMode": "loopback",
+  "bindHost": "127.0.0.1",
+  "port": 18789,
+  "portSource": "service args",
+  "probeUrl": "ws://127.0.0.1:18789",
+  "controlUiLinks": {
+   "httpUrl": "http://127.0.0.1:18789/",
+   "wsUrl": "ws://127.0.0.1:18789"
+  },
+  "probeNote": "Loopback-only gateway; only local clients can connect.",
+  "version": "2026.10.9"
+ },
+ "hostDesktop": {
+  "enabled": false,
+  "state": "disabled",
+  "port": 5900
+ },
+ "port": {
+  "port": 18789,
+  "status": "busy",
+  "listeners": [
+   {
+    "pid": 11127,
+    "command": "MainThread",
+    "address": "127.0.0.1:18789",
+    "user": "claw",
+    "commandLine": "/usr/bin/node --max-old-space-size=3875 /home/claw/.npm-global/lib/node_modules/openclaw/dist/index.js gateway --port 18789",
+    "ppid": 1278
+   }
+  ],
+  "hints": []
+ },
+ "rpc": {
+  "ok": true,
+  "kind": "connect",
+  "capability": "connected_no_operator_scope",
+  "auth": {
+   "role": "operator",
+   "scopes": [],
+   "capability": "connected_no_operator_scope"
+  },
+  "server": {
+   "version": "2026.10.9",
+   "buildId": "2026.10.9-release-8b18b5578f66-2026-10-29T11-14-29.241Z",
+   "connId": "b3ff219b-1310-430f-9efa-9de984be67c1"
+  },
+  "version": "2026.10.9",
+  "url": "ws://127.0.0.1:18789"
+ },
+ "extraServices": [],
+ "pluginVersionDrift": {
+  "gatewayVersion": "2026.10.9",
+  "drifts": []
+ }
+}

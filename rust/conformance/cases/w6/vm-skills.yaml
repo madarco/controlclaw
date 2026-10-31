@@ -1,0 +1,41 @@
+name: vm-agent skills and notes routes behind the console's token
+agent: vm-agent
+steps:
+  - request: {method: GET, path: /skills}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - name: OpenClaw's CLI is not on this box
+    request: {method: GET, path: /skills, token: {signer: console}}
+    expect:
+      status: 502
+      json: {error: "OpenClaw could not list its skills: spawn /usr/bin/openclaw ENOENT"}
+      headers: {cache-control: no-store}
+  - request: {method: POST, path: /skills/enabled, json: {name: "a.b", enabled: false}, token: {signer: console}}
+    expect:
+      status: 400
+      json: {error: name and enabled are required}
+  - request: {method: POST, path: /skills/remove, json: {name: "../x", expectedHash: "aa"}, token: {signer: console}}
+    expect:
+      status: 400
+      json: {error: name and expectedHash are required}
+  - request: {method: POST, path: /skills/remove, json: {name: agentmail, expectedHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, token: {signer: console}}
+    expect:
+      status: 409
+      json: {error: "That skill comes with every agent. It can be switched off, not removed."}
+  - name: a skill that is not there is gone already
+    request: {method: POST, path: /skills/remove, json: {name: house-style, expectedHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, token: {signer: console}}
+    expect:
+      status: 200
+      json: {ok: true, removed: false}
+  - request: {method: POST, path: /notes/remove, json: {name: "_x"}, token: {signer: console}}
+    expect:
+      status: 400
+      json: {error: Name the set.}
+  - request: {method: POST, path: /notes/remove, json: {name: handbook}, token: {signer: console}}
+    expect:
+      status: 200
+      json: {ok: true, removed: false}
+  - request: {method: POST, path: /skills/install, json: {}, token: {signer: console}}
+    expect:
+      status: 401

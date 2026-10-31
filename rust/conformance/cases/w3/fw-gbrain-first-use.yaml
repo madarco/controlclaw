@@ -1,0 +1,35 @@
+name: firewall connects an agent to the brain without a code when nobody is approved (first use)
+agent: mitm-agent
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  GBRAIN_STORE_PATH: state/gbrain.enc
+fake_agent:
+  /gbrain/connect: [[200, {ok: true}]]
+  /gbrain/apply: [[200, {ok: true}]]
+  /gbrain/disconnect: [[200, {ok: true}]]
+  /gbrain/lock: [[200, {ok: true}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2", private_ip: 10.0.0.5}, {vm_id: vm_b, role: gbrain, hostname: "127.0.0.2", private_ip: 10.0.0.9}]}]]
+steps:
+  - name: the map is synced
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2", private_ip: 10.0.0.5, tailscale: false}, {vm_id: vm_b, role: gbrain, hostname: "127.0.0.2", private_ip: 10.0.0.9, tailscale: false}]}
+  - name: connecting applies at once, on the brain's gate and on the agent
+    command: {id: g1, action: gbrain.propose, payload: {changeId: c1, agentVmId: vm_1, brainVmId: vm_b, scope: read_write}, result: {command_id: g1, ok: true, status: applied, data: {changeId: c1, summary: "Connect atlas to your organization's brain (read and write). It will see what your other agents saved", agentVmId: vm_1, brainVmId: vm_b, scope: read_write, agentPrivateIp: 10.0.0.5, tofu: true}}}
+    agent_received:
+      - {path: /gbrain/connect, method: POST, json_subset: {claims: {purpose: gbrain}, body: {vmId: vm_1, ip: 10.0.0.5, scope: read_write}}}
+      - {path: /gbrain/apply, method: POST, json_subset: {body: {url: "http://10.0.0.9:3131/mcp"}}}
+  - name: narrowing to read only needs no code and leaves the agent's config alone
+    command: {id: g2, action: gbrain.propose, payload: {changeId: c2, agentVmId: vm_1, brainVmId: vm_b, scope: read}, result: {command_id: g2, ok: true, status: applied, data: {changeId: c2, summary: "Make atlas read-only on your organization's brain", scope: read, tofu: false}}}
+    agent_received:
+      - {path: /gbrain/connect, method: POST, json_subset: {body: {vmId: vm_1, scope: read}}}
+  - name: the connection survives a restart
+    restart: true
+  - name: disconnecting removes it from the brain and the agent
+    command: {id: g3, action: gbrain.disconnect, payload: {agentVmId: vm_1}, result: {command_id: g3, ok: true, status: applied, data: {agentVmId: vm_1, removed: true, pending: false}}}
+    agent_received:
+      - {path: /gbrain/disconnect, method: POST, json_subset: {body: {vmId: vm_1}}}
+      - {path: /gbrain/apply, method: POST, json_subset: {body: {remove: true}}}

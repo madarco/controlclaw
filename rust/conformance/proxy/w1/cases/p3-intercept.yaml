@@ -1,0 +1,318 @@
+# P3: interception. Leaf from the CA, rustls server, HTTP/1.1 and h2, the upstream client, lazy
+# connect, the allow record. Ported from test_tcp_drop.py and the smoke rig's basics.
+name: an intercepted HTTPS request reaches the origin and is recorded
+files:
+  rules.json: []
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/v1/things?token=secret", method: POST, body: "hello",
+           headers: {X-Custom: One}}
+    expect: {status: 200, json: {method: POST, path: "/v1/things?token=secret", body: hello, sni: origin.test,
+                                 headers: {X-Custom: One, Host: origin.test}}}
+  - log:
+      records:
+        - {flow_id: $uuid, tenant: rig-org, vm_id: test-agent, host: origin.test, method: POST,
+           path: /v1/things, effect: allow, rule: null, rule_id: null, status: 200, swapped: [],
+           bytes_out: 5, bytes_in: $number, duration_ms: $number}
+---
+name: nothing is dialled before a request arrives
+skip: {cc-proxy: "the site is dialled before the agent's handshake ends (owner, 2026-10-28): the next case"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:443", tls: mitm, sni: origin.test, send: ""}
+    expect: {timeout: true}
+  - seen: {server: origin, connections: 0}
+---
+name: the site is dialled before the agent's handshake ends, and nothing is sent to it before a request
+skip: {mitmproxy: "connection_strategy=lazy dials at the first request"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "203.0.113.10:443", tls: mitm, sni: origin.test, send: ""}
+    expect: {timeout: true}
+  - seen: {server: origin, connections: 1, requests: 0}
+---
+name: a host-wide block rule keeps the site from being dialled first
+files:
+  rules.json: [{name: no, effect: block, match_domain: origin.test, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/x"}
+    expect: {status: 403}
+  - seen: {server: origin, connections: 0}
+---
+name: an intercepted request on a non-default port goes to that port
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test:8443/p"}
+    expect: {status: 200, json: {path: /p, sni: origin.test}}
+  - log: {last: {host: origin.test, path: /p, status: 200}}
+---
+name: h2 from the agent is answered over h2
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/h2?x=1", h2: true, method: POST, body: "abc"}
+    expect: {status: 200, json: {method: POST, path: "/h2?x=1", body: abc, sni: origin.test}}
+  - log: {last: {effect: allow, host: origin.test, path: /h2, status: 200, bytes_out: 3}}
+---
+name: an origin's error status and body reach the agent
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/x", respond: {status: 429, headers: {Content-Type: text/plain, Retry-After: "3"}, body: slow down}}
+    expect: {status: 429, body: slow down, headers: {retry-after: "3"}}
+  - log: {last: {status: 429, effect: allow}}
+---
+name: a request that names another host than its tunnel is refused
+skip: {mitmproxy: "sent it to the CONNECT address before #511"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/x", host_header: api.telegram.org}
+    expect: {status: 421, json: {error: destination_mismatch, host: api.telegram.org, tenant: rig-org,
+                                 reason: "the TLS name is origin.test but the request is for api.telegram.org"}}
+  # The site was dialled first (owner, 2026-10-28); the refused request never reached it.
+  - seen: {server: origin, requests: 0}
+  - log: {last: {effect: block, rule: destination_mismatch, host: api.telegram.org, status: 421}}
+---
+name: a site that refuses the connection gets mitmproxy's 502 and an error record
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test:9/x"}
+    expect: {status: 502, body_contains: "<h1>502 Bad Gateway</h1>", headers: {connection: close}}
+  - log: {last: {effect: allow, host: origin.test, path: /x, error: $string, swapped: []}}
+---
+name: an intercepted request to a link-local name is refused before any rule
+skip: {mitmproxy: "dialled the CONNECT address before #511"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://metadata.test/latest/meta-data/", connect: "203.0.113.10:443"}
+    expect: {status: 403, json: {error: non_routable_target, host: metadata.test, tenant: rig-org,
+                                 reason: "metadata.test (169.254.169.254) is a link-local address; the firewall never connects there"}}
+  - log: {last: {effect: block, rule: non_routable_target, status: 403, port: 443, method: GET}}
+---
+name: a plain HTTP request to a loopback name is refused
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {via: absolute, url: "http://loopback.test:3101/judge"}
+    expect: {status: 403, json: {error: non_routable_target, host: loopback.test}}
+  - seen: {server: judge, requests: 0}
+---
+name: an intercepted request to the firewall's own address is refused
+skip: {mitmproxy: "dialled the CONNECT address before #511"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "http://firewall.test:3100/health", connect: "203.0.113.10:3100"}
+    expect: {status: 403, json: {error: non_routable_target, host: firewall.test,
+                                 reason: "firewall.test (10.0.0.2) is one of the firewall's own addresses; the firewall never connects there"}}
+---
+name: a build without the checks refuses intercepted requests and keeps the control plane
+skip: {mitmproxy: "the addon always has its checks", cc-proxy: "every W2 slot is filled now, so no build lacks its checks; the refusal is kept by net::tests (an incomplete pipeline is not checks_present)"}
+env: {MITM_DEV_WITHOUT_CHECKS: ""}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/x"}
+    expect: {status: 403, json: {error: checks_unavailable, host: origin.test}}
+  - seen: {server: origin, connections: 0}
+  - http: {url: "https://cp.test/heartbeat"}
+    expect: {status: 200, json: {sni: cp.test}}
+  - log: {records: [{effect: block, rule: checks_unavailable, status: 403, host: origin.test}]}
+---
+name: plain HTTP whose URL and Host header name different hosts is refused
+skip: {mitmproxy: "sent it on with both names before #511"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {via: absolute, url: "http://origin.test/x", host_header: blocked.test}
+    expect: {status: 403, json: {error: destination_mismatch, host: blocked.test}}
+  - seen: {server: origin, connections: 0}
+---
+name: two requests on one kept-alive intercepted connection both reach the origin
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/one", h2: true}
+    expect: {status: 200, json: {path: /one}}
+  - http: {url: "https://origin.test/two", h2: true}
+    expect: {status: 200, json: {path: /two}}
+  - log: {where: {effect: allow}, count: 2}
+---
+name: a HEAD the proxy answers itself gets no body, and the connection stays usable
+files:
+  rules.json: [{name: no-origin, effect: block, match_domain: origin.test, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/x", method: HEAD}
+    expect: {status: 403, body: ""}
+---
+name: a box's own control-plane paths are allowed under deny-all and the stop, unchanged and recorded
+files:
+  rules.json: [{name: deny-all, effect: block, match_domain: "*", priority: 1}]
+  credentials.json: [{match_domain: cp.test, placeholder: __CC_TOKEN, secret: REAL}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, locked: true, cp_inspect: true}]
+steps:
+  - http: {url: "https://cp.test/api/vm-agent/heartbeat", method: POST, body: "{}", headers: {X-Cc: __CC_TOKEN}}
+    expect: {status: 200, json: {path: /api/vm-agent/heartbeat, sni: cp.test, headers: {Host: cp.test, X-Cc: __CC_TOKEN}}}
+  - http: {url: "https://cp.test/api/internal/ready-pool/poll"}
+    expect: {status: 200}
+  - log: {where: {rule: control_plane}, count: 2}
+  - log: {last: {effect: allow, rule: control_plane, host: cp.test, status: 200}}
+  # Another name over the control plane's TLS name, or another dialled address: refused.
+  - http: {url: "https://cp.test/api/vm-agent/x", host_header: other-project.test}
+    expect: {status: 421, json: {error: destination_mismatch, host: other-project.test}}
+  # (The two builds word the reason differently: the addon checks the request, cc-proxy the
+  # connection before it.)
+  - http: {url: "https://cp.test/api/vm-agent/x", connect: "other.test:443"}
+    expect: {status: 403, json: {error: destination_mismatch}}
+  - seen: {server: origin, requests: 2}
+---
+name: only a box's own paths get the control-plane allowance
+files:
+  rules.json: [{name: deny-all, effect: block, match_domain: "*", priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, cp_inspect: true},
+                    {private_ip: 10.0.0.4, vm_id: stopped-agent, locked: true, cp_inspect: true}]
+steps:
+  - http: {url: "https://cp.test/dashboard"}
+    expect: {status: 403}
+  - log: {last: {effect: block, rule: deny-all, host: cp.test}}
+  - http: {url: "https://cp.test/api/vm-agent"}
+    expect: {status: 403}
+  - http: {url: "https://cp.test/api/vm-agent/../rpc/x"}
+    expect: {status: 403}
+  - http: {url: "https://cp.test/api/vm-agent/%2e%2e/rpc"}
+    expect: {status: 403}
+  - http: {url: "https://cp.test/api/vm-agent//x"}
+    expect: {status: 403}
+  - http: {agent: agent2, url: "https://cp.test/dashboard"}
+    expect: {status: 403, json: {error: blocked_by_kill_switch}}
+  # Plain http is no control plane either.
+  - http: {via: absolute, url: "http://cp.test/api/vm-agent/heartbeat"}
+    expect: {status: 403}
+  - seen: {server: origin, requests: 0}
+---
+name: a presigned GET, PUT or HEAD of this organisation's archive streams through, virtual-hosted or path-style
+files:
+  rules.json: [{name: deny-all, effect: block, match_domain: "*", priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, cp_inspect: true}]
+  org.json: {org_id: rig-org}
+steps:
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: PUT, body: "ciphertext"}
+    expect: {status: 200, json: {method: PUT, body: ciphertext, sni: bucket.s3.eu-west-1.amazonaws.com}}
+  - log: {last: {effect: allow, rule: backup_store, host: bucket.s3.eu-west-1.amazonaws.com, status: 200}}
+  - http: {url: "https://s3.eu-west-1.amazonaws.com/bucket/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: GET}
+    expect: {status: 200, json: {path: "/bucket/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123"}}
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: HEAD}
+    expect: {status: 200}
+  - seen: {server: origin, requests: 3}
+  - log: {where: {rule: backup_store}, count: 3}
+---
+name: anything else on the backup bucket is refused, recorded and closed
+files:
+  rules.json: [{name: deny-all, effect: block, match_domain: "*", priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, cp_inspect: true}]
+  org.json: {org_id: rig-org}
+steps:
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/other-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: PUT, body: "x"}
+    expect: {error: true}
+  - log: {last: {effect: block, rule: backup_store, error: "not an archive of this organisation"}}
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/../other-org/b1/w.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: GET}
+    expect: {error: true}
+  - log: {last: {rule: backup_store, error: "not a backup archive"}}
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc", method: PUT, body: "x"}
+    expect: {error: true}
+  - log: {last: {rule: backup_store, error: "not a presigned backup URL"}}
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123&acl", method: PUT, body: "x"}
+    expect: {error: true}
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: DELETE}
+    expect: {error: true}
+  - log: {last: {rule: backup_store, error: "DELETE is not a backup upload or download"}}
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc", method: GET, headers: {Authorization: "AWS4-HMAC-SHA256 Credential=x"}}
+    expect: {error: true}
+  # The bucket's name on a connection asked for another one: a backup refusal too, recorded and
+  # closed (addon.py `requestheaders`). Another bucket's name over ours is no backup request: 421.
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/w.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", connect: "other.test:443", method: PUT, body: "x"}
+    expect: {error: true}
+  - log: {last: {effect: block, rule: backup_store}}
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/w.cc", host_header: other.s3.eu-west-1.amazonaws.com, method: PUT, body: "x"}
+    expect: {status: 421}
+  - http: {url: "https://s3.eu-west-1.amazonaws.com/bucket?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: GET}
+    expect: {error: true}
+  - seen: {server: origin, requests: 0}
+  # Another bucket on the regional endpoint, or one named after the organisation, is an ordinary
+  # site: the rules decide (here, deny-all).
+  - http: {url: "https://s3.eu-west-1.amazonaws.com/other-bucket/rig-org/x?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: PUT, body: "x"}
+    expect: {status: 403}
+  - http: {url: "https://s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: PUT, body: "x"}
+    expect: {status: 403}
+  - log: {last: {effect: block, rule: deny-all}}
+---
+name: no backup without knowing the organisation
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, cp_inspect: true}]
+steps:
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: PUT, body: "x"}
+    expect: {error: true}
+  - log: {last: {rule: backup_store, error: "not an archive of this organisation"}}
+  - seen: {server: origin, requests: 0}
+---
+name: a path-style store that is not AWS names its bucket in MITM_BACKUP_BUCKET
+env: {MITM_BACKUP_HOST: backup.test, MITM_BACKUP_BUCKET: ccb-dev}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, cp_inspect: true}]
+  org.json: {org_id: rig-org}
+steps:
+  - http: {url: "https://backup.test/ccb-dev/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: PUT, body: "x"}
+    expect: {status: 200, json: {sni: backup.test}}
+  - http: {url: "https://backup.test/other/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: PUT, body: "x"}
+    expect: {error: true}
+  - log: {last: {rule: backup_store, error: "not the backup bucket"}}
+  # A bucket named after the organisation: its first segment is the org id, not our bucket.
+  - http: {url: "https://backup.test/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: PUT, body: "x"}
+    expect: {error: true}
+  - seen: {server: origin, requests: 1}
+---
+name: the backup bucket is refused under the kill switch
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, locked: true, cp_inspect: true}]
+  org.json: {org_id: rig-org}
+steps:
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/rig-org/b1/workspace.cc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261028%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261028T120000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=abc123", method: PUT, body: "ciphertext"}
+    expect: {error: true}
+  - log: {last: {effect: block, rule: backup_store, error: "this agent is stopped; backups wait until it is released"}}
+  - seen: {server: origin, requests: 0}
+---
+name: a request with two Host headers is refused, so no check reads one while the site routes on the other
+skip: {mitmproxy: "the addon answers 421 (main #511); cc-proxy refuses with 400 before any check, the stricter refusal W0's audit of #656 names"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent, cp_inspect: true}]
+steps:
+  - http: {url: "https://cp.test/api/vm-agent/heartbeat", extra_headers: [[Host, other-project.test]]}
+    expect: {status: 400, json: {error: destination_mismatch, reason: the request names more than one host}}
+  - http: {via: absolute, url: "http://origin.test/x", extra_headers: [[Host, elsewhere.test]]}
+    expect: {status: 400, json: {error: destination_mismatch}}
+  # On the bucket's name a refusal is a backup refusal: recorded and closed.
+  - http: {url: "https://bucket.s3.eu-west-1.amazonaws.com/vm/1.tar", method: PUT, body: "x",
+           extra_headers: [[Host, attacker.s3.eu-west-1.amazonaws.com]]}
+    expect: {error: true}
+  # cc-proxy dials an intercepted site first (owner, 2026-10-28); no refused request reached it.
+  - seen: {server: origin, requests: 0}
+---
+name: a residential rule for the host at any priority keeps the site from being dialled first
+skip: {mitmproxy: "connection_strategy=lazy dials at the first request"}
+files:
+  rules.json: [{name: shop, effect: allow, match_domain: origin.test, priority: 1},
+               {name: via-exit, effect: allow, match_domain: origin.test, match_path: /checkout, exit: residential, priority: 2}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  exit.json: {enabled: true, upstream: {scheme: http, host: upstream.test, port: 3128, username: u, password: p}}
+steps:
+  - raw: {connect: "203.0.113.10:443", tls: mitm, sni: origin.test, send: ""}
+    expect: {timeout: true}
+  - seen: {server: origin, connections: 0}

@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "upstream": {
+    "scheme": "http",
+    "host": "proxy.apify.com",
+    "port": 8000,
+    "username": "groups-RESIDENTIAL",
+    "password": "apify-pass",
+    "username_template": "{username},session-{session},country-{country}",
+    "password_template": "{password}"
+  },
+  "sticky": true,
+  "sticky_salt": "0123456789abcdef0123456789abcdef",
+  "cap_bytes": 1000000000,
+  "used_bytes": 1234,
+  "country": "us"
+}

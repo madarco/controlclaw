@@ -1,0 +1,32 @@
+name: vm-agent emergency stop and Doctor key routes, the firewall's own purposes
+agent: vm-agent
+steps:
+  - request: {method: GET, path: /kill/status, token: {signer: console}}
+    expect:
+      status: 401
+      json: {error: an emergency stop must come from the org firewall}
+  - request: {method: GET, path: /kill/status, token: {signer: firewall, bind: true, claims: {purpose: kill}}}
+    expect:
+      status: 200
+      json: {ok: true, active: $any}
+  - request: {method: POST, path: /kill/apply, json: {locked: "yes"}, token: {signer: firewall, bind: true, claims: {purpose: kill}}}
+    expect:
+      status: 400
+      json: {ok: false, error: locked must be a boolean}
+  - request: {method: GET, path: /kill/other, token: {signer: firewall, bind: true, claims: {purpose: kill}}}
+    expect:
+      status: 404
+      json: {error: Not found}
+  - request: {method: GET, path: /doctor/status, token: {signer: firewall, bind: true, claims: {purpose: kill}}}
+    expect:
+      status: 401
+      json: {error: Doctor keys require the org firewall}
+  - request: {method: GET, path: /doctor/status, token: {signer: firewall, bind: true, claims: {purpose: doctor}}}
+    expect:
+      status: 200
+      json: {fingerprint: null, sshHostKey: $any}
+  - name: a key with no valid signature is refused
+    request: {method: POST, path: /doctor/key, json: {pub: "ssh-rsa AAAA", sig: "x"}, token: {signer: firewall, bind: true, claims: {purpose: doctor}}}
+    expect:
+      status: 400
+      json: {error: Doctor key installation refused}

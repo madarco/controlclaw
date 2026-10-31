@@ -1,0 +1,29 @@
+name: vm-agent /mcp-servers/* takes only bound firewall writes and only the firewall's gate addresses
+agent: vm-agent
+files:
+  keys/mitm_box_private_ip: "10.0.0.2\n"
+steps:
+  - request: {method: POST, path: /mcp-servers/apply, json: {servers: []}, token: {signer: console}}
+    expect:
+      status: 401
+      json: {error: MCP server changes must come from the org firewall}
+  - name: an unbound firewall token is refused for this purpose, latch or not
+    request: {method: POST, path: /mcp-servers/apply, json: {servers: []}, token: {signer: firewall, claims: {purpose: mcp-servers}}}
+    expect:
+      status: 401
+  - request: {method: GET, path: /mcp-servers/status, token: {signer: console}}
+    expect:
+      status: 200
+      json: {servers: [], updatedAt: null}
+  - request: {method: POST, path: /mcp-servers/apply, json: {servers: [{name: docs, url: "http://10.0.0.9:3940/servers/docs/mcp"}]}, token: {signer: firewall, bind: true, claims: {purpose: mcp-servers}}}
+    expect:
+      status: 400
+      json: {ok: false, error: "servers[].url is not this agent's firewall"}
+  - request: {method: POST, path: /mcp-servers/apply, json: {servers: [{name: controlclaw-console, url: "http://10.0.0.2:3940/servers/controlclaw-console/mcp"}]}, token: {signer: firewall, bind: true, claims: {purpose: mcp-servers}}}
+    expect:
+      status: 400
+      json: {ok: false, error: "servers[].name is invalid"}
+  - request: {method: POST, path: /mcp-servers/apply, json: {servers: [{name: docs, url: "http://10.0.0.2:3940/servers/docs/mcp"}]}, token: {signer: firewall, bind: true, claims: {purpose: mcp-servers}}}
+    expect:
+      status: 503
+      json: {ok: false, error: OpenClaw is not running on this box}

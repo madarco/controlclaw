@@ -1,0 +1,30 @@
+name: cp /store (the sealed backup record)
+agent: control-plane
+endpoint: /store
+scope: saas-only
+seed:
+  vms:
+    - {id: cpst_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+    - {id: cpst_a1, role: openclaw, name: cpst-a1, private_ip: 10.0.0.3}
+steps:
+  - name: no token
+    request: {method: GET, path: /api/vm-agent/store}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: an agent may not read it
+    request: {method: GET, path: /api/vm-agent/store, as: cpst_a1}
+    expect: {status: 403, json: {error: $string}}
+  - name: nothing stored yet
+    request: {method: GET, path: /api/vm-agent/store, as: cpst_fw}
+    expect: {status: 404, json: {error: Not found}}
+  - name: a record with no version
+    request: {method: POST, path: /api/vm-agent/store, as: cpst_fw, json: {ciphertext: abc}}
+    expect: {status: 400, json: {error: $string}}
+  - name: the first version
+    request: {method: POST, path: /api/vm-agent/store, as: cpst_fw, json: {version: 1, ciphertext: abc, iv: def}}
+    expect: {status: 200, json: {ok: true, version: 1}}
+  - name: the same version again
+    request: {method: POST, path: /api/vm-agent/store, as: cpst_fw, json: {version: 1, ciphertext: xyz}}
+    expect: {status: 409, json: {error: $string}}
+  - name: read back as written
+    request: {method: GET, path: /api/vm-agent/store, as: cpst_fw}
+    expect: {status: 200, json: {version: 1, ciphertext: abc, iv: def}}

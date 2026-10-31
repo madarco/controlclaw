@@ -1,0 +1,40 @@
+name: "firewall Doctor where its helpers are not installed: no doctor.* or tplcheck.* commands, no doctor pages"
+agent: mitm-agent
+env:
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  APPS_RULES_PATH: state/apps-rules.enc
+  MCP_SERVERS_STORE_PATH: state/mcp-servers.enc
+  MCP_CATALOG_PATH: state/mcp-catalog.enc
+  MCP_ASKS_PATH: state/mcp-asks.json
+  MCP_SERVER_CALLS_PATH: state/mcp-server-calls.jsonl
+  TEAMCHAT_STORE_PATH: state/teamchat.enc
+  TEAMCHAT_STATS_PATH: state/teamchat-stats.json
+  DOCTOR_KEY_PATH: state/doctor.enc
+steps:
+  - name: no Doctor without cc-doctor-run
+    command:
+      id: d1
+      action: doctor.propose
+      payload: {sessionId: session-1234, vmId: vm-a, cli: claude, credentialId: c1, model: claude-sonnet-4-5}
+      result: {command_id: d1, ok: false, status: failed, message: unknown command doctor.propose}
+  - name: no Final check without Doctor
+    command:
+      id: d2
+      action: tplcheck.propose
+      payload: {changeId: c1, agents: [vm-a], cli: claude, credentialId: c1, model: claude-haiku-4-5}
+      result: {command_id: d2, ok: false, status: failed, message: unknown command tplcheck.propose}
+  - name: nor its cancel
+    command:
+      id: d3
+      action: tplcheck.cancel
+      payload: {changeId: c1}
+      result: {command_id: d3, ok: false, status: failed, message: unknown command tplcheck.cancel}
+  - name: the terminal is not served
+    request: {method: GET, path: /__cc/doctor/terminal.js, listener: ingress}
+    expect: {status: 404, body: ""}
+  - name: the chat is not served
+    request: {method: GET, path: /__cc/doctor/chat/open, listener: ingress}
+    expect: {status: 404, body: ""}
+  - name: nor the start page
+    request: {method: GET, path: /__cc/doctor/start/open, listener: ingress}
+    expect: {status: 404, body: ""}

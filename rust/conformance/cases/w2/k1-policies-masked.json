@@ -1,0 +1,159 @@
+{
+  "name": "k1 policies: the judge sees secrets masked and is not asked about more than it judges",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "both",
+          "channels": [
+            "*"
+          ],
+          "patterns": [],
+          "detectors": [],
+          "action": "block",
+          "reason": "salary reason",
+          "policy": "salary"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "a key coming in is masked before the judge sees it",
+      "loopback": {
+        "judge": {
+          "/content": [
+            {
+              "status": 200,
+              "json": {
+                "matches": []
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 3,
+              "message": {
+                "message_id": 3,
+                "text": "use sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA now",
+                "chat": {
+                  "id": 7
+                },
+                "from": {
+                  "id": 7
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/getUpdates",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json_subset": {
+          "result": [
+            {
+              "update_id": 3,
+              "message": {
+                "text": "use sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA now"
+              }
+            }
+          ]
+        },
+        "loopback": {
+          "judge": {
+            "/content": [
+              {
+                "direction": "in",
+                "text": "use [secret] now"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "more than the AI judges: not asked, acts as a check that could not run",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 4,
+              "message": {
+                "message_id": 4,
+                "text": {
+                  "$repeat": "x ",
+                  "n": 31500
+                },
+                "chat": {
+                  "id": 7
+                },
+                "from": {
+                  "id": 7
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/getUpdates",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 4
+            }
+          ]
+        },
+        "no_loopback": [
+          "judge"
+        ],
+        "loopback": {
+          "content": {
+            "/notice": [
+              {
+                "kind": "in",
+                "botId": "777",
+                "chatId": "7",
+                "vmId": "vm_test",
+                "reason": "salary reason (the AI check could not run)",
+                "failed": true
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "salary",
+            "direction": "in",
+            "action": "block",
+            "ai": "failed"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "name": "k2 telegram: the Host header written another way still reaches the checks",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "upper case and the root's dot",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "headers": {
+          "Host": "API.Telegram.org."
+        },
+        "json": {
+          "chat_id": 42,
+          "text": "sk-proj-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "traffic": [
+          {
+            "rule": "content: core-leaking-secrets",
+            "effect": "block"
+          }
+        ]
+      }
+    }
+  ]
+}

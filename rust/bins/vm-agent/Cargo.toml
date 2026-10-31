@@ -1,0 +1,73 @@
+[package]
+name = "vm-agent"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1"
+cc-meetings.workspace = true
+rusqlite.workspace = true
+# zstd-compressed transcript rows (`zstdDecompressSync`), pure Rust.
+ruzstd = "0.8"
+tempfile.workspace = true
+base64.workspace = true
+bytes.workspace = true
+cc-crypto.workspace = true
+cc-origin.workspace = true
+hmac.workspace = true
+hyper-util.workspace = true
+regex.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+tokio-tungstenite.workspace = true
+tokio-util.workspace = true
+url.workspace = true
+futures-util.workspace = true
+ed25519-dalek.workspace = true
+reqwest.workspace = true
+tokio-rustls.workspace = true
+# The own-certificate check is a TLS handshake only, as `tls.connect` in https-ready.ts.
+rustls-pemfile.workspace = true
+rustls.workspace = true
+webpki-roots.workspace = true
+# Password copies are wiped after `/logins/type`.
+zeroize.workspace = true
+# statfs (the workspace's `fs`) and the monotonic clock, safely.
+rustix = { workspace = true, features = ["time", "process"] }
+serde.workspace = true
+cc-store.workspace = true
+mimalloc.workspace = true
+cc-auth.workspace = true
+cc-client.workspace = true
+cc-http.workspace = true
+cc-openclaw.workspace = true
+cc-proc.workspace = true
+hex.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+hyper.workspace = true
+http-body.workspace = true
+rand.workspace = true
+cc-redact.workspace = true
+dryoc.workspace = true
+# Pure Rust (miniz_oxide): no C beyond what the workspace has.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+crc32fast = "1"
+unicode-normalization = "0.1"
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+regex.workspace = true
+cc-openclaw = { workspace = true, features = ["fake"] }
+cc-testkit.workspace = true
+tempfile.workspace = true

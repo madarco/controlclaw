@@ -1,0 +1,45 @@
+name: the AI judge and ai.scan with the organization's key and AI settings
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  AI_JUDGE_PORT: "13101"
+  LLM_STORE_PATH: state/llm.enc
+  AI_TRACE_DIR: state/ai-review-traces
+  STORE_URL: "file:state/no-record.json"
+steps:
+  - name: the organization's key, and AI settings that name it
+    console:
+      /api/vm-agent/egress-rules:
+        - [200, {rules: [], ai: {credential_id: cred-gw, provider: vercel_gateway, model: typesafe-ai/jev}}]
+    command:
+      id: c_key
+      action: llm.propose
+      payload:
+        changeId: chg-gw
+        kind: add
+        credentialId: cred-gw
+        provider: vercel_gateway
+        providerName: Vercel AI Gateway
+        credKind: api_key
+        placeholder: vck-cc-placeholder-0001
+        profileId: vercel:controlclaw
+        swap: {matchDomain: ai-gateway.vercel.sh, locations: ["header:authorization"]}
+        agents: []
+        secret: {apiKey: vck_not_a_real_key_0000000000000000}
+      result: {ok: true, status: applied}
+  - name: the next sync brings the settings; the scan runs over a log that is not there
+    restart: true
+    command:
+      id: c_scan
+      action: ai.scan
+      result: {command_id: c_scan, ok: true, status: done, message: "Scanned 0 agent(s), 0 finding(s).", data: {findings: 0, agents: 0}}
+  - name: content rules' AI with no model pinned by the content rules
+    request:
+      method: POST
+      path: /content
+      listener: !port 13101
+      json: {direction: out, channel: telegram, text: hello, rules: [{id: r1, policy: No secrets.}]}
+    expect: {status: 200, json: {failed: true, why: unpinned}}

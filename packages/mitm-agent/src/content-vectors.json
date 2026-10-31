@@ -1,0 +1,396 @@
+{
+  "//": "Shared cases for the two content-rules engines: addon.py (test_content_rules.py) and content-engine.ts (content-engine.test.ts). Each must give these answers.",
+  "phrases": [
+    {
+      "phrase": "customer list",
+      "text": "Here is the Customer List.",
+      "found": true
+    },
+    {
+      "phrase": "customer list",
+      "text": "customer listing",
+      "found": false
+    },
+    {
+      "phrase": "customer list",
+      "text": "my_customer list",
+      "found": false
+    },
+    {
+      "phrase": "customer list",
+      "text": "(customer list)",
+      "found": true
+    },
+    {
+      "phrase": "(a+)+$",
+      "text": "literally (a+)+$ here",
+      "found": true
+    },
+    {
+      "phrase": "(a+)+$",
+      "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
+      "found": false
+    },
+    {
+      "phrase": "IBAN",
+      "text": "iban: none",
+      "found": true
+    },
+    {
+      "phrase": "Gehalt",
+      "text": "das GEHALT ist",
+      "found": true
+    },
+    {
+      "phrase": "Gehalt",
+      "text": "Gehaltsliste",
+      "found": false
+    },
+    {
+      "phrase": "café",
+      "text": "the CAFÉ list",
+      "found": true
+    },
+    {
+      "phrase": "salary",
+      "text": "salary2026",
+      "found": false
+    },
+    {
+      "phrase": "salary",
+      "text": "salary-2026",
+      "found": true
+    },
+    {
+      "phrase": "list",
+      "text": "a listé",
+      "found": false
+    },
+    {
+      "phrase": "list",
+      "text": "𝐀list",
+      "found": false
+    },
+    {
+      "phrase": "list",
+      "text": "😀list😀",
+      "found": true
+    },
+    {
+      "phrase": "list",
+      "text": "list list",
+      "found": true
+    },
+    {
+      "phrase": "ab",
+      "text": "abab ab",
+      "found": true
+    },
+    {
+      "phrase": "customer list",
+      "text": "the customer\n  list",
+      "found": true
+    },
+    {
+      "phrase": "customer list",
+      "text": "the customer list",
+      "found": true
+    },
+    {
+      "phrase": "customer  list",
+      "text": "a customer list",
+      "found": true
+    },
+    {
+      "phrase": " customer list ",
+      "text": "customer list",
+      "found": true
+    },
+    {
+      "phrase": "customer list",
+      "text": "customer list",
+      "found": true
+    },
+    {
+      "phrase": "customer list",
+      "text": "customer﻿list",
+      "found": true
+    },
+    {
+      "phrase": "customer list",
+      "text": "customer\u001elist",
+      "found": true
+    },
+    {
+      "phrase": "customer list",
+      "text": "customerlist",
+      "found": true
+    },
+    {
+      "phrase": "customer list",
+      "text": "customer​list",
+      "found": false
+    }
+  ],
+  "detectors": [
+    {
+      "detector": "iban",
+      "text": "pay to GB82 WEST 1234 5698 7654 32 please",
+      "found": true
+    },
+    {
+      "detector": "iban",
+      "text": "pay to gb82west12345698765432 please",
+      "found": true
+    },
+    {
+      "detector": "iban",
+      "text": "pay to GB82 WEST 1234 5698 7654 33 please",
+      "found": false
+    },
+    {
+      "detector": "iban",
+      "text": "IT60X0542811101000000123456",
+      "found": true
+    },
+    {
+      "detector": "card",
+      "text": "card 4111 1111 1111 1111 exp",
+      "found": true
+    },
+    {
+      "detector": "card",
+      "text": "order 4111 1111 1111 1112",
+      "found": false
+    },
+    {
+      "detector": "card",
+      "text": "call +39 333 123 4567",
+      "found": false
+    },
+    {
+      "detector": "emails",
+      "text": "p0@example.com p1@example.com p2@example.com p3@example.com p4@example.com",
+      "found": true
+    },
+    {
+      "detector": "emails",
+      "text": "p0@example.com p1@example.com p2@example.com p3@example.com P0@EXAMPLE.COM",
+      "found": false
+    },
+    {
+      "detector": "secrets",
+      "text": "here: sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ok",
+      "found": true
+    },
+    {
+      "detector": "secrets",
+      "text": "AKIAABCDEFGHIJKLMNOP",
+      "found": true
+    },
+    {
+      "detector": "secrets",
+      "text": "-----BEGIN OPENSSH PRIVATE KEY-----",
+      "found": true
+    },
+    {
+      "detector": "secrets",
+      "text": "token 123456789:AAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "found": true
+    },
+    {
+      "detector": "secrets",
+      "text": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+      "found": true
+    },
+    {
+      "detector": "secrets",
+      "text": "my sk-cc placeholder",
+      "found": false
+    },
+    {
+      "detector": "secrets",
+      "text": "eyJ only",
+      "found": false
+    }
+  ],
+  "rules": [
+    {
+      "id": "cust",
+      "direction": "out",
+      "channels": [
+        "slack",
+        "teamchat"
+      ],
+      "patterns": [
+        "customer list"
+      ],
+      "detectors": [],
+      "action": "block",
+      "reason": "cust"
+    },
+    {
+      "id": "pay",
+      "direction": "both",
+      "channels": [
+        "*"
+      ],
+      "patterns": [],
+      "detectors": [
+        "iban"
+      ],
+      "action": "hold",
+      "reason": "pay"
+    },
+    {
+      "id": "watch",
+      "direction": "in",
+      "channels": [
+        "webhook",
+        "teamchat"
+      ],
+      "patterns": [
+        "budget"
+      ],
+      "detectors": [],
+      "action": "log",
+      "reason": "watch"
+    }
+  ],
+  "evaluations": [
+    {
+      "direction": "out",
+      "channel": "slack",
+      "text": "the customer list",
+      "rule": "cust",
+      "hits": [
+        "cust"
+      ]
+    },
+    {
+      "direction": "out",
+      "channel": "email",
+      "text": "the customer list",
+      "rule": null,
+      "hits": []
+    },
+    {
+      "direction": "out",
+      "channel": "teamchat",
+      "text": "customer list to GB82 WEST 1234 5698 7654 32",
+      "rule": "cust",
+      "hits": [
+        "cust",
+        "pay"
+      ]
+    },
+    {
+      "direction": "in",
+      "channel": "webhook",
+      "text": "budget for GB82WEST12345698765432",
+      "rule": "pay",
+      "hits": [
+        "pay",
+        "watch"
+      ]
+    },
+    {
+      "direction": "in",
+      "channel": "teamchat",
+      "text": "the budget",
+      "rule": "watch",
+      "hits": [
+        "watch"
+      ]
+    },
+    {
+      "direction": "in",
+      "channel": "teamchat",
+      "text": "the customer list",
+      "rule": null,
+      "hits": []
+    },
+    {
+      "direction": "out",
+      "channel": "teamchat",
+      "text": "key sk-ant-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "rule": "core-leaking-secrets",
+      "hits": [
+        "core-leaking-secrets"
+      ],
+      "core": true
+    },
+    {
+      "direction": "out",
+      "channel": "web",
+      "text": "key sk-ant-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "rule": null,
+      "hits": [],
+      "core": true
+    },
+    {
+      "direction": "out",
+      "channel": "voice",
+      "text": "the key is sk-ant-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "rule": "core-leaking-secrets",
+      "hits": [
+        "core-leaking-secrets"
+      ],
+      "core": true
+    },
+    {
+      "direction": "in",
+      "channel": "teamchat",
+      "text": "key sk-ant-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "rule": null,
+      "hits": [],
+      "core": true
+    }
+  ],
+  "limits": [
+    {
+      "channel": "telegram",
+      "max": 65536
+    },
+    {
+      "channel": "teamchat",
+      "max": 65536
+    },
+    {
+      "channel": "webhook",
+      "max": 65536
+    },
+    {
+      "channel": "voice",
+      "max": 65536
+    },
+    {
+      "channel": "email",
+      "max": 524288
+    },
+    {
+      "channel": "web",
+      "max": 524288
+    }
+  ],
+  "lengths": [
+    {
+      "channel": "teamchat",
+      "repeat": "😀",
+      "count": 40000,
+      "tooLong": false
+    },
+    {
+      "channel": "teamchat",
+      "repeat": "😀",
+      "count": 65537,
+      "tooLong": true
+    },
+    {
+      "channel": "web",
+      "repeat": "é",
+      "count": 524288,
+      "tooLong": false
+    }
+  ]
+}

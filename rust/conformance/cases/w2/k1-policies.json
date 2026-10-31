@@ -1,0 +1,329 @@
+{
+  "name": "k1 policies: the AI's verdict blocks and is marked, a judge that fails or is slow fails closed, secrets never reach it",
+  "env": {
+    "MITM_CONTENT_POLICY_TIMEOUT": "1"
+  },
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "both",
+          "channels": [
+            "*"
+          ],
+          "patterns": [],
+          "detectors": [],
+          "action": "block",
+          "reason": "salary reason",
+          "policy": "Can't ask about or share anyone's salary."
+        },
+        {
+          "id": "pay-log",
+          "name": "pay-log",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [],
+          "detectors": [],
+          "action": "log",
+          "reason": "log reason",
+          "policy": "Pay is mentioned."
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "a paraphrase is judged: the AI finds it",
+      "loopback": {
+        "judge": {
+          "/content": [
+            {
+              "status": 200,
+              "json": {
+                "matches": [
+                  "salary"
+                ],
+                "probabilities": {}
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "Anna earns 92k"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: salary reason"
+        },
+        "loopback": {
+          "judge": {
+            "/content": [
+              {
+                "direction": "out",
+                "channel": "telegram",
+                "text": "Anna earns 92k",
+                "vm_id": "vm_test",
+                "rules": [
+                  {
+                    "id": "salary",
+                    "policy": "Can't ask about or share anyone's salary."
+                  },
+                  {
+                    "id": "pay-log",
+                    "policy": "Pay is mentioned."
+                  }
+                ]
+              }
+            ]
+          },
+          "content": {
+            "/stopped": [
+              {
+                "rule": {
+                  "id": "salary",
+                  "name": "salary",
+                  "reason": "salary reason",
+                  "ai": "found"
+                },
+                "text": "Anna earns 92k"
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "salary",
+            "action": "block",
+            "ai": "found"
+          }
+        ]
+      }
+    },
+    {
+      "name": "nothing found: it goes",
+      "loopback": {
+        "judge": {
+          "/content": [
+            {
+              "status": 200,
+              "json": {
+                "matches": [],
+                "probabilities": {}
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "the deploy is done"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "json_subset": {
+            "text": "the deploy is done"
+          }
+        },
+        "audit": []
+      }
+    },
+    {
+      "name": "the log-only policy is recorded with the AI's part",
+      "loopback": {
+        "judge": {
+          "/content": [
+            {
+              "status": 200,
+              "json": {
+                "matches": [
+                  "pay-log"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "payday"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "audit": [
+          {
+            "rule": "pay-log",
+            "action": "log",
+            "ai": "found"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a judge that says it failed: the block acts with the reason marked, the log-only one records nothing",
+      "loopback": {
+        "judge": {
+          "/content": [
+            {
+              "status": 200,
+              "json": {
+                "failed": true,
+                "why": "cap"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "hello"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: salary reason (the AI check could not run)"
+        },
+        "audit": [
+          {
+            "rule": "salary",
+            "action": "block",
+            "ai": "failed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a judge that answers an error",
+      "loopback": {
+        "judge": {
+          "/content": [
+            {
+              "status": 500,
+              "json": {
+                "error": "boom"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "hello"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "audit": [
+          {
+            "rule": "salary",
+            "ai": "failed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a judge slower than its time limit",
+      "loopback": {
+        "judge": {
+          "/content": [
+            {
+              "status": 200,
+              "json": {
+                "matches": []
+              },
+              "delay": 2
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "hello"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "max_seconds": 1.9,
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: salary reason (the AI check could not run)"
+        }
+      }
+    },
+    {
+      "name": "a key is blocked by the core rule before anyone asks the AI",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "key sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA and Anna"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "no_loopback": [
+          "judge"
+        ],
+        "audit": [
+          {
+            "rule": "core-leaking-secrets"
+          }
+        ]
+      }
+    }
+  ]
+}

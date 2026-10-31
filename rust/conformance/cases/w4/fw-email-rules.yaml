@@ -1,0 +1,73 @@
+name: email rules with nobody to send a code to
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+  CHANNEL_STORE_PATH: state/channels.enc
+  EMAIL_RULES_STORE_PATH: state/email-rules.enc
+skip:
+  ts: "intentional difference: the TS build keeps the email rules store only at /opt/controlclaw/state/email-rules.enc; the Rust build also takes EMAIL_RULES_STORE_PATH (the TS is not changed any more)"
+steps:
+  - name: the rules a new firewall starts with
+    command:
+      id: e_read
+      action: email.read
+      payload: {}
+      result:
+        ok: true
+        status: read
+        data:
+          held: []
+          rules:
+            outbound: {mode: ask, perHour: 20, perDay: 100, recipients: [], mailboxModes: [], repliesToSenders: true}
+  - name: a change with nobody to send its code to
+    command:
+      id: e_propose
+      action: email.propose
+      payload: {changeId: e-1, change: {action: add_recipient, entry: {value: someone@example.com}}}
+      result: {ok: false, status: failed, message: "No confirmation code could be delivered. Add a recipient on the Firewall page."}
+  - name: a change that is not one
+    command:
+      id: e_bad
+      action: email.propose
+      payload: {changeId: e-2, change: {action: add_recipient, entry: {value: "not an address"}}}
+      result: {ok: false, status: failed, message: "Email rules change could not be applied. Check the input, then retry."}
+  - name: no code is waiting
+    command:
+      id: e_confirm
+      action: email.confirm
+      payload: {changeId: e-1, code: "123456"}
+      result: {ok: false, status: expired}
+  - name: cancel
+    command:
+      id: e_cancel
+      action: email.cancel
+      payload: {changeId: e-1}
+      result: {ok: true, status: cancelled}
+  - name: still the same rules
+    command:
+      id: e_read2
+      action: email.read
+      payload: {}
+      result: {ok: true, status: read, data: {held: [], rules: {outbound: {recipients: []}}}}
+  - name: the proxy settles a reservation that is not there (8792)
+    request: {method: POST, path: /, listener: !port 8792, json: {action: email.settle, id: nope}}
+    expect: {status: 200, json: {ok: true}}
+  - name: a draft written through the proxy (8792)
+    request: {method: POST, path: /, listener: !port 8792, json: {action: email.draft_write, provider: agentmail, draftId: d1}}
+    expect: {status: 200, json: {ok: true, draftOk: true}}
+  - name: a reservation with no agent (8792)
+    request: {method: POST, path: /, listener: !port 8792, json: {action: email.reserve, vmId: "", provider: agentmail, op: send}}
+    expect: {status: 403, json: {ok: false}}
+  - name: an action that is not one (8792)
+    request: {method: POST, path: /, listener: !port 8792, json: {action: email.other}}
+    expect: {status: 403, json: {ok: false}}
+  - name: another path (8792)
+    request: {method: POST, path: /x, listener: !port 8792, json: {action: email.settle, id: nope}}
+    expect: {status: 403, json: {ok: false}}
+  - name: anything but a POST (8792)
+    request: {method: GET, path: /, listener: !port 8792}
+    expect: {status: 403}

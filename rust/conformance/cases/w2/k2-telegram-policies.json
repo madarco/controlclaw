@@ -1,0 +1,179 @@
+{
+  "name": "k2 telegram policies: a held message names the AI in its rule, an incoming one the AI could not judge is reported",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "both",
+          "channels": [
+            "*"
+          ],
+          "patterns": [],
+          "detectors": [],
+          "action": "hold",
+          "reason": "salary reason",
+          "policy": "Can't ask about or share anyone's salary."
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "held: the rule carries ai found",
+      "loopback": {
+        "judge": {
+          "/content": [
+            {
+              "status": 200,
+              "json": {
+                "matches": [
+                  "salary"
+                ]
+              }
+            }
+          ]
+        },
+        "content": {
+          "/hold": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "holdId": "h9",
+                "messageId": 5
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "Anna earns 92k"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json_subset": {
+          "ok": true,
+          "result": {
+            "message_id": 5
+          }
+        },
+        "loopback": {
+          "content": {
+            "/hold": [
+              {
+                "rule": {
+                  "id": "salary",
+                  "name": "salary",
+                  "reason": "salary reason",
+                  "ai": "found"
+                },
+                "vmId": "vm_test"
+              }
+            ]
+          },
+          "judge": {
+            "/content": [
+              {
+                "vm_id": "vm_test",
+                "direction": "out"
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "salary",
+            "action": "hold",
+            "hold": "h9",
+            "ai": "found"
+          }
+        ]
+      }
+    },
+    {
+      "name": "coming in, the AI could not run: dropped, and the person asked to send it again",
+      "loopback": {
+        "judge": {
+          "/content": [
+            {
+              "status": 200,
+              "json": {
+                "failed": true,
+                "why": "cap"
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 1,
+              "message": {
+                "chat": {
+                  "id": 42
+                },
+                "from": {
+                  "id": 42
+                },
+                "text": "hello"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot777:CC-TG-placeholder/getUpdates",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 1
+            }
+          ]
+        },
+        "loopback": {
+          "content": {
+            "/notice": [
+              {
+                "kind": "in",
+                "botId": "777",
+                "chatId": "42",
+                "vmId": "vm_test",
+                "reason": "salary reason (the AI check could not run)",
+                "failed": true
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "salary",
+            "direction": "in",
+            "action": "block",
+            "ai": "failed"
+          }
+        ]
+      }
+    }
+  ]
+}

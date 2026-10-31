@@ -1,0 +1,50 @@
+name: vm-agent health summary and model probe
+agent: vm-agent
+steps:
+  - request: {method: GET, path: /health/summary}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - name: the console reads it
+    request: {method: GET, path: /health/summary, token: {signer: console}}
+    expect:
+      status: 200
+      json_subset:
+        ok: true
+        now: $number
+        openclaw: {state: $string, gateway: $any, answers: $any}
+        disk: $any
+        memory: {usedPct: $number, totalBytes: $number}
+        cpu: $any
+        load1: $number
+        cpus: $number
+        clock: {ntpSynced: $any}
+        dns: $any
+        egress: $any
+        rebootRequired: $any
+        uptimeS: $number
+        openclawSince: $any
+        stalled: $any
+        outbound: $any
+  - name: so does the firewall, with its own purpose
+    request: {method: GET, path: "/health/summary?fresh=1", token: {signer: firewall, bind: true, claims: {purpose: health}}}
+    expect:
+      status: 200
+      json_subset: {ok: true, now: $number}
+  - name: a firewall token for something else is not the console's
+    request: {method: GET, path: /health/summary, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect:
+      status: 401
+  - request: {method: POST, path: /health/model, token: {signer: firewall, bind: true, claims: {purpose: health}}}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - name: no gateway on this box
+    request: {method: POST, path: /health/model, token: {signer: console}}
+    expect:
+      status: 200
+      json: {ok: false, provider: null, reason: no_gateway}
+  - request: {method: GET, path: /health/model, token: {signer: console}}
+    expect:
+      status: 404
+      json: {error: Not found}

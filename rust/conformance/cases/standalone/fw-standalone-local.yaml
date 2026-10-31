@@ -1,0 +1,26 @@
+name: "standalone firewall with its own control plane starts with no agents (its rules: fw-standalone-fresh-blocks)"
+agent: mitm-agent
+skip:
+  ts: "standalone mode is in the Rust build only"
+env:
+  MITM_MODE: standalone
+  SYNC_INTERVAL_MS: "300"
+  # The runner points every one of these at its fake console; unset, they default to local:.
+  FIREWALL_URL: ""
+  STORE_URL: ""
+  RULES_URL: ""
+  IDENTITIES_URL: ""
+  PERMISSION_URL: ""
+  CA_URL: ""
+  ACTIVITY_URL: ""
+  WEBHOOKS_URL: ""
+  ORG_ID: ""
+  BOX_ID: ""
+  LOCAL_PANEL_BIND: "127.0.0.1:0"
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+steps:
+  - name: the identity map comes from the new local database
+    files:
+      run/identities.json: {text: "[]"}
+      run/credentials.json: {text: "[]"}

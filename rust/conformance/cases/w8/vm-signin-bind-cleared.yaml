@@ -1,0 +1,36 @@
+name: vm-agent sign-in clears the spent bind cookie on a ticket used twice
+agent: vm-agent
+skip:
+  ts: "TS keeps the spent bind cookie on a refusal until it expires (fixed in Rust)"
+files:
+  keys/config_api_url: "https://console.example/api/vm-agent/config\n"
+  keys/openclaw_gateway_token: "gw-token\n"
+env: {OPENCLAW_BIN: /nonexistent/openclaw}
+steps:
+  - name: the firewall says where it is
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://fw.example.com"}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 200}
+  - name: Open begin
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect: {status: 200}
+  - name: an owner's ticket
+    request: {method: POST, path: /__cc/session, jar: true, keep_jar: true, headers: {origin: "https://box.example"}, ticket: {claims: {canWrite: true}}}
+    expect: {status: 200}
+  - name: the same ticket again clears the binding
+    request: {method: POST, path: /__cc/session, jar: true, headers: {origin: "https://box.example"}, ticket: {reuse: "an owner's ticket"}}
+    expect:
+      status: 401
+      json: {error: This link was already used. Open the agent from your ControlClaw console again.}
+      set_cookies: ["__Host-cc_bind_*=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"]
+  - name: Open begin for the screen
+    request: {method: POST, path: /__cc/open/begin, json: {}, headers: {origin: "https://box.example"}}
+    expect: {status: 200}
+  - name: a view ticket
+    request: {method: POST, path: /__cc/view-session, jar: true, keep_jar: true, headers: {origin: "https://box.example"}, ticket: {purpose: browser-view}}
+    expect: {status: 200}
+  - name: the view ticket again clears the binding
+    request: {method: POST, path: /__cc/view-session, jar: true, headers: {origin: "https://box.example"}, ticket: {reuse: a view ticket}}
+    expect:
+      status: 401
+      json: {error: This link was already used. Press Screen again in your ControlClaw console.}
+      set_cookies: ["__Host-cc_bind_*=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"]

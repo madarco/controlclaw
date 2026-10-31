@@ -1,0 +1,55 @@
+name: firewall Open routes, the access commands and the beat's access section
+agent: mitm-agent
+env:
+  ACCESS_STORE_PATH: state/access.enc
+fake_agent: {}
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, hostname: "127.0.0.2", name: atlas}]}]]
+steps:
+  - name: the agent is told where its firewall is, with a token for that call
+    agent_received:
+      - path: /access/config
+        method: POST
+        json_subset: {body: {firewallOrigin: "https://fw.example"}, claims: {vmId: vm_1, purpose: access, iss: fw_1, m: POST, p: /access/config, h: "127.0.0.2"}}
+  - name: no Origin is no agent
+    request: {method: POST, path: /__cc/open, listener: ingress}
+    expect: {status: 403, body: "", headers: {cache-control: no-store, referrer-policy: no-referrer, content-length: "0"}}
+  - name: an origin that is not a pinned agent
+    request: {method: POST, path: /__cc/enroll/confirm, listener: ingress, headers: {origin: "https://evil.example"}}
+    expect: {status: 403, body: ""}
+  - name: only POST
+    request: {method: GET, path: /__cc/open, listener: ingress}
+    expect: {status: 405, body: "", headers: {cache-control: no-store}}
+  - name: not a form
+    request: {method: POST, path: /__cc/open, listener: ingress, headers: {origin: "https://127.0.0.2", content-type: text/plain}}
+    expect: {status: 400, body: ""}
+  - name: a form with no intent goes back to the agent's page
+    request: {method: POST, path: /__cc/open, listener: ingress, headers: {origin: "https://127.0.0.2", content-type: application/x-www-form-urlencoded}}
+    expect: {status: 303, body: "", headers: {location: "https://127.0.0.2/__cc/open#e=invalid", cache-control: no-store, referrer-policy: no-referrer}}
+  - name: a confirm with nothing pending
+    request: {method: POST, path: /__cc/enroll/confirm, listener: ingress, headers: {origin: "https://127.0.0.2", content-type: application/x-www-form-urlencoded}}
+    expect: {status: 303, headers: {location: "https://127.0.0.2/__cc/open#e=code_expired"}}
+  - name: revoking a browser this firewall does not know still tells every agent
+    command:
+      id: cmd_a1
+      action: access.revoke
+      payload: {deviceIds: [dev_x]}
+      result: {command_id: cmd_a1, ok: true, status: applied, message: "", data: {revoked: [], unknown: [dev_x], pushed: [vm_1], failed: []}}
+    agent_received:
+      - {path: /access/revoke, method: POST, json_subset: {body: {deviceIds: [dev_x]}, claims: {purpose: access}}}
+  - name: a revoke with no ids
+    command:
+      id: cmd_a2
+      action: access.revoke
+      payload: {}
+      result: {command_id: cmd_a2, ok: false, status: failed, message: "malformed access.revoke payload"}
+  - name: sign out every browser
+    command:
+      id: cmd_a3
+      action: access.revoke_all
+      result: {command_id: cmd_a3, ok: true, status: applied, data: {revoked: 0, pushed: [vm_1], failed: []}}
+    agent_received:
+      - {path: /access/revoke, method: POST, json_subset: {body: {all: true}}}
+  - beat:
+      json_subset: {access: {origin: "https://fw.example", pending: null, devices: [], deviceCount: 0}}

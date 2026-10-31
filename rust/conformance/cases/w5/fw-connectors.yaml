@@ -1,0 +1,76 @@
+name: firewall connectors.* commands with the runtime down, and the 3900 gate
+agent: mitm-agent
+env:
+  CONNECTOR_URL: "http://127.0.0.1:9"
+  CONNECTOR_ADMIN_TOKEN: admin-secret
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  APPS_RULES_PATH: state/apps-rules.enc
+  CONNECTOR_STORE_PATH: state/connectors.enc
+  CONNECTOR_CALLS_PATH: state/connector-calls.jsonl
+  CONNECTOR_ASKS_PATH: state/connector-asks.json
+  CONNECTOR_RUNS_STATE_PATH: state/connector-runs.json
+ports:
+  gate: CONNECTOR_GATE_PORT
+steps:
+  - name: a push for an agent this firewall holds nothing for
+    command:
+      id: c1
+      action: connectors.push
+      payload: {vmId: vm-x, name: x, hostname: x.example}
+      result: {command_id: c1, ok: true, status: empty,
+               message: "This firewall has no app connections for that agent. Connect the apps again.",
+               data: {vmId: vm-x, applied: [], failed: [], held: 0}}
+  - name: forget an agent it never knew
+    command:
+      id: c2
+      action: connectors.forget
+      payload: {vmId: vm-x}
+      result: {command_id: c2, ok: true, status: applied, message: "", data: {vmId: vm-x, revoked: false}}
+  - name: a callback for a state it did not mint
+    command:
+      id: c3
+      action: connectors.callback
+      payload: {state: st-nope, code: x}
+      result: {command_id: c3, ok: false, status: expired,
+               message: "This sign-in is no longer waiting on your firewall. Start it again.", data: {state: st-nope}}
+  - name: a read while the runtime is down
+    command:
+      id: c4
+      action: connectors.read
+      payload: {kind: connections}
+      result: {command_id: c4, ok: false, status: failed,
+               message: "The connector runtime is not reachable on this firewall.", data: {kind: connections}}
+  - name: a read of an unknown kind
+    command:
+      id: c5
+      action: connectors.read
+      payload: {kind: runs}
+      result: {command_id: c5, ok: false, status: failed, message: "unknown connectors.read kind runs", data: {kind: runs}}
+  - name: a malformed proposal
+    command:
+      id: c6
+      action: connectors.propose
+      payload: {changeId: x, kind: nope, service: gitea}
+      result: {command_id: c6, ok: false, status: failed, message: "malformed connectors.propose payload"}
+  - name: confirm with nothing waiting
+    command:
+      id: c9
+      action: connectors.confirm
+      payload: {changeId: c9, code: "1"}
+      result: {command_id: c9, ok: false, status: expired,
+               message: "No change is waiting for a code, or the code expired.", data: {changeId: c9}}
+  - name: cancel
+    command:
+      id: c10
+      action: connectors.cancel
+      payload: {changeId: c10}
+      result: {command_id: c10, ok: true, status: cancelled, message: "", data: {changeId: c10}}
+  - name: the gate has only the execution routes
+    request: {method: GET, path: /api/runtime-tokens, port: gate}
+    expect: {status: 404, json: {success: false, message: Not found., errorCode: not_found}}
+  - name: the gate refuses a token it did not mint
+    request: {method: POST, path: /mcp, port: gate, headers: {authorization: Bearer oct_nope}, json: {}}
+    expect: {status: 401, json: {success: false, message: This firewall does not know that token., errorCode: unauthorized}}
+  - name: health needs no token, and the runtime is down
+    request: {method: GET, path: /v1/health, port: gate}
+    expect: {status: 502, json: {success: false, message: The connector runtime is not answering on this firewall., errorCode: runtime_unreachable}}

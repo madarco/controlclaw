@@ -1,0 +1,9 @@
+{
+  "empty": "dir:775",
+  "link.md": "link:notes/a.md",
+  "notes": "dir:775",
+  "notes/a.md": "file:664:8",
+  "notes/deep": "dir:775",
+  "notes/deep/b.txt": "file:664:70000",
+  "run.sh": "file:755:8"
+}

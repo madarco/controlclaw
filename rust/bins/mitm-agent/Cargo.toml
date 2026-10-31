@@ -1,0 +1,62 @@
+[package]
+name = "mitm-agent"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+mimalloc.workspace = true
+cc-auth.workspace = true
+cc-client.workspace = true
+cc-contracts.workspace = true
+cc-crypto.workspace = true
+cc-http.workspace = true
+http-body-util.workspace = true
+cc-llm.workspace = true
+cc-local.workspace = true
+cc-meetings.workspace = true
+cc-proc.workspace = true
+cc-redact.workspace = true
+cc-store.workspace = true
+futures-util.workspace = true
+# Content-Encoding of a webhook delivery the content rules read (gzip, deflate, br).
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+brotli-decompressor = "5"
+base64.workspace = true
+bytes.workspace = true
+ed25519-dalek.workspace = true
+http.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+regex.workspace = true
+rand.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+hex.workspace = true
+icu_normalizer = { version = "2", default-features = false, features = ["compiled_data"] }
+ring = "0.17"
+indexmap = { version = "2", features = ["serde"] }
+uuid.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tokio-tungstenite.workspace = true
+rustls-pemfile.workspace = true
+webpki-roots.workspace = true
+tokio-rustls.workspace = true
+tracing.workspace = true
+unicode-normalization = "0.1"
+url.workspace = true
+
+[dev-dependencies]
+cc-testkit.workspace = true
+tempfile.workspace = true

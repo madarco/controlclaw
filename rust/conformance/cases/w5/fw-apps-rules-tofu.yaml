@@ -1,0 +1,11 @@
+name: firewall apps.* with nobody to ask, a loosening change applies (tofu)
+agent: mitm-agent
+env:
+  APPS_RULES_PATH: state/apps-rules.enc
+steps:
+  - name: nobody can be asked, so a loosening change applies too (tofu)
+    command:
+      id: t1
+      action: apps.propose
+      payload: {changeId: c2, change: {op: delete, id: ask-destructive}}
+      result: {command_id: t1, ok: true, status: applied, data: {rules: [], tofu: true}}

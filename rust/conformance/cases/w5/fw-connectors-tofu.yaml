@@ -1,0 +1,28 @@
+name: firewall connectors.* with nobody to ask, a change goes straight to the runtime (tofu)
+agent: mitm-agent
+env:
+  CONNECTOR_URL: "http://127.0.0.1:9"
+  CONNECTOR_ADMIN_TOKEN: admin-secret
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  APPS_RULES_PATH: state/apps-rules.enc
+  CONNECTOR_STORE_PATH: state/connectors.enc
+  CONNECTOR_CALLS_PATH: state/connector-calls.jsonl
+  CONNECTOR_ASKS_PATH: state/connector-asks.json
+  CONNECTOR_RUNS_STATE_PATH: state/connector-runs.json
+steps:
+  - name: a connect that reaches no runtime (tofu)
+    command:
+      id: c7
+      action: connectors.propose
+      payload: {changeId: c7, kind: connect, service: gitea, serviceName: Gitea, agents: [], secret: {apiKey: k}}
+      result: {command_id: c7, ok: false, status: failed,
+               message: "The connector runtime is not reachable on this firewall.",
+               data: {changeId: c7, summary: Connect Gitea}}
+  - name: an assignment of a connection the firewall does not have
+    command:
+      id: c8
+      action: connectors.propose
+      payload: {changeId: c8, kind: assign, service: gitea, connectionId: rc-1, agents: [{vmId: vm-a, name: a}]}
+      result: {command_id: c8, ok: false, status: failed,
+               message: "This app is not connected on the firewall. Connect it again.",
+               data: {changeId: c8, summary: Let a use gitea}}

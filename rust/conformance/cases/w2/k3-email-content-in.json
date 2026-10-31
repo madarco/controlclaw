@@ -1,0 +1,313 @@
+{
+  "name": "k3 email: content rules on what is read (AgentMail, Gmail), raw reads, unknown rules",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        },
+        {
+          "id": "pay",
+          "name": "pay",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [],
+          "detectors": [
+            "iban"
+          ],
+          "action": "hold",
+          "reason": "pay reason"
+        },
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "in",
+          "channels": [
+            "slack",
+            "email"
+          ],
+          "patterns": [
+            "salary"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "salary reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "AgentMail: a blocked message by id is emptied",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "actions": [
+                  {
+                    "action": "keep"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "inbox_id": "a@agentmail.to",
+          "thread_id": "t1",
+          "message_id": "m1",
+          "subject": "about my salary",
+          "text": "x",
+          "labels": [
+            "received"
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/m1"
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "inbox_id": "a@agentmail.to",
+          "thread_id": "t1",
+          "message_id": "m1",
+          "subject": "",
+          "text": "",
+          "labels": [
+            "received",
+            "blocked"
+          ]
+        },
+        "audit": [
+          {
+            "rule": "salary",
+            "direction": "in",
+            "action": "block",
+            "channel": "email"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentMail: the raw form is refused while a rule reads mail coming in",
+      "request": {
+        "method": "GET",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/m1/raw"
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json": {
+          "error": "email_refused",
+          "reason": "content_rule",
+          "message": "Read the message instead of its raw form: your organization's content rules check messages coming in."
+        },
+        "traffic": [
+          {
+            "rule": "content: raw read"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Gmail: a blocked message is not found",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "id": "g2",
+          "snippet": "x",
+          "payload": {
+            "mimeType": "multipart/alternative",
+            "headers": [
+              {
+                "name": "Subject",
+                "value": "news"
+              }
+            ],
+            "parts": [
+              {
+                "mimeType": "text/html",
+                "body": {
+                  "data": "PHA-eW91ciBzYWxhcnk8L3A-"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/g2"
+      },
+      "expect": {
+        "status": 404,
+        "json": {
+          "error": {
+            "code": 404,
+            "message": "Requested entity was not found.",
+            "status": "NOT_FOUND"
+          }
+        }
+      }
+    },
+    {
+      "name": "Gmail: left out of its thread",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "id": "t1",
+          "messages": [
+            {
+              "id": "g1",
+              "snippet": "hello"
+            },
+            {
+              "id": "g3",
+              "snippet": "the salary"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/threads/t1"
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "id": "t1",
+          "messages": [
+            {
+              "id": "g1",
+              "snippet": "hello"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Gmail: a raw message",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "id": "g4",
+          "raw": "VG86IHhAeS5jb20NClN1YmplY3Q6IHNhbGFyeSByZXZpZXcNCk1JTUUtVmVyc2lvbjogMS4wDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW47IGNoYXJzZXQ9dXRmLTgNCg0KeA"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/g4"
+      },
+      "expect": {
+        "status": 404
+      }
+    },
+    {
+      "name": "unknown rules: an AgentMail read is 'try again'",
+      "files": {
+        "content-rules.json": "{"
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "inbox_id": "a@agentmail.to",
+          "thread_id": "t1",
+          "message_id": "m1",
+          "text": "hi"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/m1"
+      },
+      "expect": {
+        "status": 503,
+        "body": "{\"error\":\"rules_loading\",\"message\":\"The firewall is loading its rules. Try again in a few seconds.\"}"
+      }
+    },
+    {
+      "name": "unknown rules: an AgentMail write is refused before it goes",
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/a%40agentmail.to/messages/send",
+        "json": {
+          "to": [
+            "x@y.com"
+          ],
+          "text": "hello"
+        }
+      },
+      "expect": {
+        "status": 503,
+        "upstream": "none",
+        "no_loopback": [
+          "email"
+        ],
+        "traffic": [
+          {
+            "rule": "content: rules unknown",
+            "status": 503
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown rules: a Gmail read",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "id": "g1",
+          "snippet": "hello"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/g1"
+      },
+      "expect": {
+        "status": 503,
+        "json": {
+          "error": {
+            "code": 503,
+            "message": "The firewall is loading its rules. Try again in a few seconds.",
+            "status": "UNAVAILABLE"
+          }
+        }
+      }
+    }
+  ]
+}

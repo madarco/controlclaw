@@ -1,0 +1,77 @@
+name: llm commands with nobody to ask (first use), an unknown agent, and the store across a restart
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  LLM_STORE_PATH: state/llm.enc
+  # A store record the TS sync can read (none): the fake console answers `{}`.
+  STORE_URL: "file:state/no-record.json"
+steps:
+  - name: the included key applies on first use; the agent is not in the identity map
+    command:
+      id: c_add
+      action: llm.propose
+      payload:
+        changeId: chg-1
+        kind: add
+        credentialId: cred-inc
+        provider: controlclaw
+        providerName: Included AI tokens
+        credKind: api_key
+        placeholder: vck-cc-included123
+        hint: Included
+        profileId: controlclaw:included
+        swap: {matchDomain: ai-gateway.vercel.sh, locations: ["header:authorization"]}
+        allowedModels: [moonshotai/kimi-k2.6]
+        agents: [{vmId: vm_9, name: nine, hostname: nine.vm.example, model: controlclaw/moonshotai/kimi-k2.6, role: primary}]
+        secret: {apiKey: vck_real_key}
+      result:
+        command_id: c_add
+        ok: true
+        status: applied
+        data:
+          changeId: chg-1
+          summary: "Add Included AI tokens key (Included)"
+          mode: placeholder
+          applied: []
+          failed: [{vmId: vm_9, error: "This firewall does not know that agent. If it was just created, try again in a minute."}]
+          tofu: true
+  - name: the heartbeat names the included credential
+    beat:
+      json_subset: {included_ai: cred-inc}
+  - name: the store survives a restart
+    restart: true
+    beat:
+      json_subset: {included_ai: cred-inc}
+  - name: a push for the stored agent fails with the agent's name on it
+    command:
+      id: c_push1
+      action: llm.push
+      payload: {vmId: vm_9}
+      result:
+        ok: false
+        status: failed
+        message: "This firewall does not know that agent. If it was just created, try again in a minute."
+        data:
+          vmId: vm_9
+          applied: []
+          failed: [{vmId: vm_9, error: "This firewall does not know that agent. If it was just created, try again in a minute."}]
+  - name: a bind of a credential that is not here
+    command:
+      id: c_bind
+      action: llm.propose
+      payload: {changeId: chg-2, kind: bind, credentialId: cred-x, provider: openai, providerName: OpenAI, agents: [{vmId: vm_9, name: nine, model: openai/gpt-5.6}]}
+      result: {ok: false, status: failed, message: "This provider is not set up on the firewall. Add it again."}
+  - name: removing it takes it off the heartbeat
+    command:
+      id: c_rm
+      action: llm.propose
+      payload: {changeId: chg-3, kind: remove, credentialId: cred-inc, provider: controlclaw, providerName: Included AI tokens, agents: []}
+      result:
+        ok: true
+        status: applied
+        data: {summary: "Remove Included AI tokens from the organization", tofu: true, failed: [{vmId: vm_9}]}
+  - beat:
+      json_subset: {included_ai: null}

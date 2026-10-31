@@ -1,0 +1,39 @@
+name: vm-agent /access pushes are the firewall's only
+agent: vm-agent
+steps:
+  - name: a GET
+    request: {method: GET, path: /access/config}
+    expect: {status: 405, json: {error: Method not allowed}}
+  - name: no token
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://fw.example.com"}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: the console's token
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://fw.example.com"}, token: {signer: console}}
+    expect: {status: 401}
+  - name: another purpose
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://fw.example.com"}, token: {signer: firewall, bind: true, claims: {purpose: channels}}}
+    expect: {status: 401}
+  - name: a body other than the one signed
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://fw.example.com"}, token: {signer: firewall, bind: true, body: {firewallOrigin: "https://x.example.com"}, claims: {purpose: access}}}
+    expect: {status: 400, json: {error: Invalid JSON body}}
+  - name: not https
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "http://fw.example.com"}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 400, json: {error: "firewallOrigin must be https://<hostname>"}}
+  - name: with a path
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://fw.example.com/x"}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 400}
+  - name: a single label
+    request: {method: POST, path: /access/config, json: {firewallOrigin: "https://localhost"}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 400}
+  - name: revoke with nothing
+    request: {method: POST, path: /access/revoke, json: {deviceIds: []}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 400, json: {error: deviceIds must be a non-empty list}}
+  - name: revoke with only bad ids
+    request: {method: POST, path: /access/revoke, json: {deviceIds: ["", 5, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 400}
+  - name: revoke counts the good ones
+    request: {method: POST, path: /access/revoke, json: {deviceIds: ["a", "", "b"]}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 200, json: {ok: true, revoked: 2}}
+  - name: an unknown push
+    request: {method: POST, path: /access/other, json: {}, token: {signer: firewall, bind: true, claims: {purpose: access}}}
+    expect: {status: 404, json: {error: Not found}}

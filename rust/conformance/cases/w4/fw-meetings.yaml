@@ -1,0 +1,46 @@
+name: meetings commands with nothing approved, and the media route
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+  CHANNEL_STORE_PATH: state/channels.enc
+steps:
+  - name: push with no approved settings
+    command:
+      id: m_push
+      action: meetings.push
+      payload: {vmId: vm_1}
+      result: {ok: false, status: failed, message: "No approved meetings settings"}
+  - name: a proposal that does not read
+    command:
+      id: m_bad
+      action: meetings.propose
+      payload: {vmId: vm_1, changeId: not-a-uuid, revision: 0, policy: {}}
+      result: {ok: false, status: failed, message: "Invalid meetings request"}
+  - name: an agent this firewall does not know
+    command:
+      id: m_unknown
+      action: meetings.propose
+      payload: {vmId: vm_9, changeId: 0b6e4d1c-1f0a-4c2e-9a6b-1d2e3f4a5b6c, revision: 0, policy: {}}
+      result: {ok: false, status: failed, message: "Agent unavailable"}
+  - name: cancel with nothing waiting
+    command:
+      id: m_cancel
+      action: meetings.cancel
+      payload: {vmId: vm_1, changeId: 0b6e4d1c-1f0a-4c2e-9a6b-1d2e3f4a5b6c}
+      result: {ok: false, status: conflict}
+  - name: confirm with nothing waiting
+    command:
+      id: m_conf
+      action: meetings.confirm
+      payload: {vmId: vm_1, changeId: 0b6e4d1c-1f0a-4c2e-9a6b-1d2e3f4a5b6c, code: "123456"}
+      result: {ok: false, status: expired, data: {changeId: 0b6e4d1c-1f0a-4c2e-9a6b-1d2e3f4a5b6c}}
+  - name: the media route takes only POST
+    request: {method: GET, path: /__cc/meetings/media, listener: ingress}
+    expect: {status: 405, json: {error: Method not allowed}}
+  - name: and a token it gave
+    request: {method: POST, path: /__cc/meetings/media, listener: ingress, json: {action: start}}
+    expect: {status: 403, json: {error: Media unavailable}}

@@ -1,0 +1,11 @@
+<h1>Confirm this browser</h1><p class="host">${host}</p>
+<p class="lead" id="lead">This browser has not opened your organization's agents before. We sent a 6-digit code to your organization's chat channel. Type it here to open ${agent}.</p>
+<form id="f" method="post" action="${firewall}/__cc/enroll/confirm">
+  <input type="hidden" name="p" id="p">
+  <input class="code" name="code" id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus aria-label="6-digit code">
+  ${CODE_BOXES}
+  <p class="line" id="line" hidden></p>
+  <div class="err" id="err"></div>
+  <button class="btn" id="go" type="submit">Continue</button>
+</form>
+<p class="note">Only type the code on this page, at ${host}. If you did not just press Open, close this tab.</p>

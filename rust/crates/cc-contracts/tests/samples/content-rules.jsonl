@@ -1,0 +1,2 @@
+{"ts": 1767225003.0, "id": "0123456789abcdef01234567", "rule": "no-salaries", "channel": "telegram", "direction": "out", "action": "hold", "vm_id": "vm_abc", "flow_id": "9f0e8a52-1c3b-4b8e-9d0c-1a2b3c4d5e6f", "ai": "found"}
+{"ts": 1767225004.0, "id": "1123456789abcdef01234567", "rule": "core-secrets", "channel": "web", "direction": "out", "action": "block", "vm_id": null, "flow_id": null}

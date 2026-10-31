@@ -1,0 +1,149 @@
+name: vm-agent widget sandbox sign-in (verify, ticket, exchange)
+agent: vm-agent
+files:
+  keys/session_secret: "0909090909090909090909090909090909090909090909090909090909090909\n"
+steps:
+  - name: verify on the dashboard's own host
+    request: {method: GET, path: /__cc/sandbox/verify, headers: {sec-fetch-dest: iframe}}
+    expect:
+      status: 403
+      headers:
+        content-type: text/html; charset=utf-8
+        cache-control: no-store
+        content-security-policy: "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors https://box.example"
+      body: '<!doctype html><meta charset="utf-8"><title>Not available</title><p style="font:14px system-ui;margin:16px">This widget can only be shown inside your agent&#39;s dashboard. Open the agent from your console and try again.</p>'
+  - name: verify on the sandbox host, opened in a tab
+    request: {method: GET, path: /__cc/sandbox/verify, headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: document}}
+    expect: {status: 403}
+  - name: the dashboard's iframe with no cookie is sent to sign in
+    request:
+      method: GET
+      path: /__cc/sandbox/verify
+      headers: {x-forwarded-host: Sandbox.Box.Example, sec-fetch-dest: iframe, x-forwarded-uri: "/mcp-app-sandbox?w=1&b=a b", referer: "https://box.example/chat"}
+    expect:
+      status: 302
+      headers: {location: "https://box.example/__cc/sandbox/ticket?r=%2Fmcp-app-sandbox%3Fw%3D1%26b%3Da%2520b", cache-control: no-store}
+  - name: another page's frame is not
+    request:
+      method: GET
+      path: /__cc/sandbox/verify
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe, x-forwarded-uri: "/mcp-app-sandbox", referer: "https://other.example/"}
+    expect: {status: 403}
+  - name: a way back that is not the shell
+    request:
+      method: GET
+      path: /__cc/sandbox/verify
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe, x-forwarded-uri: "//evil.example/mcp-app-sandbox", referer: "https://box.example/"}
+    expect: {status: 403}
+  - name: a ticket needs a dashboard session
+    request: {method: GET, path: "/__cc/sandbox/ticket?r=%2Fmcp-app-sandbox", headers: {sec-fetch-dest: iframe, referer: "https://box.example/"}}
+    expect: {status: 403}
+  - name: a ticket for the dashboard's frame
+    request:
+      method: GET
+      path: "/__cc/sandbox/ticket?r=%2Fmcp-app-sandbox%3Fw%3D1"
+      headers: {sec-fetch-dest: iframe, sec-fetch-site: same-site, referer: "https://box.example/"}
+      token: {signer: session, cookie: __Host-cc_session}
+    expect:
+      status: 302
+      headers: {cache-control: no-store}
+  - name: not on the sandbox host
+    request:
+      method: GET
+      path: "/__cc/sandbox/ticket?r=%2Fmcp-app-sandbox"
+      headers: {host: sandbox.box.example, sec-fetch-dest: iframe, referer: "https://box.example/"}
+      token: {signer: session, cookie: __Host-cc_session}
+    expect: {status: 403}
+  - name: not for a cross-site frame
+    request:
+      method: GET
+      path: "/__cc/sandbox/ticket?r=%2Fmcp-app-sandbox"
+      headers: {sec-fetch-dest: iframe, sec-fetch-site: cross-site, referer: "https://box.example/"}
+      token: {signer: session, cookie: __Host-cc_session}
+    expect: {status: 403}
+  - name: the exchange spends a ticket for the sandbox cookie
+    request:
+      method: GET
+      path: "/__cc/sandbox/exchange?r=%2Fmcp-app-sandbox%3Fw%3D1"
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe}
+      token: {signer: session, query: t, claims: {aud: sandbox-ticket, jti: j1, sexp: 4102444800, dev: dev_1}}
+    expect:
+      status: 302
+      headers: {location: "/mcp-app-sandbox?w=1", cache-control: no-store}
+      set_cookies: ["__Host-cc_sandbox=*; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=Lax"]
+  - name: the cookie lets the shell be served
+    request:
+      method: GET
+      path: /__cc/sandbox/verify
+      jar: true
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe}
+    expect: {status: 200}
+  - name: the same ticket again
+    request:
+      method: GET
+      path: "/__cc/sandbox/exchange?r=%2Fmcp-app-sandbox"
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe}
+      token: {reuse: the exchange spends a ticket for the sandbox cookie, signer: session, query: t}
+    expect: {status: 403, set_cookies: []}
+  - name: a ticket spent on the dashboard's host
+    request:
+      method: GET
+      path: "/__cc/sandbox/exchange?r=%2Fmcp-app-sandbox"
+      headers: {sec-fetch-dest: iframe}
+      token: {signer: session, query: t, claims: {aud: sandbox-ticket, jti: j2, sexp: 4102444800}}
+    expect: {status: 403}
+  - name: a ticket past its session
+    request:
+      method: GET
+      path: "/__cc/sandbox/exchange?r=%2Fmcp-app-sandbox"
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe}
+      token: {signer: session, query: t, claims: {aud: sandbox-ticket, jti: j3, sexp: 1000}}
+    expect: {status: 403}
+  - name: a session token as the ticket
+    request:
+      method: GET
+      path: "/__cc/sandbox/exchange?r=%2Fmcp-app-sandbox"
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe}
+      token: {signer: session, query: t, claims: {jti: j4, sexp: 4102444800}}
+    expect: {status: 403}
+  - name: the firewall revokes the device
+    request:
+      method: POST
+      path: /access/revoke
+      json: {deviceIds: [dev_1]}
+      token: {signer: firewall, bind: true, claims: {purpose: access}}
+    expect: {status: 200}
+  - name: its sandbox cookie is out
+    request:
+      method: GET
+      path: /__cc/sandbox/verify
+      jar: true
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe}
+    expect: {status: 403}
+  - name: a sandbox cookie of another box
+    request:
+      method: GET
+      path: /__cc/sandbox/verify
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe, x-forwarded-uri: "/mcp-app-sandbox", referer: "https://box.example/"}
+      token: {signer: session, cookie: __Host-cc_sandbox, claims: {sub: vm_2, aud: sandbox}}
+    expect: {status: 302}
+  - name: this box's sandbox cookie
+    request:
+      method: GET
+      path: /__cc/sandbox/verify
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe}
+      token: {signer: session, cookie: __Host-cc_sandbox, claims: {aud: sandbox}}
+    expect: {status: 200, headers: {cache-control: no-store}, body: ""}
+  - name: a dashboard session is not a sandbox cookie
+    request:
+      method: GET
+      path: /__cc/sandbox/verify
+      headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe}
+      token: {signer: session, cookie: __Host-cc_sandbox}
+    expect: {status: 403}
+  - name: a POST
+    request: {method: POST, path: /__cc/sandbox/verify, headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe}}
+    expect: {status: 403}
+  - name: another sandbox path
+    request: {method: GET, path: /__cc/sandbox/other, headers: {x-forwarded-host: sandbox.box.example, sec-fetch-dest: iframe}}
+    expect: {status: 403}

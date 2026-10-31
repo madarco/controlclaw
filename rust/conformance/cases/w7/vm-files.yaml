@@ -1,0 +1,172 @@
+name: vm-agent /files explorer API (list, read, download, upload, write, mkdir, rename, delete)
+agent: vm-agent
+env: {FILES_ROOT: $ROOT/home}
+files:
+  keys/session_secret: "0909090909090909090909090909090909090909090909090909090909090909\n"
+  home/notes.md: "hello"
+  home/dir/a.txt: "aaa"
+  home/img.png: "PNGDATA"
+  home/blob.bin: "xx"
+  home/.ssh/authorized_keys: "ssh-ed25519 AAAA"
+  home/w/b10.txt: "1"
+  home/w/b2.txt: "22"
+  home/w/A.txt: "333"
+  home/w/_x: ""
+  home/w/zdir/k: ""
+steps:
+  - name: a preflight answers without a session
+    request: {method: OPTIONS, path: /files/list, headers: {origin: "https://box.example"}}
+    expect:
+      status: 204
+      headers:
+        vary: Origin
+        access-control-allow-origin: "https://box.example"
+        access-control-allow-credentials: "true"
+        access-control-allow-methods: "GET, POST, OPTIONS"
+        access-control-allow-headers: Content-Type
+        access-control-max-age: "600"
+  - name: no session
+    request: {method: GET, path: "/files/list?path=", headers: {origin: "https://box.example"}}
+    expect:
+      status: 401
+      headers: {vary: Origin, access-control-allow-origin: "https://box.example", cache-control: no-store}
+      json: {error: This browser is not signed in to the agent., code: unpaired}
+  - name: another box's page
+    request: {method: GET, path: /files/list, headers: {origin: "https://other.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect:
+      status: 403
+      headers: {vary: Origin, access-control-allow-origin: $absent}
+      json: {error: This request did not come from your console., code: bad_origin}
+  - name: the template review with none waiting
+    request: {method: GET, path: /files/template-review, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 200, json: {template: null, files: []}}
+  - name: a folder that is not there
+    request: {method: GET, path: "/files/list?path=nothing", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 404, json: {error: No such file or folder., code: not_found}}
+  - name: a file is not a folder
+    request: {method: GET, path: "/files/list?path=notes.md", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 400, json: {error: "That is a file, not a folder.", code: not_a_directory}}
+  - name: a text preview
+    request: {method: GET, path: "/files/read?path=notes.md", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect:
+      status: 200
+      json: {path: notes.md, name: notes.md, mime: text/markdown, size: 5, mtime: $string, kind: text, truncated: false, content: hello}
+  - name: an image is streamed as it is
+    request: {method: GET, path: "/files/read?path=img.png", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect:
+      status: 200
+      headers:
+        content-type: image/png
+        content-length: "7"
+        content-security-policy: "default-src 'none'; sandbox"
+        x-content-type-options: nosniff
+        access-control-expose-headers: Last-Modified
+        cache-control: no-store
+      body: PNGDATA
+  - name: anything else is metadata
+    request: {method: GET, path: "/files/read?path=blob.bin", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 200, json: {path: blob.bin, name: blob.bin, mime: application/octet-stream, size: 2, mtime: $string, kind: binary}}
+  - name: a folder is not read
+    request: {method: GET, path: "/files/read?path=dir", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 400, json: {error: "That is a folder, not a file.", code: is_a_directory}}
+  - name: a download, by the link (no Origin)
+    request: {method: GET, path: "/files/download?path=dir/a.txt", token: {signer: session, cookie: __Host-cc_session}}
+    expect:
+      status: 200
+      headers:
+        content-type: application/octet-stream
+        content-length: "3"
+        content-disposition: "attachment; filename=\"a.txt\"; filename*=UTF-8''a.txt"
+        vary: Origin
+      body: aaa
+  - name: dot-dots stay inside
+    request: {method: GET, path: "/files/read?path=../../etc/passwd", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 404, json: {code: not_found, error: No such file or folder.}}
+  - name: the account's own keys are refused by name
+    request: {method: GET, path: "/files/read?path=.ssh/authorized_keys", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 403, json: {error: "That path is part of the box's own credentials and is not browsable.", code: denied}}
+  - name: a member cannot upload
+    request: {method: POST, path: "/files/upload?path=new.txt", body: "new", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 403, json: {error: Your pass for this agent can read its files but not change them., code: read_only}}
+  - name: an owner uploads
+    request: {method: POST, path: "/files/upload?path=new.txt", body: "new", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 200, json: {path: new.txt, size: 3}}
+  - name: not over a file that is there
+    request: {method: POST, path: "/files/upload?path=new.txt", body: "again", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 409, json: {error: A file with that name is already there., code: exists}}
+  - name: unless asked to overwrite
+    request: {method: POST, path: "/files/upload?path=new.txt&overwrite=1", body: "again", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 200, json: {path: new.txt, size: 5}}
+  - name: a write with no Origin
+    request: {method: POST, path: "/files/upload?path=x.txt", body: "x", token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 403, json: {code: bad_origin, error: This request did not come from your console.}}
+  - name: an upload needs a name
+    request: {method: POST, path: "/files/upload?path=", body: "x", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 400, json: {error: A name is required., code: bad_path}}
+  - name: an edit that lost the race
+    request: {method: POST, path: "/files/write?path=new.txt&mtime=2000-01-01T00:00:00.000Z", body: "edit", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 409, json: {error: The agent changed this file while you were editing it., code: changed}}
+  - name: Overwrite
+    request: {method: POST, path: "/files/write?path=new.txt", body: "edit", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 200, json: {path: new.txt, size: 4, mtime: $string}}
+  - name: New file over one that is there
+    request: {method: POST, path: "/files/write?path=new.txt&create=1", body: "", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 409, json: {code: exists, error: Something with that name is already there.}}
+  - name: an edit of a folder
+    request: {method: POST, path: "/files/write?path=dir", body: "x", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 400, json: {error: Only a plain file can be edited here., code: not_a_file}}
+  - name: mkdir
+    request: {method: POST, path: /files/mkdir, json: {path: sub}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 200, json: {path: sub}}
+  - name: mkdir again
+    request: {method: POST, path: /files/mkdir, json: {path: sub}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 409, json: {code: exists, error: Something with that name is already there.}}
+  - name: mkdir in a folder that is not there
+    request: {method: POST, path: /files/mkdir, json: {path: no/sub}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 404, json: {code: not_found, error: No such file or folder.}}
+  - name: a body that is not JSON
+    request: {method: POST, path: /files/mkdir, body: "nope", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 400, json: {error: That request was not understood., code: bad_body}}
+  - name: rename
+    request: {method: POST, path: /files/rename, json: {from: sub, to: sub2}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 200, json: {from: sub, to: sub2}}
+  - name: a folder into itself
+    request: {method: POST, path: /files/rename, json: {from: sub2, to: sub2/inner}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 400, json: {error: A folder cannot be moved into itself., code: bad_path}}
+  - name: rename onto something there
+    request: {method: POST, path: /files/rename, json: {from: sub2, to: notes.md}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 409, json: {code: exists, error: Something with that name is already there.}}
+  - name: the root is not renamed
+    request: {method: POST, path: /files/rename, json: {from: "", to: x}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 400, json: {error: The workspace root cannot be renamed., code: bad_path}}
+  - name: a full folder needs recursive
+    request: {method: POST, path: /files/delete, json: {path: dir}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 409, json: {error: That folder is not empty. Delete it with its contents to remove it., code: not_empty}}
+  - name: recursive delete
+    request: {method: POST, path: /files/delete, json: {path: dir, recursive: 1}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 200, json: {path: dir, entries: 1}}
+  - name: delete a file
+    request: {method: POST, path: /files/delete, json: {path: new.txt}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 200, json: {path: new.txt, entries: 1}}
+  - name: the root is not deleted
+    request: {method: POST, path: /files/delete, json: {path: "/"}, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session, claims: {canWrite: true}}}
+    expect: {status: 400, json: {code: bad_path, error: The workspace root cannot be deleted.}}
+  - name: a listing, folders first, then names as people read them
+    request: {method: GET, path: "/files/list?path=/w/", headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect:
+      status: 200
+      json:
+        path: w
+        truncated: false
+        entries:
+          - {name: zdir, kind: dir, size: $number, mtime: $string, mode: $string}
+          - {name: _x, kind: file, size: 0, mtime: $string, mode: $string}
+          - {name: A.txt, kind: file, size: 3, mtime: $string, mode: $string}
+          - {name: b2.txt, kind: file, size: 2, mtime: $string, mode: $string}
+          - {name: b10.txt, kind: file, size: 1, mtime: $string, mode: $string}
+  - name: an unknown route
+    request: {method: GET, path: /files/other, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 404, json: {error: Not found, code: not_found}}
+  - name: a write route is refused for a member before it is looked up
+    request: {method: GET, path: /files/delete, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 403, json: {code: read_only, error: Your pass for this agent can read its files but not change them.}}

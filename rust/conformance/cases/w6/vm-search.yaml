@@ -1,0 +1,37 @@
+name: vm-agent /search/* takes firewall writes, reads from either side, and says when OpenClaw is down
+agent: vm-agent
+steps:
+  - request: {method: POST, path: /search/apply, json: {search: null, remove: []}, token: {signer: console}}
+    expect:
+      status: 401
+      json: {error: web search changes must come from the org firewall}
+  - request: {method: POST, path: /search/apply, json: {search: null, remove: []}, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect:
+      status: 401
+      json: {error: web search changes must come from the org firewall}
+  - request: {method: GET, path: /search/status}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - request: {method: GET, path: /search/status, token: {signer: console}}
+    expect:
+      status: 503
+      json: {ok: false, error: OpenClaw is not running on this box}
+  - request: {method: POST, path: /search/apply, json: {search: {provider: tavily, plugin: {id: tavily, package: "@openclaw/tavily-plugin"}, baseUrl: "http://api.tavily.com", apiKey: k}}, token: {signer: firewall, bind: true, claims: {purpose: search}}}
+    expect:
+      status: 400
+      json: {ok: false, error: search.baseUrl must be an https URL}
+  - request: {method: POST, path: /search/apply, json: {search: null, defaultProvider: "nope!"}, token: {signer: firewall, bind: true, claims: {purpose: search}}}
+    expect:
+      status: 400
+      json: {ok: false, error: defaultProvider is invalid}
+  - request: {method: POST, path: /search/apply, json: {search: null, defaultProvider: parallel-free, remove: []}, token: {signer: firewall, bind: true, claims: {purpose: search}}}
+    expect:
+      status: 503
+      json: {ok: false, error: OpenClaw is not running on this box}
+  - request: {method: POST, path: /search/nope, json: {}, token: {signer: firewall, bind: true, claims: {purpose: search}}}
+    expect:
+      status: 404
+  - request: {method: GET, path: /search/nope, token: {signer: console}}
+    expect:
+      status: 401

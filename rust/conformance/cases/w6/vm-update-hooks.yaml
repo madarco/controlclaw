@@ -1,0 +1,44 @@
+name: vm-agent /update and /hooks
+agent: vm-agent
+steps:
+  - name: the console reads the update status
+    request: {method: GET, path: /update, token: {signer: console}}
+    expect:
+      status: 200
+      json: {ok: true, automatic: true, pinned: false, phase: idle, detail: null, ref: null, at: null}
+  - name: but cannot start one
+    request: {method: POST, path: /update, json: {}, token: {signer: console}}
+    expect:
+      status: 401
+      json: {error: an update must come from the org firewall}
+  - request: {method: POST, path: /update, json: {mode: "now"}, token: {signer: firewall, bind: true, claims: {purpose: update}}}
+    expect:
+      status: 400
+      json: {error: Invalid update mode or deadline}
+  - name: a box from before in-place updates
+    request: {method: POST, path: /update, json: {}, token: {signer: firewall, bind: true, claims: {purpose: update}}}
+    expect:
+      status: 500
+      json: {ok: false, error: "This agent was created before in-place updates; it has to be rebuilt instead."}
+  - request: {method: POST, path: /hooks/deliver, json: {port: 8788, path: /, bodyB64: ""}, token: {signer: console}}
+    expect:
+      status: 401
+      json: {error: a webhook delivery must come from the org firewall}
+  - request: {method: GET, path: /hooks/other, token: {signer: firewall, bind: true, claims: {purpose: hooks}}}
+    expect:
+      status: 404
+      json: {error: Not found}
+  - name: never the box's own control port
+    request: {method: POST, path: /hooks/deliver, json: {port: 3100, path: /, bodyB64: ""}, token: {signer: firewall, bind: true, claims: {purpose: hooks}}}
+    expect:
+      status: 400
+      json: {error: port must be between 8700 and 8799}
+  - name: nobody listening
+    request: {method: POST, path: /hooks/deliver, json: {port: 8799, path: /x, bodyB64: "aGk="}, token: {signer: firewall, bind: true, claims: {purpose: hooks}}}
+    expect:
+      status: 502
+      json: {error: the listener on this box did not take that delivery}
+  - request: {method: GET, path: /hooks/deliver, token: {signer: firewall, bind: true, claims: {purpose: hooks}}}
+    expect:
+      status: 405
+      json: {error: Use POST.}

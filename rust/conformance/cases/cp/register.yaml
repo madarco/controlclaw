@@ -1,0 +1,29 @@
+name: cp POST /register (a bootstrap token for the box's key)
+agent: control-plane
+endpoint: /register
+scope: saas-only
+seed:
+  vms:
+    - {id: cprg_fw, role: mitm, name: fw, private_ip: 10.0.0.2, bootstrap: true}
+steps:
+  - name: no token
+    request: {method: POST, path: /api/vm-agent/register, json: {vm_id: cprg_fw, public_key: x}}
+    expect: {status: 401, json: {error: $string}}
+  - name: no key in the body
+    request: {method: POST, path: /api/vm-agent/register, authorization: "Bearer ${bootstrap.cprg_fw}", json: {vm_id: cprg_fw}}
+    expect: {status: 400, json: {error: $string}}
+  - name: a wrong token
+    request: {method: POST, path: /api/vm-agent/register, authorization: "Bearer deadbeef", json: {vm_id: cprg_fw, public_key: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA7hKSCmVKVi6b+2K2NO9QQTNESbxXgv4bBZcoyKjaKec=\n-----END PUBLIC KEY-----\n"}}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: the box registers its key
+    request: {method: POST, path: /api/vm-agent/register, authorization: "Bearer ${bootstrap.cprg_fw}", json: {vm_id: cprg_fw, public_key: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA7hKSCmVKVi6b+2K2NO9QQTNESbxXgv4bBZcoyKjaKec=\n-----END PUBLIC KEY-----\n"}}
+    expect: {status: 200, json: {ok: true}}
+  - name: again with the same key
+    request: {method: POST, path: /api/vm-agent/register, authorization: "Bearer ${bootstrap.cprg_fw}", json: {vm_id: cprg_fw, public_key: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA7hKSCmVKVi6b+2K2NO9QQTNESbxXgv4bBZcoyKjaKec=\n-----END PUBLIC KEY-----\n"}}
+    expect: {status: 200, json: {ok: true, alreadyRegistered: true}}
+  - name: another key is refused
+    request: {method: POST, path: /api/vm-agent/register, authorization: "Bearer ${bootstrap.cprg_fw}", json: {vm_id: cprg_fw, public_key: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n-----END PUBLIC KEY-----\n"}}
+    expect: {status: 409, json: {error: already registered}}
+  - name: the console has the key
+    request: {method: POST, path: /__conformance/read, json: {org_id: "${org_id}", what: vm, id: cprg_fw}}
+    expect: {status: 200, json: {public_key: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA7hKSCmVKVi6b+2K2NO9QQTNESbxXgv4bBZcoyKjaKec=\n-----END PUBLIC KEY-----\n", status: running}}

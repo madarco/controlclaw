@@ -1,0 +1,28 @@
+name: standalone firewall with no rules file writes no rules, so the proxy refuses every request
+agent: mitm-agent
+skip:
+  ts: "standalone mode is in the Rust build only"
+env:
+  MITM_MODE: standalone
+  SYNC_INTERVAL_MS: "300"
+  FIREWALL_URL: ""
+  STORE_URL: ""
+  # A named file (the default is the local control plane, which has its rules in its database).
+  RULES_URL: "file:$ROOT/state/egress-rules.json"
+  IDENTITIES_URL: ""
+  PERMISSION_URL: ""
+  CA_URL: ""
+  ACTIVITY_URL: ""
+  WEBHOOKS_URL: ""
+  ORG_ID: ""
+  BOX_ID: ""
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+steps:
+  - name: no rules.json for the proxy while state/egress-rules.json is missing
+    files:
+      run/rules.json: {absent: true, for_ms: 1500}
+  - name: the file, once there, is read
+    write: {state/egress-rules.json: '[]'}
+    files:
+      run/rules.json: {text: "[]"}

@@ -1,0 +1,21 @@
+[
+  {
+    "Name": "/openclaw-openclaw-gateway-1",
+    "Config": {
+      "Image": "ghcr.io/openclaw/openclaw:2026.10.9",
+      "Labels": {
+        "com.docker.compose.project": "openclaw",
+        "com.docker.compose.project.working_dir": "/root/openclaw",
+        "com.docker.compose.project.config_files": "/root/openclaw/docker-compose.yml",
+        "com.docker.compose.service": "openclaw-gateway"
+      }
+    },
+    "HostConfig": {
+      "PortBindings": {
+        "18789/tcp": [{ "HostIp": "", "HostPort": "18789" }],
+        "18790/tcp": [{ "HostIp": "127.0.0.1", "HostPort": "18790" }],
+        "5353/udp": [{ "HostIp": "", "HostPort": "5353" }]
+      }
+    }
+  }
+]

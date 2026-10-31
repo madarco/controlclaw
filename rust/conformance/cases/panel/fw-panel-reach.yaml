@@ -1,0 +1,65 @@
+name: "standalone reach: the firewall calls a paired vm-agent at its agent_addr, over plain HTTP"
+agent: mitm-agent
+skip:
+  ts: "the panel API is in the Rust build only"
+ports:
+  panel: CC_PANEL_PORT
+env:
+  MITM_MODE: standalone
+  SYNC_INTERVAL_MS: "60000"
+  ACTIVITY_POLL_MS: "200"
+  FIREWALL_URL: ""
+  STORE_URL: ""
+  RULES_URL: ""
+  # The map the firewall calls agents by, from a file: the stand-in listens on loopback, which
+  # neither pairing nor the admin's list takes as an agent's address.
+  IDENTITIES_URL: "file:$ROOT/run/identities.json"
+  PERMISSION_URL: ""
+  CA_URL: ""
+  ACTIVITY_URL: ""
+  WEBHOOKS_URL: ""
+  ORG_ID: ""
+  BOX_ID: ""
+  LOCAL_PANEL_BIND: "127.0.0.1:$PORT_PANEL"
+  LOCAL_PANEL_SECURE_COOKIE: "0"
+  # The stores default to /opt/controlclaw/state, not STATE_DIR (backlog).
+  LLM_STORE_PATH: "$ROOT/state/llm.enc"
+  CHANNEL_STORE_PATH: "$ROOT/state/channels.enc"
+  CONTENT_RULES_STORE_PATH: "$ROOT/state/content-rules.enc"
+  CONTENT_STOPPED_PATH: "$ROOT/state/content-stopped"
+  EMAIL_RULES_STORE_PATH: "$ROOT/state/email-rules.enc"
+  AGENTMAIL_STORE_PATH: "$ROOT/state/agentmail.enc"
+  APPS_RULES_PATH: "$ROOT/state/apps-rules.enc"
+  MCP_CATALOG_PATH: "$ROOT/state/mcp-catalog.enc"
+  KILL_STORE_PATH: "$ROOT/state/kill.enc"
+  SEARCH_STORE_PATH: "$ROOT/state/search.enc"
+  EXIT_STORE_PATH: "$ROOT/state/exit.enc"
+  TAILSCALE_STORE_PATH: "$ROOT/state/tailscale.enc"
+  SSH_STATE_PATH: "$ROOT/state/ssh.json"
+  GBRAIN_STORE_PATH: "$ROOT/state/gbrain.enc"
+  MCP_SERVERS_STORE_PATH: "$ROOT/state/mcp-servers.enc"
+  MCP_ASKS_PATH: "$ROOT/state/mcp-asks.json"
+  CONNECTOR_GATE_BIND: "127.0.0.1"
+# Plain HTTP and TLS on one port: the agent_addr below is this stand-in's.
+fake_agent: {}
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+  run/identities.json: '{"identities": [{"vm_id": "agent_r1", "private_ip": "10.0.0.3", "name": "reach", "status": "running", "role": "openclaw", "agent_addr": "127.0.0.2:443"}]}'
+steps:
+  - name: signed in; the admin's list refuses loopback or a missing port for where a vm-agent listens
+    panel_login: panel
+    request: {method: PUT, path: /api/agents, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {agents: [{vm_id: agent_r1, name: reach, private_ip: 10.0.0.3, agent_addr: "127.0.0.2:443"}]}}
+    expect: {status: 400}
+  - name: the agent, with no address of its own for calls (the map's agent_addr says 127.0.0.2:443)
+    request: {method: PUT, path: /api/agents, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {agents: [{vm_id: agent_r1, name: reach, private_ip: 10.0.0.3}]}}
+    expect: {status: 200}
+  - name: a Telegram bot for that agent is pushed to its vm-agent, no /__cc/agent, the token for its address
+    request: {method: POST, path: /api/channels, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {type: telegram, botToken: "123456:AAconformancetokenabcd", vmId: agent_r1}}
+    agent_received:
+      - {path: /channels/apply, method: POST, json_subset: {sent_path: /channels/apply, claims: {purpose: channels, vmId: agent_r1, h: "127.0.0.2"}, body: {type: telegram}}}
+    expect: {status: 200, json_subset: {result: {ok: true}}}
+  - name: the emergency stop reaches the same vm-agent
+    request: {method: POST, path: /api/kill/engage, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {vmId: agent_r1, confirm: STOP}}
+    agent_received:
+      - {path: /kill/apply, method: POST, json_subset: {sent_path: /kill/apply, claims: {purpose: kill, vmId: agent_r1, h: "127.0.0.2"}, body: {locked: true}}}
+    expect: {status: 200}

@@ -1,0 +1,107 @@
+name: "panel API: content, app and email rules, the stop, web search and the exit proxy, with no code"
+agent: mitm-agent
+skip:
+  ts: "the panel API is in the Rust build only"
+ports:
+  panel: CC_PANEL_PORT
+env:
+  MITM_MODE: standalone
+  SYNC_INTERVAL_MS: "60000"
+  ACTIVITY_POLL_MS: "200"
+  FIREWALL_URL: ""
+  STORE_URL: ""
+  RULES_URL: ""
+  IDENTITIES_URL: ""
+  PERMISSION_URL: ""
+  CA_URL: ""
+  ACTIVITY_URL: ""
+  WEBHOOKS_URL: ""
+  ORG_ID: ""
+  BOX_ID: ""
+  LOCAL_PANEL_BIND: "127.0.0.1:$PORT_PANEL"
+  LOCAL_PANEL_SECURE_COOKIE: "0"
+  # The stores default to /opt/controlclaw/state, not STATE_DIR (backlog).
+  LLM_STORE_PATH: "$ROOT/state/llm.enc"
+  CHANNEL_STORE_PATH: "$ROOT/state/channels.enc"
+  CONTENT_RULES_STORE_PATH: "$ROOT/state/content-rules.enc"
+  CONTENT_STOPPED_PATH: "$ROOT/state/content-stopped"
+  EMAIL_RULES_STORE_PATH: "$ROOT/state/email-rules.enc"
+  AGENTMAIL_STORE_PATH: "$ROOT/state/agentmail.enc"
+  APPS_RULES_PATH: "$ROOT/state/apps-rules.enc"
+  MCP_CATALOG_PATH: "$ROOT/state/mcp-catalog.enc"
+  KILL_STORE_PATH: "$ROOT/state/kill.enc"
+  SEARCH_STORE_PATH: "$ROOT/state/search.enc"
+  EXIT_STORE_PATH: "$ROOT/state/exit.enc"
+  TAILSCALE_STORE_PATH: "$ROOT/state/tailscale.enc"
+  SSH_STATE_PATH: "$ROOT/state/ssh.json"
+  GBRAIN_STORE_PATH: "$ROOT/state/gbrain.enc"
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+steps:
+  - name: signed in; the content rules run on a standalone firewall, with the AI off
+    panel_login: panel
+    request: {method: GET, path: /api/content-rules, port: panel, jar: true}
+    expect: {status: 200, json_subset: {aiOn: false}}
+  - name: a content rule is added at once, with nobody set to get codes (the module would refuse otherwise)
+    request:
+      method: POST
+      path: /api/content-rules/change
+      port: panel
+      jar: true
+      headers: {x-csrf-token: $csrf}
+      json: {change: {op: put, rule: {id: no-project-x, name: Project X, direction: out, channels: [telegram, email], patterns: [project x], detectors: [], action: block, reason: Not to be shared, enabled: true}}}
+    expect: {status: 200, json_subset: {ok: true, status: applied}}
+  - name: the rule is there
+    request: {method: GET, path: /api/content-rules, port: panel, jar: true}
+    expect: {status: 200, body_contains: [no-project-x]}
+  - name: a message is tried against it
+    request: {method: POST, path: /api/content-rules/try, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {text: "the plans for Project X", direction: out, channel: telegram}}
+    expect: {status: 200, json_subset: {rule: {id: no-project-x, action: block}}}
+  - name: a bad change is a 400
+    request: {method: POST, path: /api/content-rules/change, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {change: {op: nope}}}
+    expect: {status: 400}
+  - name: an email recipient is added at once (a widening, which needs a code on the SaaS)
+    request: {method: POST, path: /api/email-rules/change, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {change: {action: add_recipient, entry: {value: boss@example.com}}}}
+    expect: {status: 200, json_subset: {ok: true, status: applied}}
+  - name: the email rules have it
+    request: {method: GET, path: /api/email-rules, port: panel, jar: true}
+    expect: {status: 200, body_contains: [boss@example.com]}
+  - name: the app rules are read
+    request: {method: GET, path: /api/app-rules, port: panel, jar: true}
+    expect: {status: 200, json_subset: {rules: $any}}
+  - name: the stop needs the word
+    request: {method: POST, path: /api/kill/engage, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {confirm: stop}}
+    expect: {status: 400}
+  - name: every agent is stopped
+    request: {method: POST, path: /api/kill/engage, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {confirm: STOP}}
+    expect: {status: 200, json_subset: {ok: true}}
+  - name: and let go again, with no code
+    request: {method: POST, path: /api/kill/release, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {}}
+    expect: {status: 200, json_subset: {ok: true, status: applied}}
+  - name: through /api/commands too, a stop is lifted with no code (the release is confirmed by kill.confirm)
+    request: {method: POST, path: /api/commands, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {action: kill.engage, payload: {changeId: k2, scope: org, agents: [], confirm: STOP}}}
+    expect: {status: 200, json_subset: {ok: true}}
+  - name: and released there
+    request: {method: POST, path: /api/commands, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {action: kill.release, payload: {changeId: k3, scope: org, agents: []}}}
+    expect: {status: 200, json_subset: {ok: true, status: applied}}
+  - name: the stop is off
+    request: {method: GET, path: /api/kill, port: panel, jar: true}
+    expect: {status: 200, json_subset: {kill: {org: null}}}
+  - name: a web search key is set
+    request: {method: PUT, path: /api/search/key, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {provider: tavily, key: tvly-conformance-0123}}
+    expect: {status: 200, json_subset: {result: {ok: true, status: applied}, key: {provider: tavily, hint: "…0123"}}}
+  - name: an exit proxy is set
+    request:
+      method: PUT
+      path: /api/exit
+      port: panel
+      jar: true
+      headers: {x-csrf-token: $csrf}
+      json: {provider: custom, providerName: My proxy, scheme: http, host: proxy.example, port: 8000, username: me, password: secret, usernameTemplate: "{username}", passwordTemplate: "{password}"}
+    expect: {status: 200, json_subset: {ok: true, status: applied}}
+  - name: the exit is there
+    request: {method: GET, path: /api/exit, port: panel, jar: true}
+    expect: {status: 200, json_subset: {residential: {configured: true}}}
+  - name: no permission requests yet
+    request: {method: GET, path: "/api/requests?status=pending", port: panel, jar: true}
+    expect: {status: 200, json: []}

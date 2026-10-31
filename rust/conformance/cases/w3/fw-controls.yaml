@@ -1,0 +1,52 @@
+name: firewall Tailscale, devices, SSH, exit and search commands that need no code
+agent: mitm-agent
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  EXIT_STORE_PATH: state/exit.enc
+  SEARCH_STORE_PATH: state/search.enc
+  SSH_STATE_PATH: state/ssh.json
+shims:
+  - argv: [sudo, /usr/local/bin/cc-ssh-close]
+fake_agent:
+  /ssh/close: [[200, {closed: true, user: ccsupport}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, hostname: "127.0.0.2"}]}]]
+steps:
+  - command: {id: t1, action: tailscale.propose, payload: {changeId: c1, kind: join}, result: {command_id: t1, ok: false, status: failed, message: "malformed tailscale.propose payload"}}
+  - command: {id: t2, action: tailscale.propose, payload: {changeId: c1, kind: join, agent: {vmId: vm_1, hostname: h}}, result: {command_id: t2, ok: false, status: failed, message: "a join needs an auth key"}}
+  - command: {id: t3, action: tailscale.confirm, payload: {changeId: c1}, result: {command_id: t3, ok: false, status: failed, message: "malformed tailscale.confirm payload"}}
+  - command: {id: t4, action: tailscale.confirm, payload: {changeId: c1, vmId: vm_1, code: "123456"}, result: {command_id: t4, ok: false, status: expired, message: "No change is waiting for a code, or the code expired.", data: {changeId: c1}}}
+  - command: {id: t5, action: tailscale.cancel, payload: {changeId: c1, vmId: vm_1}, result: {command_id: t5, ok: true, status: cancelled, data: {changeId: c1}}}
+  - command: {id: d1, action: devices.propose, payload: {changeId: c2, kind: approve}, result: {command_id: d1, ok: false, status: failed, message: "malformed devices.propose payload"}}
+  - command: {id: d2, action: devices.confirm, payload: {changeId: c2, vmId: vm_1, code: "1"}, result: {command_id: d2, ok: false, status: expired, data: {changeId: c2}}}
+  - command: {id: d3, action: devices.cancel, payload: {changeId: c2}, result: {command_id: d3, ok: true, status: cancelled, data: {changeId: c2}}}
+  - command: {id: s1, action: ssh.propose, payload: {changeId: c3, seconds: 0}, result: {command_id: s1, ok: false, status: failed, message: "malformed ssh.propose payload"}}
+  - command: {id: s2, action: ssh.confirm, payload: {changeId: c3, code: "1"}, result: {command_id: s2, ok: false, status: expired, message: "No shell access is waiting for a code, or the code expired.", data: {changeId: c3}}}
+  - command: {id: s3, action: ssh.cancel, payload: {changeId: c3}, result: {command_id: s3, ok: true, status: cancelled, data: {changeId: c3}}}
+  - name: closing on the firewall needs no code and runs cc-ssh-close
+    command: {id: s4, action: ssh.close, payload: {changeId: c3}, result: {command_id: s4, ok: true, status: closed, data: {changeId: c3, user: ccsupport, closed: false, vmId: null}}}
+    expect:
+      calls_include:
+        - [sudo, /usr/local/bin/cc-ssh-close]
+  - name: closing on an agent is a call to that agent
+    command: {id: s5, action: ssh.close, payload: {changeId: c4, agent: {vmId: vm_1, hostname: "127.0.0.2"}}, result: {command_id: s5, ok: true, status: closed, data: {changeId: c4, closed: true, user: ccsupport, vmId: vm_1}}}
+    agent_received:
+      - {path: /ssh/close, method: POST, json_subset: {claims: {purpose: ssh}, body: {}}}
+  - command: {id: e1, action: exit.check, result: {command_id: e1, ok: false, status: failed, message: "No residential exit is set up."}}
+  - command: {id: e2, action: exit.propose, payload: {changeId: c5, kind: add}, result: {command_id: e2, ok: false, status: failed, message: "malformed exit.propose payload"}}
+  - command: {id: e3, action: exit.confirm, payload: {changeId: c5, code: "1"}, result: {command_id: e3, ok: false, status: expired, data: {changeId: c5}}}
+  - command: {id: e4, action: exit.cancel, payload: {changeId: c5}, result: {command_id: e4, ok: true, status: cancelled, data: {changeId: c5}}}
+  - name: the beat reports the exit, not set up
+    beat:
+      json_subset: {residential: {configured: false, provider: null, sticky: false, hint: null, cap_bytes: null, country: null, last_check: null, usage: {month: $string, bytes_in: 0, bytes_out: 0}}}
+  - command: {id: q1, action: search.propose, payload: {changeId: c6}, result: {command_id: q1, ok: false, status: failed, message: "malformed search.propose payload"}}
+  - command: {id: q2, action: search.forget, payload: {vmId: vm_9}, result: {command_id: q2, ok: true, status: applied, data: {vmId: vm_9, forgotten: false}}}
+  - command: {id: q3, action: search.push, payload: {vmId: vm_1, hostname: "127.0.0.2"}, result: {command_id: q3, ok: true, status: applied, data: {vmId: vm_1, applied: [], failed: []}}}
+  - command: {id: q4, action: search.confirm, payload: {changeId: c6, code: "1"}, result: {command_id: q4, ok: false, status: expired, data: {changeId: c6}}}
+  - command: {id: q5, action: search.cancel, payload: {changeId: c6}, result: {command_id: q5, ok: true, status: cancelled, data: {changeId: c6}}}
+  - name: the exit file says there is none
+    files:
+      run/exit.json: {text: "{\n  \"enabled\": false\n}"}

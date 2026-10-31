@@ -1,0 +1,70 @@
+name: vm-agent /phone/stream refuses every upgrade it cannot tie to an active call
+agent: vm-agent
+# Every refusal is a bare 403 on the socket; which check failed is only in the log line
+# (`[phone-stream] refused reason=…`), so the reasons are checked by the unit tests in
+# rust/bins/vm-agent/src/phone/stream/tests.rs and phone-stream.test.ts. The relayed call needs
+# active phone settings, which need the gateway (M1); it is covered by those tests until then.
+steps:
+  - name: another path is not the relay (route)
+    request:
+      method: GET
+      path: "/phone/stream?x=1"
+      headers: {upgrade: websocket, connection: Upgrade, sec-websocket-version: "13", sec-websocket-key: "dGhlIHNhbXBsZSBub25jZQ==", x-cc-phone-stream: "eyJnZW5lcmF0aW9uIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ0aWNrZXQiOiJlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiY2FsbFNpZCI6IkNBYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJwYXRoIjoiL3ZvaWNlL3N0cmVhbS9yZWFsdGltZS8xMjM0NTY3OC0xMjM0LTEyMzQtMTIzNC0xMjM0NTY3ODlhYmMiLCJ1cmwiOiJ3c3M6Ly9maXJld2FsbC5leGFtcGxlL3Bob25lLXN0cmVhbS9lZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiZGVhZGxpbmUiOjQxMDI0NDQ4MDAwMDAsInNpZ25hdHVyZSI6IngifQ"}
+      token: {signer: firewall, bind: true, claims: {purpose: phone, phoneStream: "ca2457b722b24cd7a9a9f7021d0c3dc3515260ef1d0c70a4415f2ab67c59ea38"}}
+    expect: {status: 403, body: ""}
+  - name: a POST upgrade (route)
+    request:
+      method: POST
+      path: "/phone/stream"
+      headers: {upgrade: websocket, connection: Upgrade, sec-websocket-version: "13", sec-websocket-key: "dGhlIHNhbXBsZSBub25jZQ==", x-cc-phone-stream: "eyJnZW5lcmF0aW9uIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ0aWNrZXQiOiJlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiY2FsbFNpZCI6IkNBYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJwYXRoIjoiL3ZvaWNlL3N0cmVhbS9yZWFsdGltZS8xMjM0NTY3OC0xMjM0LTEyMzQtMTIzNC0xMjM0NTY3ODlhYmMiLCJ1cmwiOiJ3c3M6Ly9maXJld2FsbC5leGFtcGxlL3Bob25lLXN0cmVhbS9lZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiZGVhZGxpbmUiOjQxMDI0NDQ4MDAwMDAsInNpZ25hdHVyZSI6IngifQ"}
+      token: {signer: firewall, bind: true, claims: {purpose: phone, phoneStream: "ca2457b722b24cd7a9a9f7021d0c3dc3515260ef1d0c70a4415f2ab67c59ea38"}}
+    expect: {status: 403, body: ""}
+  - name: a token for another purpose (token)
+    request:
+      method: GET
+      path: "/phone/stream"
+      headers: {upgrade: websocket, connection: Upgrade, sec-websocket-version: "13", sec-websocket-key: "dGhlIHNhbXBsZSBub25jZQ==", x-cc-phone-stream: "eyJnZW5lcmF0aW9uIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ0aWNrZXQiOiJlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiY2FsbFNpZCI6IkNBYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJwYXRoIjoiL3ZvaWNlL3N0cmVhbS9yZWFsdGltZS8xMjM0NTY3OC0xMjM0LTEyMzQtMTIzNC0xMjM0NTY3ODlhYmMiLCJ1cmwiOiJ3c3M6Ly9maXJld2FsbC5leGFtcGxlL3Bob25lLXN0cmVhbS9lZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiZGVhZGxpbmUiOjQxMDI0NDQ4MDAwMDAsInNpZ25hdHVyZSI6IngifQ"}
+      token: {signer: firewall, bind: true, claims: {purpose: doctor, phoneStream: "ca2457b722b24cd7a9a9f7021d0c3dc3515260ef1d0c70a4415f2ab67c59ea38"}}
+    expect: {status: 403, body: ""}
+  - name: a token that lives longer than 30 s (token_lifetime)
+    request:
+      method: GET
+      path: "/phone/stream"
+      headers: {upgrade: websocket, connection: Upgrade, sec-websocket-version: "13", sec-websocket-key: "dGhlIHNhbXBsZSBub25jZQ==", x-cc-phone-stream: "eyJnZW5lcmF0aW9uIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ0aWNrZXQiOiJlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiY2FsbFNpZCI6IkNBYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJwYXRoIjoiL3ZvaWNlL3N0cmVhbS9yZWFsdGltZS8xMjM0NTY3OC0xMjM0LTEyMzQtMTIzNC0xMjM0NTY3ODlhYmMiLCJ1cmwiOiJ3c3M6Ly9maXJld2FsbC5leGFtcGxlL3Bob25lLXN0cmVhbS9lZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiZGVhZGxpbmUiOjQxMDI0NDQ4MDAwMDAsInNpZ25hdHVyZSI6IngifQ"}
+      token: {signer: firewall, bind: true, lifetime: 60, claims: {purpose: phone, phoneStream: "ca2457b722b24cd7a9a9f7021d0c3dc3515260ef1d0c70a4415f2ab67c59ea38"}}
+    expect: {status: 403, body: ""}
+  - name: no envelope header (envelope)
+    request:
+      method: GET
+      path: "/phone/stream"
+      headers: {upgrade: websocket, connection: Upgrade, sec-websocket-version: "13", sec-websocket-key: "dGhlIHNhbXBsZSBub25jZQ=="}
+      token: {signer: firewall, bind: true, claims: {purpose: phone, phoneStream: "ca2457b722b24cd7a9a9f7021d0c3dc3515260ef1d0c70a4415f2ab67c59ea38"}}
+    expect: {status: 403, body: ""}
+  - name: an envelope with characters outside base64url (envelope)
+    request:
+      method: GET
+      path: "/phone/stream"
+      headers: {upgrade: websocket, connection: Upgrade, sec-websocket-version: "13", sec-websocket-key: "dGhlIHNhbXBsZSBub25jZQ==", x-cc-phone-stream: "eyJnZW5lcmF0aW9uIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ0aWNrZXQiOiJlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiY2FsbFNpZCI6IkNBYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJwYXRoIjoiL3ZvaWNlL3N0cmVhbS9yZWFsdGltZS8xMjM0NTY3OC0xMjM0LTEyMzQtMTIzNC0xMjM0NTY3ODlhYmMiLCJ1cmwiOiJ3c3M6Ly9maXJld2FsbC5leGFtcGxlL3Bob25lLXN0cmVhbS9lZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiZGVhZGxpbmUiOjQxMDI0NDQ4MDAwMDAsInNpZ25hdHVyZSI6IngifQ="}
+      token: {signer: firewall, bind: true, claims: {purpose: phone, phoneStream: "ca2457b722b24cd7a9a9f7021d0c3dc3515260ef1d0c70a4415f2ab67c59ea38"}}
+    expect: {status: 403, body: ""}
+  - name: a digest that does not name this envelope and key (envelope_digest)
+    request:
+      method: GET
+      path: "/phone/stream"
+      headers: {upgrade: websocket, connection: Upgrade, sec-websocket-version: "13", sec-websocket-key: "dGhlIHNhbXBsZSBub25jZQ==", x-cc-phone-stream: "eyJnZW5lcmF0aW9uIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ0aWNrZXQiOiJlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiY2FsbFNpZCI6IkNBYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJwYXRoIjoiL3ZvaWNlL3N0cmVhbS9yZWFsdGltZS8xMjM0NTY3OC0xMjM0LTEyMzQtMTIzNC0xMjM0NTY3ODlhYmMiLCJ1cmwiOiJ3c3M6Ly9maXJld2FsbC5leGFtcGxlL3Bob25lLXN0cmVhbS9lZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiZGVhZGxpbmUiOjQxMDI0NDQ4MDAwMDAsInNpZ25hdHVyZSI6IngifQ"}
+      token: {signer: firewall, bind: true, claims: {purpose: phone, phoneStream: "0000000000000000000000000000000000000000000000000000000000000000"}}
+    expect: {status: 403, body: ""}
+  - name: a different Sec-WebSocket-Key than the one signed (envelope_digest)
+    request:
+      method: GET
+      path: "/phone/stream"
+      headers: {upgrade: websocket, connection: Upgrade, sec-websocket-version: "13", sec-websocket-key: "AAAAAAAAAAAAAAAAAAAAAA==", x-cc-phone-stream: "eyJnZW5lcmF0aW9uIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ0aWNrZXQiOiJlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiY2FsbFNpZCI6IkNBYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJwYXRoIjoiL3ZvaWNlL3N0cmVhbS9yZWFsdGltZS8xMjM0NTY3OC0xMjM0LTEyMzQtMTIzNC0xMjM0NTY3ODlhYmMiLCJ1cmwiOiJ3c3M6Ly9maXJld2FsbC5leGFtcGxlL3Bob25lLXN0cmVhbS9lZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiZGVhZGxpbmUiOjQxMDI0NDQ4MDAwMDAsInNpZ25hdHVyZSI6IngifQ"}
+      token: {signer: firewall, bind: true, claims: {purpose: phone, phoneStream: "ca2457b722b24cd7a9a9f7021d0c3dc3515260ef1d0c70a4415f2ab67c59ea38"}}
+    expect: {status: 403, body: ""}
+  - name: a good envelope, but no phone settings are active (not_assigned)
+    request:
+      method: GET
+      path: "/phone/stream"
+      headers: {upgrade: websocket, connection: Upgrade, sec-websocket-version: "13", sec-websocket-key: "dGhlIHNhbXBsZSBub25jZQ==", x-cc-phone-stream: "eyJnZW5lcmF0aW9uIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ0aWNrZXQiOiJlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiY2FsbFNpZCI6IkNBYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJwYXRoIjoiL3ZvaWNlL3N0cmVhbS9yZWFsdGltZS8xMjM0NTY3OC0xMjM0LTEyMzQtMTIzNC0xMjM0NTY3ODlhYmMiLCJ1cmwiOiJ3c3M6Ly9maXJld2FsbC5leGFtcGxlL3Bob25lLXN0cmVhbS9lZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwiZGVhZGxpbmUiOjQxMDI0NDQ4MDAwMDAsInNpZ25hdHVyZSI6IngifQ"}
+      token: {signer: firewall, bind: true, claims: {purpose: phone, phoneStream: "ca2457b722b24cd7a9a9f7021d0c3dc3515260ef1d0c70a4415f2ab67c59ea38"}}
+    expect: {status: 403, body: ""}

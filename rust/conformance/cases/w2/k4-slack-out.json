@@ -1,0 +1,467 @@
+{
+  "name": "k4 slack: Web API and webhooks checked, held answers as Slack's, odd paths refused",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        },
+        {
+          "id": "pay",
+          "name": "pay",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [],
+          "detectors": [
+            "iban"
+          ],
+          "action": "hold",
+          "reason": "pay reason"
+        },
+        {
+          "id": "watch",
+          "name": "watch",
+          "direction": "out",
+          "channels": [
+            "slack",
+            "email",
+            "web"
+          ],
+          "patterns": [
+            "budget"
+          ],
+          "detectors": [],
+          "action": "log",
+          "reason": "watch reason"
+        },
+        {
+          "id": "salary",
+          "name": "salary",
+          "direction": "in",
+          "channels": [
+            "slack",
+            "email"
+          ],
+          "patterns": [
+            "salary"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "salary reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "a clean message goes",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.postMessage",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        },
+        "json": {
+          "channel": "C1",
+          "text": "hello"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": {
+          "json": {
+            "channel": "C1",
+            "text": "hello"
+          }
+        }
+      }
+    },
+    {
+      "name": "blocked with Slack's own error shape, the person told in the thread",
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.postMessage",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        },
+        "json": {
+          "channel": "C1",
+          "text": "the customer list",
+          "thread_ts": "1700000000.000100"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json": {
+          "ok": false,
+          "error": "blocked_by_organization_rules",
+          "response_metadata": {
+            "messages": [
+              "Blocked by your organization's rules: cust reason"
+            ]
+          }
+        },
+        "loopback": {
+          "content": {
+            "/notice": [
+              {
+                "kind": "out",
+                "channel": "slack",
+                "chatId": "C1",
+                "auth": "__cc_slack_bot_conn1",
+                "vmId": "vm_test",
+                "reason": "cust reason",
+                "threadTs": "1700000000.000100"
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "cust",
+            "channel": "slack",
+            "direction": "out",
+            "action": "block"
+          }
+        ],
+        "traffic": [
+          {
+            "rule": "content: cust",
+            "status": 200,
+            "effect": "block"
+          }
+        ]
+      }
+    },
+    {
+      "name": "blocks",
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.postMessage",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        },
+        "json": {
+          "channel": "C1",
+          "blocks": [
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "see the customer list"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "the SDK's form with blocks as JSON",
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.postMessage",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1",
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "body": "channel=C0123ABCD&text=fallback&blocks=%5B%7B%22type%22%3A+%22rich_text%22%2C+%22elements%22%3A+%5B%7B%22type%22%3A+%22rich_text_section%22%2C+%22elements%22%3A+%5B%7B%22type%22%3A+%22text%22%2C+%22text%22%3A+%22Here+is+the+%22%7D%2C+%7B%22type%22%3A+%22text%22%2C+%22text%22%3A+%22customer+list%22%7D%5D%7D%5D%7D%5D"
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json": {
+          "ok": false,
+          "error": "blocked_by_organization_rules",
+          "response_metadata": {
+            "messages": [
+              "Blocked by your organization's rules: cust reason"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a key, with no org rule about it",
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.postMessage",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        },
+        "json": {
+          "channel": "C1",
+          "text": "xoxb-1234567890-abcdefghij"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json": {
+          "ok": false,
+          "error": "blocked_by_organization_rules",
+          "response_metadata": {
+            "messages": [
+              "Blocked by your organization's rules: it looks like it contains a password, key or token"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a read with a query goes",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "messages": []
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "slack.com",
+        "path": "/api/conversations.history?channel=C1",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "an odd path under /api/",
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.postMessage/",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        },
+        "json": {
+          "channel": "C1",
+          "text": "x"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json": {
+          "ok": false,
+          "error": "blocked_by_organization_rules",
+          "response_metadata": {
+            "messages": [
+              "Blocked by your organization's rules: this Slack call could not be checked"
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "error",
+            "detail": "unmatched path"
+          }
+        ]
+      }
+    },
+    {
+      "name": "held: answered as Slack would",
+      "loopback": {
+        "content": {
+          "/hold": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "holdId": "h1"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.update",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        },
+        "json": {
+          "channel": "C0123ABCD",
+          "ts": "1792578000.123456",
+          "text": "IBAN GB82 WEST 1234 5698 7654 32"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json": {
+          "ok": true,
+          "channel": "C0123ABCD",
+          "ts": "1792578000.123456",
+          "text": "IBAN GB82 WEST 1234 5698 7654 32"
+        },
+        "loopback": {
+          "content": {
+            "/hold": [
+              {
+                "channel": "slack",
+                "method": "chat.update",
+                "contentType": "json",
+                "chatId": "C0123ABCD",
+                "auth": "__cc_slack_bot_conn1",
+                "vmId": "vm_test",
+                "rule": {
+                  "id": "pay"
+                }
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "pay",
+            "action": "hold",
+            "hold": "h1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a method that cannot be sent again is stopped",
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.scheduleMessage",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        },
+        "json": {
+          "channel": "C1",
+          "text": "IBAN GB82 WEST 1234 5698 7654 32",
+          "post_at": 1
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json": {
+          "ok": false,
+          "error": "blocked_by_organization_rules",
+          "response_metadata": {
+            "messages": [
+              "Blocked by your organization's rules: pay reason (it could not be held for approval)"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "an incoming webhook",
+      "request": {
+        "method": "POST",
+        "host": "hooks.slack.com",
+        "path": "/services/T/B/x",
+        "json": {
+          "text": "the customer list"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json": {
+          "ok": false,
+          "error": "blocked_by_organization_rules",
+          "response_metadata": {
+            "messages": [
+              "Blocked by your organization's rules: cust reason"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown rules: refused",
+      "files": {
+        "content-rules.json": "{"
+      },
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.postMessage",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        },
+        "json": {
+          "channel": "C1",
+          "text": "hello"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json": {
+          "ok": false,
+          "error": "blocked_by_organization_rules",
+          "response_metadata": {
+            "messages": [
+              "Blocked by your organization's rules: the check could not run"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown rules: a read with no text still goes",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true
+        }
+      },
+      "request": {
+        "method": "GET",
+        "host": "slack.com",
+        "path": "/api/auth.test",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    }
+  ]
+}

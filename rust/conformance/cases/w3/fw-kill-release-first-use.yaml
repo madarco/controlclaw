@@ -1,0 +1,25 @@
+name: firewall lifts an emergency stop without a code when nobody is approved (first use)
+agent: mitm-agent
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+fake_agent:
+  /kill/status: [[200, {active: true}]]
+  /kill/apply: [[200, {ok: true, active: false}], [200, {ok: true, active: true}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, hostname: "127.0.0.2"}]}]]
+steps:
+  - command:
+      id: cmd_r1
+      action: kill.engage
+      payload: {changeId: chg_1, scope: agent, vmId: vm_1, agents: [{vmId: vm_1, name: atlas, hostname: "127.0.0.2"}]}
+      result: {command_id: cmd_r1, ok: true, status: applied}
+  - command:
+      id: cmd_r2
+      action: kill.release
+      payload: {changeId: chg_2, scope: agent, vmId: vm_1, agents: [{vmId: vm_1, name: atlas, hostname: "127.0.0.2"}]}
+      result: {command_id: cmd_r2, ok: true, status: applied, data: {summary: Lift the emergency stop on atlas, stillLocked: false, tofu: true, agents: [{vmId: vm_1, name: atlas, stopped: false, error: null}]}}
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, hostname: "127.0.0.2", tailscale: false}]}

@@ -1,0 +1,314 @@
+{
+  "name": "w2 fail closed: each check when its service fails, drops the connection, or its file does not parse",
+  "needs_443": true,
+  "needs_hosts": true,
+  "files": {
+    "credentials.json": [
+      {
+        "placeholder": "CC-TWILIO-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "secret": "cccccccccccccccccccccccccccccccc",
+        "match_domain": "api.twilio.com",
+        "vm_id": "vm_test",
+        "locations": [
+          "basic:authorization"
+        ],
+        "phone": {
+          "account_sid": "ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "from_number": "+14155550123",
+          "hook_url": "https://firewall.example/hook/hk_test"
+        }
+      },
+      {
+        "placeholder": "cc-speech-test",
+        "secret": "real-secret",
+        "match_domain": "api.openai.com",
+        "speech": {
+          "provider": "codex",
+          "model": "gpt-realtime"
+        },
+        "speech_account_id": "acct-1"
+      },
+      {
+        "placeholder": "cc-speech-test",
+        "secret": "gateway-key",
+        "match_domain": "ai-gateway.vercel.sh",
+        "speech": {
+          "provider": "gateway",
+          "model": "openai/gpt-realtime-1.5"
+        }
+      }
+    ],
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "MCP: the admission service drops the connection: the call is refused",
+      "loopback": {
+        "mcp": {
+          "/call": [
+            {
+              "close": true
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "method": "tools/call",
+          "params": {
+            "name": "delete_doc",
+            "arguments": {
+              "id": "x"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 503,
+        "upstream": "none",
+        "json_subset": {
+          "id": 7
+        }
+      }
+    },
+    {
+      "name": "MCP: the result check fails: the result is kept from the agent",
+      "loopback": {
+        "mcp": {
+          "/call": [
+            {
+              "status": 200,
+              "json": {
+                "action": "allow",
+                "ticket": "t3",
+                "read_result": true
+              }
+            }
+          ],
+          "/result": [
+            {
+              "status": 500,
+              "json": {}
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "body": "secret result",
+        "headers": {
+          "Content-Type": "text/plain"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "mcp.example.com",
+        "path": "/mcp",
+        "json": {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "method": "tools/call",
+          "params": {
+            "name": "delete_doc",
+            "arguments": {
+              "id": "x"
+            }
+          }
+        }
+      },
+      "expect": {
+        "body_contains": "could not check this result"
+      }
+    },
+    {
+      "name": "Gmail: the email admission service fails: the send is refused",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 500,
+              "json": {}
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "gmail.googleapis.com",
+        "path": "/gmail/v1/users/me/messages/send",
+        "json": {
+          "raw": "VG86IGJvYkB5LmNvbQ0KU3ViamVjdDogcw0KDQpoaQ0K"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "Twilio: the phone service drops the connection: the call is refused",
+      "loopback": {
+        "phone": {
+          "/": [
+            {
+              "close": true
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.twilio.com",
+        "path": "/2010-04-01/Accounts/ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Calls.json",
+        "body": "From=%2B14155550123&To=%2B14155550999&Url=https%3A%2F%2Ffirewall.example%2Fhook%2Fhk_test%3FcallId%3Dx&StatusCallback=https%3A%2F%2Ffirewall.example%2Fhook%2Fhk_test%3FcallId%3Dx%26type%3Dstatus",
+        "headers": {
+          "Authorization": "Basic QUNhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYTpDQy1UV0lMSU8tYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=",
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "Telegram: the taps service drops the connection: the taps are still taken out",
+      "loopback": {
+        "buttons": {
+          "/": [
+            {
+              "close": true
+            }
+          ]
+        }
+      },
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 11,
+              "callback_query": {
+                "id": "q11",
+                "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            },
+            {
+              "update_id": 12,
+              "message": {
+                "message_id": 12,
+                "text": "hello",
+                "chat": {
+                  "id": 1,
+                  "type": "private"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:AAsecrettokensecrettokensecret/getUpdates",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 12,
+              "message": {
+                "message_id": 12,
+                "text": "hello",
+                "chat": {
+                  "id": 1,
+                  "type": "private"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "voice: with a lease the file is read (another model is the only reason it is refused)",
+      "files": {
+        "meeting-media.json": {
+          "vm_test": {
+            "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "started": "$now",
+            "expires": "$now+50",
+            "deadline": "$now+600",
+            "max_bytes": 4096,
+            "speech": {
+              "provider": "codex",
+              "model": "gpt-realtime"
+            },
+            "voice_placeholder": "cc-speech-test"
+          }
+        }
+      },
+      "request": {
+        "host": "api.openai.com",
+        "method": "GET",
+        "path": "/v1/realtime?model=gpt-6",
+        "headers": {
+          "Authorization": "Bearer cc-speech-test",
+          "Upgrade": "websocket"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "json": {
+          "error": "Invalid provider voice request"
+        },
+        "upstream": "none"
+      }
+    },
+    {
+      "name": "voice: the same lease file no longer parsing: no voice",
+      "files": {
+        "meeting-media.json": "{not json"
+      },
+      "request": {
+        "host": "api.openai.com",
+        "method": "GET",
+        "path": "/v1/realtime?model=gpt-6",
+        "headers": {
+          "Authorization": "Bearer cc-speech-test",
+          "Upgrade": "websocket"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "json": {
+          "error": "Voice needs an active approved call"
+        },
+        "upstream": "none"
+      }
+    }
+  ],
+  "addon_has": "_mcp_odd_keys"
+}

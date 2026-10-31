@@ -1,0 +1,35 @@
+name: vm-agent /connectors/* takes firewall writes, reads from either side, and refuses with OpenClaw down
+agent: vm-agent
+steps:
+  - request: {method: POST, path: /connectors/apply, json: {remove: true}, token: {signer: console}}
+    expect:
+      status: 401
+      json: {error: integration changes must come from the org firewall}
+  - request: {method: POST, path: /connectors/apply, json: {remove: true}, token: {signer: firewall, bind: true, claims: {purpose: llm}}}
+    expect:
+      status: 401
+  - request: {method: GET, path: /connectors/status}
+    expect:
+      status: 401
+      json: {error: Unauthorized}
+  - name: status reads what the box has, without OpenClaw
+    request: {method: GET, path: /connectors/status, token: {signer: console}}
+    expect:
+      status: 200
+      json: {configured: false, relayUrl: $string, gatewayReachable: null, connections: [], updatedAt: ""}
+  - request: {method: POST, path: /connectors/apply, json: {gateway: {url: "ftp://x", token: t}}, token: {signer: firewall, bind: true, claims: {purpose: connectors}}}
+    expect:
+      status: 400
+      json: {ok: false, error: gateway.url must be http (the relay dials it without TLS)}
+  - request: {method: POST, path: /connectors/apply, json: {gateway: {url: "http://10.0.0.2:3900", token: t}, connections: [{id: "a b", service: gitea, alias: x}]}, token: {signer: firewall, bind: true, claims: {purpose: connectors}}}
+    expect:
+      status: 400
+      json: {ok: false, error: "connections[].id is invalid"}
+  - request: {method: POST, path: /connectors/apply, json: {gateway: {url: "http://10.0.0.2:3900", token: t}, connections: []}, token: {signer: firewall, bind: true, claims: {purpose: connectors}}}
+    expect:
+      status: 503
+      json: {ok: false, error: OpenClaw is not running on this box}
+  - request: {method: GET, path: /connectors/nope, token: {signer: firewall, bind: true, claims: {purpose: connectors}}}
+    expect:
+      status: 404
+      json: {error: Not found}

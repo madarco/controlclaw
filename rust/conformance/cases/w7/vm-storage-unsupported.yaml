@@ -1,0 +1,9 @@
+name: vm-agent storage on a box whose role has no cc-secure line
+agent: vm-agent
+steps:
+  - name: sudo refuses, so the box needs an update
+    request: {method: GET, path: /storage, token: {signer: console}}
+    expect: {status: 409, json: {error: This agent was built before storage could be added. Update the agent to add storage., code: unsupported}}
+  - name: and for a reseal
+    request: {method: POST, path: /disk/reseal, json: {publicKey: "OLIAAYYu9C/XU5mQckoX00FBWNlYg7+Ur4qx2M/tKXs="}, token: {signer: firewall, bind: true, claims: {purpose: disk}}}
+    expect: {status: 409, json: {ok: false, error: This box was built before its disk could be sealed to a new recovery key. Update it., code: unsupported}}

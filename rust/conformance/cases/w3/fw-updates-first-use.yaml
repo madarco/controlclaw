@@ -1,0 +1,37 @@
+name: firewall agent updates and batches with nobody approved (first use), and the update window
+agent: mitm-agent
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  BACKUP_STORE_PATH: state/backup.enc
+  SELF_UPDATE_CONF_PATH: state/update.conf
+  SELF_UPDATE_STATE_PATH: state/update.json
+  AUTO_UPDATE_STORE_PATH: state/auto-update.enc
+  UPDATE_ALL_STORE_PATH: state/update-all.enc
+  RECOVERY_NOTICES_PATH: state/recovery-notices.enc
+  DISK_RESEAL_PATH: state/disk-reseal.enc
+files:
+  state/update.conf: "ANSIBLE_REPO=https://example.invalid/ansible.git\n"
+fake_agent:
+  /update: [[200, {status: {phase: resolving}}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2"}]}]]
+steps:
+  - name: the map is synced
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2", tailscale: false}]}
+  - name: an agent update applies at once, and the proxy lets the box reach the package hosts
+    command: {id: u1, action: update.propose, payload: {changeId: c1, agent: {vmId: vm_1, name: atlas, hostname: "127.0.0.2"}}, result: {command_id: u1, ok: true, status: applied, data: {changeId: c1, summary: Update the software on atlas, vmId: vm_1, phase: resolving, tofu: true}}}
+    agent_received:
+      - {path: /update, method: POST, json_subset: {claims: {purpose: update}, body: {}}}
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2", tailscale: false, update_until: $number}]}
+  - name: this firewall has no first use
+    command: {id: f1, action: firewall-update.propose, payload: {changeId: c2}, result: {command_id: f1, ok: false, status: failed, data: {changeId: c2, summary: Update the software on your firewall}}}
+  - name: a batch of agents alone applies on first use and writes a grant
+    command: {id: b1, action: update-all.propose, payload: {changeId: c3, boxes: [{vmId: vm_1, name: atlas, hostname: "127.0.0.2"}]}, result: {command_id: b1, ok: true, status: applied, data: {changeId: c3, summary: Update the software on atlas, boxes: [vm_1], tofu: true}}}
+  - name: each box once
+    command: {id: b2, action: update-all.apply, payload: {changeId: c3, vmId: vm_1, hostname: "127.0.0.2", name: atlas}, result: {command_id: b2, ok: true, status: applied, data: {changeId: c3, vmId: vm_1, phase: resolving}}}
+  - command: {id: b3, action: update-all.apply, payload: {changeId: c3, vmId: vm_1, hostname: "127.0.0.2"}, result: {command_id: b3, ok: false, status: failed, message: "That box has already been started by this batch.", data: {changeId: c3, vmId: vm_1}}}

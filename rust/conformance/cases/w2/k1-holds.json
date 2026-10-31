@@ -1,0 +1,230 @@
+{
+  "name": "k1 holds: a held message is answered as sent, nobody to ask is a block, a failed hold is cancelled",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "iban",
+          "name": "iban",
+          "direction": "out",
+          "channels": [
+            "telegram"
+          ],
+          "patterns": [],
+          "detectors": [
+            "iban"
+          ],
+          "action": "hold",
+          "reason": "iban reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "held: the agent is told it went",
+      "loopback": {
+        "content": {
+          "/hold": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "holdId": "h1",
+                "messageId": 777
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "IBAN GB82 WEST 1234 5698 7654 32"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json": {
+          "ok": true,
+          "result": {
+            "message_id": 777,
+            "date": "$number",
+            "chat": {
+              "id": 42
+            },
+            "text": "IBAN GB82 WEST 1234 5698 7654 32"
+          }
+        },
+        "loopback": {
+          "content": {
+            "/hold": [
+              {
+                "key": "$string",
+                "botId": "123456",
+                "method": "sendMessage",
+                "body": "{\"chat_id\": 42, \"text\": \"IBAN GB82 WEST 1234 5698 7654 32\"}",
+                "chatId": "42",
+                "vmId": "vm_test",
+                "rule": {
+                  "id": "iban",
+                  "name": "iban",
+                  "reason": "iban reason"
+                },
+                "text": "IBAN GB82 WEST 1234 5698 7654 32"
+              }
+            ],
+            "/stopped": "none",
+            "/notice": "none",
+            "/cancel": "none"
+          }
+        },
+        "audit": [
+          {
+            "rule": "iban",
+            "action": "hold",
+            "hold": "h1",
+            "channel": "telegram",
+            "direction": "out"
+          }
+        ],
+        "traffic": [
+          {
+            "effect": "hold",
+            "rule": "content: iban",
+            "status": 200
+          }
+        ]
+      }
+    },
+    {
+      "name": "nobody could be asked: blocked",
+      "loopback": {
+        "content": {
+          "/hold": [
+            {
+              "status": 200,
+              "json": {
+                "ok": false
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "IBAN GB82 WEST 1234 5698 7654 32"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: iban reason (nobody could be asked to approve it)"
+        },
+        "audit": [
+          {
+            "rule": "iban",
+            "action": "block",
+            "held": false
+          }
+        ],
+        "loopback": {
+          "content": {
+            "/cancel": "none",
+            "/stopped": "none",
+            "/notice": [
+              {
+                "kind": "out",
+                "chatId": "42",
+                "reason": "iban reason"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the mitm-agent fails on the hold: refused, and the hold cancelled by its key",
+      "loopback": {
+        "content": {
+          "/hold": [
+            {
+              "status": 500,
+              "json": {}
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage",
+        "json": {
+          "chat_id": 42,
+          "text": "IBAN GB82 WEST 1234 5698 7654 32"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: the check could not run"
+        },
+        "loopback": {
+          "content": {
+            "/hold": [
+              {
+                "key": "$string"
+              }
+            ],
+            "/cancel": [
+              {
+                "key": "$string"
+              }
+            ]
+          }
+        },
+        "audit": [
+          {
+            "rule": "error",
+            "action": "block"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a call with fields in its query is not resent as it was: stopped",
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:CC-TG-placeholder/sendMessage?parse_mode=HTML",
+        "json": {
+          "chat_id": 42,
+          "text": "IBAN GB82 WEST 1234 5698 7654 32"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "upstream": "none",
+        "loopback": {
+          "content": {
+            "/hold": "none"
+          }
+        },
+        "json_subset": {
+          "description": "Bad Request: blocked by your organization's rules: iban reason (it could not be held for approval)"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "cli": "/root/.local/state/controlclaw/openclaw",
+  "version": "2026.10.9",
+  "config_file": "/root/.openclaw/openclaw.json",
+  "state_dir": "/root/.openclaw",
+  "runs": { "kind": "docker", "container": "openclaw-openclaw-gateway-1" },
+  "gateway_port": 18789
+}

@@ -1,0 +1,15 @@
+name: content rules loopback, own with no text
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+  CHANNEL_STORE_PATH: state/channels.enc
+skip:
+  ts: "intentional difference: the TS build sends its 200 headers before it reads the text, so /own with no text never answers; the Rust build refuses it with 403 (the TS is not changed any more)"
+steps:
+  - name: own with no text (8794)
+    request: {method: POST, path: /own, listener: !port 8794, json: {}}
+    expect: {status: 403, json: {ok: false}}

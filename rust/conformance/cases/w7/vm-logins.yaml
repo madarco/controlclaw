@@ -1,0 +1,34 @@
+name: vm-agent /logins (firewall only, the checks, no browser)
+agent: vm-agent
+env: {BROWSER_CDP_PORT: "1"}
+steps:
+  - name: the console cannot ask
+    request: {method: POST, path: /logins/open-tab, json: {url: "https://app.example.com/"}, token: {signer: console}}
+    expect: {status: 401, json: {error: Login changes must come from the org firewall}}
+  - name: another purpose cannot either
+    request: {method: POST, path: /logins/open-tab, json: {url: "https://app.example.com/"}, token: {signer: firewall, bind: true, claims: {purpose: secrets}}}
+    expect: {status: 401, json: {error: Login changes must come from the org firewall}}
+  - name: POST only
+    request: {method: GET, path: /logins/open-tab, token: {signer: firewall, bind: true, claims: {purpose: logins}}}
+    expect: {status: 405, json: {error: Method not allowed}}
+  - name: an address is not a site
+    request: {method: POST, path: /logins/open-tab, json: {url: "https://127.0.0.1:9222/json"}, token: {signer: firewall, bind: true, claims: {purpose: logins}}}
+    expect: {status: 400, json: {error: Invalid site}}
+  - name: a login with a newline in it
+    request: {method: POST, path: /logins/answered, json: {requestId: lr_abcdefgh12, site: a.example, login: "x\ny", kind: password}, token: {signer: firewall, bind: true, claims: {purpose: logins}}}
+    expect: {status: 400, json: {error: Invalid request}}
+  - name: a password with a newline in it
+    request: {method: POST, path: /logins/type, json: {password: "a\nb", sites: [x.com]}, token: {signer: firewall, bind: true, claims: {purpose: logins}}}
+    expect: {status: 400, json: {error: Invalid request}}
+  - name: no sites
+    request: {method: POST, path: /logins/clear-cookies, json: {sites: []}, token: {signer: firewall, bind: true, claims: {purpose: logins}}}
+    expect: {status: 400, json: {error: Invalid sites}}
+  - name: an unknown path
+    request: {method: POST, path: /logins/other, json: {}, token: {signer: firewall, bind: true, claims: {purpose: logins}}}
+    expect: {status: 404, json: {error: Not found}}
+  - name: no browser, and nothing it said is echoed
+    request: {method: POST, path: /logins/open-tab, json: {url: "https://app.example.com/"}, token: {signer: firewall, bind: true, claims: {purpose: logins}}}
+    expect: {status: 503, json: {error: "The agent's browser did not answer."}}
+  - name: no OpenClaw to wake
+    request: {method: POST, path: /logins/answered, json: {requestId: lr_abcdefgh12, site: a.example, login: Acme, kind: password}, token: {signer: firewall, bind: true, claims: {purpose: logins}}}
+    expect: {status: 503, json: {error: "The agent's browser did not answer."}}

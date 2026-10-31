@@ -1,0 +1,1 @@
+{"lg_1": {"page": "https://shop.example.com/login", "targets": {"https://shop.example.com/session": {"seen": 1767225000.0, "field": "password"}, "https://shop.example.com/other": {"seen": 1767225001.0, "field": null}}}}

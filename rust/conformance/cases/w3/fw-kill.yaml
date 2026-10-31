@@ -1,0 +1,63 @@
+name: firewall emergency stop cuts an agent off in the proxy config, then stops OpenClaw
+agent: mitm-agent
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+fake_agent:
+  /kill/status: [[200, {active: true}]]
+  /kill/apply: [[200, {ok: true, active: false}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, hostname: "127.0.0.2", private_ip: 10.0.0.2, locked: false}, {vm_id: vm_2, private_ip: 10.0.0.3}]}]]
+steps:
+  - name: nothing is locked before
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, hostname: "127.0.0.2", private_ip: 10.0.0.2, tailscale: false}, {vm_id: vm_2, private_ip: 10.0.0.3, tailscale: false}]}
+  - name: a malformed engage is refused
+    command:
+      id: cmd_k0
+      action: kill.engage
+      payload: {changeId: chg_0, scope: agent}
+      result: {command_id: cmd_k0, ok: false, status: failed, message: "an agent-scoped emergency stop has to name the agent"}
+  - name: engaging one agent applies at once, without a code
+    command:
+      id: cmd_k1
+      action: kill.engage
+      payload: {changeId: chg_1, scope: agent, vmId: vm_1, agents: [{vmId: vm_1, name: atlas, hostname: "127.0.0.2"}]}
+      result:
+        command_id: cmd_k1
+        ok: true
+        status: applied
+        data: {changeId: chg_1, summary: Emergency stop on atlas, scope: agent, vmId: vm_1, at: $string, agents: [{vmId: vm_1, name: atlas, stopped: true, error: null}]}
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, hostname: "127.0.0.2", private_ip: 10.0.0.2, tailscale: false, locked: true}, {vm_id: vm_2, private_ip: 10.0.0.3, tailscale: false}]}
+    agent_received:
+      - {path: /kill/status, method: GET, json_subset: {claims: {purpose: kill}}}
+      - {path: /kill/apply, method: POST, json_subset: {claims: {purpose: kill}, body: {locked: true}}}
+  - name: the beat says who is stopped
+    beat:
+      json_subset: {kill: {org: null, agents: [{vmId: vm_1, name: atlas, source: agent, at: $string}]}}
+  - name: no release is waiting
+    command:
+      id: cmd_k2
+      action: kill.confirm
+      payload: {changeId: chg_9, scope: agent, vmId: vm_1, code: "000000"}
+      result: {command_id: cmd_k2, ok: false, status: expired, message: "No change is waiting for a code, or the code expired."}
+  - command:
+      id: cmd_k3
+      action: kill.cancel
+      payload: {changeId: chg_9, scope: agent, vmId: vm_1}
+      result: {command_id: cmd_k3, ok: true, status: cancelled, data: {changeId: chg_9}}
+  - name: the whole organization, a box the map names without a hostname included
+    command:
+      id: cmd_k4
+      action: kill.engage
+      payload: {changeId: chg_2, scope: org, agents: [{vmId: vm_1, name: atlas, hostname: "127.0.0.2"}]}
+      result: {command_id: cmd_k4, ok: true, status: applied, data: {summary: Emergency stop on every agent, scope: org}}
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, hostname: "127.0.0.2", private_ip: 10.0.0.2, tailscale: false, locked: true}, {vm_id: vm_2, private_ip: 10.0.0.3, tailscale: false, locked: true}]}
+  - name: the stop survives a restart
+    restart: true
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, hostname: "127.0.0.2", private_ip: 10.0.0.2, tailscale: false, locked: true}, {vm_id: vm_2, private_ip: 10.0.0.3, tailscale: false, locked: true}]}

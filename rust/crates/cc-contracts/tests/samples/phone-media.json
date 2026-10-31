@@ -1,0 +1,1 @@
+{"vm_abc":[{"id":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","purpose":"phone","started":1767225000.5,"expires":1767225003.5,"deadline":1767228600.5,"speech":{"provider":"openai","model":"gpt-realtime"},"voice_placeholder":"CC-VOICE-y","max_bytes":536870912}]}

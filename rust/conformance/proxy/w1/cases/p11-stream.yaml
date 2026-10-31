@@ -1,0 +1,42 @@
+# Streaming (owner, 2026-10-28): a body no step reads goes through as it comes, never held; one a
+# step reads is buffered for it, up to the cap (256 MiB). The addon buffers every body.
+name: a download bigger than the buffer cap streams through and is recorded at its size
+skip: {mitmproxy: "the addon buffers every body", cc-proxy: "W2's email and Telegram steps have not said which bodies they read yet (Step::reads_body), so every body is buffered"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/bytes/300000000"}
+    expect: {status: 200, body_len: 300000000}
+  - log: {within: 5, last: {effect: allow, host: origin.test, path: /bytes/300000000, status: 200,
+                            bytes_in: 300000000, duration_ms: $number}}
+---
+name: an upload bigger than the buffer cap streams through and is recorded at its size
+skip: {mitmproxy: "the addon buffers every body", cc-proxy: "W2's email and Telegram steps have not said which bodies they read yet (Step::reads_body), so every body is buffered"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://origin.test/sink", method: POST, body_bytes: 300000000}
+    expect: {status: 200, json: {received: 300000000}}
+  - log: {within: 5, last: {effect: allow, host: origin.test, path: /sink, status: 200, bytes_out: 300000000}}
+---
+name: a body a step reads is still buffered, and over the cap it is refused before it reaches the site
+skip: {mitmproxy: "the addon buffers every body with no cap"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  credentials.json:
+    - {placeholder: __BODY_TOKEN, secret: real-body-secret, match_domain: origin.test, locations: [body]}
+steps:
+  - http: {url: "https://origin.test/up", method: POST, body_bytes: 300000000}
+    expect: {status: 413}
+  - seen: {server: origin, requests: 0}
+  - http: {url: "https://origin.test/up", method: POST, body: "token=__BODY_TOKEN"}
+    expect: {status: 200, json: {body: token=real-body-secret}}
+---
+name: a plain-HTTP download streams through too
+skip: {mitmproxy: "the addon buffers every body"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "http://origin.test/bytes/5000000"}
+    expect: {status: 200, body_len: 5000000}
+  - log: {within: 5, last: {effect: allow, path: /bytes/5000000, bytes_in: 5000000}}

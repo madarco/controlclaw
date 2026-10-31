@@ -1,0 +1,24 @@
+name: vm-agent Download workspace (the plan and the zip)
+agent: vm-agent
+env: {FILES_ROOT: $ROOT/home}
+files:
+  keys/session_secret: "0909090909090909090909090909090909090909090909090909090909090909\n"
+  home/.openclaw/workspace/MEMORY.md: "# memory"
+  home/.openclaw/workspace/notes/.env: "SECRET=1"
+  home/.openclaw/workspace/notes/plan.md: "plan"
+  home/.openclaw/workspace/node_modules/x/i.js: "x"
+steps:
+  - name: no session
+    request: {method: GET, path: /files/export/plan, headers: {origin: "https://box.example"}}
+    expect: {status: 401}
+  - name: the plan, for a member too
+    request: {method: GET, path: /files/export/plan, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect:
+      status: 200
+      json: {filename: $string, bytes: 4020, files: 2, memoryFiles: 1, conversations: 0, meetings: 0, calls: 0, mounts: [], secrets: [notes/.env], busy: false}
+  - name: the zip
+    request: {method: GET, path: /files/export, headers: {origin: "https://box.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect:
+      status: 200
+      headers: {content-type: application/zip, cache-control: no-store, x-content-type-options: nosniff, vary: Origin}
+      body_contains: ["box-workspace-", "README.md", "workspace/notes/plan.md", "memory/MEMORY.md"]

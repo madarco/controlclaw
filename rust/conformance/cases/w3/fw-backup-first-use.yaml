@@ -1,0 +1,33 @@
+name: firewall backups with nobody approved (first use), and recovery restores on an empty firewall
+agent: mitm-agent
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  BACKUP_STORE_PATH: state/backup.enc
+  RECOVERY_STAGING_DIR: state/recovery
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2"}]}]]
+steps:
+  - name: the first recovery key needs no code
+    command:
+      id: p1
+      action: backup.recovery.propose
+      payload: {changeId: p1, publicKey: "E75P6uryBMf9M1j8nAByGIHRdCeBKCJ+xnTzf3/pe20=", signingPublicKey: "zTYmVgDEldv5RDSH7wCFeUVqh12d3w7mdGKXTFsd1CA="}
+      result: {command_id: p1, ok: true, status: applied, data: {changeId: p1, summary: $string, fingerprint: c8a7-416a-a007-9da4, firewallFingerprint: $string, firewallPublicKey: $string, tofu: true}}
+  - name: a restore whose key this firewall cannot open
+    command:
+      id: r1
+      action: backup.restore.propose
+      payload: {changeId: r1, backupId: b1, kind: workspace, header: h, manifestHash: m, downloadUrl: "https://store.example/b1", wrapped: AAAA, agent: {vmId: vm_1, name: atlas, hostname: "127.0.0.2"}, takenAt: "2026-10-01T12:34:56.000Z"}
+      result: {command_id: r1, ok: false, status: failed, message: "This firewall cannot open that backup. It was taken before the firewall was rebuilt, so it needs your recovery key."}
+  - name: an empty firewall takes a recovery restore, and says what is missing
+    request: {method: POST, path: /recovery/firewall-restore, listener: tls, recovery: {secret: "/WS9zNOqMYoUl1ZNWy+FBGpixVJhfzx0+QapjLrbT2fNNiZWAMSV2/lENIfvAIV5RWqHXZ3fDuZ0YpdMWx3UIA==", head: {backupId: b1}}}
+    expect: {status: 400, json: {error: This request does not name a backup to put back.}}
+  - name: an agent restore names a kind an agent has
+    request: {method: POST, path: /recovery/agent-restore, listener: tls, recovery: {secret: "/WS9zNOqMYoUl1ZNWy+FBGpixVJhfzx0+QapjLrbT2fNNiZWAMSV2/lENIfvAIV5RWqHXZ3fDuZ0YpdMWx3UIA==", head: {backupId: b1, header: h, manifestHash: m, dataKeySealedToFirewall: AAAA, agent: atlas, kind: gbrain}, tail: archive}}
+    expect: {status: 400, json: {error: A gbrain archive is not something an agent can be restored from.}}
+  - name: and an agent this firewall knows
+    request: {method: POST, path: /recovery/agent-restore, listener: tls, recovery: {secret: "/WS9zNOqMYoUl1ZNWy+FBGpixVJhfzx0+QapjLrbT2fNNiZWAMSV2/lENIfvAIV5RWqHXZ3fDuZ0YpdMWx3UIA==", head: {backupId: b1, header: h, manifestHash: m, dataKeySealedToFirewall: AAAA, agent: zeus, kind: state}, tail: archive}}
+    expect: {status: 400, json: {error: "This firewall does not know an agent called zeus. It knows: atlas."}}

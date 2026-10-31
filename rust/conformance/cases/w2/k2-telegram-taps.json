@@ -1,0 +1,566 @@
+{
+  "name": "k2 telegram taps: our button taps are taken out of getUpdates and handed to the firewall",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": []
+    }
+  },
+  "steps": [
+    {
+      "name": "a tap in the middle",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 10,
+              "message": {
+                "message_id": 10,
+                "text": "hello",
+                "chat": {
+                  "id": 1,
+                  "type": "private"
+                }
+              }
+            },
+            {
+              "update_id": 11,
+              "callback_query": {
+                "id": "q11",
+                "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            },
+            {
+              "update_id": 12,
+              "message": {
+                "message_id": 12,
+                "text": "hello",
+                "chat": {
+                  "id": 1,
+                  "type": "private"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:AAsecrettokensecrettokensecret/getUpdates",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 10,
+              "message": {
+                "message_id": 10,
+                "text": "hello",
+                "chat": {
+                  "id": 1,
+                  "type": "private"
+                }
+              }
+            },
+            {
+              "update_id": 12,
+              "message": {
+                "message_id": 12,
+                "text": "hello",
+                "chat": {
+                  "id": 1,
+                  "type": "private"
+                }
+              }
+            }
+          ]
+        },
+        "loopback": {
+          "buttons": {
+            "/": [
+              {
+                "botId": "123456",
+                "queries": [
+                  {
+                    "id": "q11",
+                    "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                    "from": {
+                      "id": 1
+                    },
+                    "message": {
+                      "message_id": 9,
+                      "chat": {
+                        "id": 1,
+                        "type": "private"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the last update is a tap: its id stays",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 12,
+              "message": {
+                "message_id": 12,
+                "text": "hello",
+                "chat": {
+                  "id": 1,
+                  "type": "private"
+                }
+              }
+            },
+            {
+              "update_id": 13,
+              "callback_query": {
+                "id": "q13",
+                "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:AAsecrettokensecrettokensecret/getUpdates",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 12,
+              "message": {
+                "message_id": 12,
+                "text": "hello",
+                "chat": {
+                  "id": 1,
+                  "type": "private"
+                }
+              }
+            },
+            {
+              "update_id": 13
+            }
+          ]
+        },
+        "loopback": {
+          "buttons": {
+            "/": [
+              {
+                "botId": "123456"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "only a tap: an empty update, never an empty answer",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 14,
+              "callback_query": {
+                "id": "q14",
+                "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:AAsecrettokensecrettokensecret/getUpdates",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 14
+            }
+          ]
+        },
+        "loopback": {
+          "buttons": {
+            "/": [
+              {
+                "botId": "123456"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "several taps, one hand-off",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 15,
+              "callback_query": {
+                "id": "q15",
+                "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            },
+            {
+              "update_id": 16,
+              "callback_query": {
+                "id": "q16",
+                "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            },
+            {
+              "update_id": 17,
+              "callback_query": {
+                "id": "q17",
+                "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:AAsecrettokensecrettokensecret/getUpdates",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 17
+            }
+          ]
+        },
+        "loopback": {
+          "buttons": {
+            "/": [
+              {
+                "botId": "123456",
+                "queries": [
+                  {
+                    "id": "q15",
+                    "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                    "from": {
+                      "id": 1
+                    },
+                    "message": {
+                      "message_id": 9,
+                      "chat": {
+                        "id": 1,
+                        "type": "private"
+                      }
+                    }
+                  },
+                  {
+                    "id": "q16",
+                    "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                    "from": {
+                      "id": 1
+                    },
+                    "message": {
+                      "message_id": 9,
+                      "chat": {
+                        "id": 1,
+                        "type": "private"
+                      }
+                    }
+                  },
+                  {
+                    "id": "q17",
+                    "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                    "from": {
+                      "id": 1
+                    },
+                    "message": {
+                      "message_id": 9,
+                      "chat": {
+                        "id": 1,
+                        "type": "private"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the agent's own buttons are its own",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 18,
+              "callback_query": {
+                "id": "q18",
+                "data": "openclaw:approve:1",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:AAsecrettokensecrettokensecret/getUpdates",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 18,
+              "callback_query": {
+                "id": "q18",
+                "data": "openclaw:approve:1",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "loopback": {
+          "buttons": {
+            "/": "none"
+          }
+        }
+      }
+    },
+    {
+      "name": "not getUpdates: left alone",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 19,
+              "callback_query": {
+                "id": "q19",
+                "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:AAsecrettokensecrettokensecret/sendMessage",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 19,
+              "callback_query": {
+                "id": "q19",
+                "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "loopback": {
+          "buttons": {
+            "/": "none"
+          }
+        }
+      }
+    },
+    {
+      "name": "a query string does not hide it",
+      "upstream": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 20,
+              "callback_query": {
+                "id": "q20",
+                "data": "cc1:NNNNNNNNNNNNNNNNNNNNNN:47",
+                "from": {
+                  "id": 1
+                },
+                "message": {
+                  "message_id": 9,
+                  "chat": {
+                    "id": 1,
+                    "type": "private"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.telegram.org",
+        "path": "/bot123456:AAsecrettokensecrettokensecret/getUpdates?offset=20&timeout=30",
+        "json": {}
+      },
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "result": [
+            {
+              "update_id": 20
+            }
+          ]
+        },
+        "loopback": {
+          "buttons": {
+            "/": [
+              {
+                "botId": "123456"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

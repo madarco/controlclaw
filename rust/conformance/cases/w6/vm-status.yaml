@@ -1,0 +1,27 @@
+name: vm-agent GET /status reports the unit, its state, the software and Doctor
+agent: vm-agent
+shims:
+  - argv: [systemctl, is-active, openclaw]
+    stdout: "active\n"
+  - argv: [systemctl, status, openclaw]
+    stdout: "openclaw.service - OpenClaw\n   Active: active (running)\n"
+steps:
+  - request: {method: GET, path: /status, token: {signer: console}}
+    expect:
+      status: 200
+      json:
+        ok: true
+        action: status
+        active: true
+        status: active
+        state: running
+        message: "openclaw.service - OpenClaw\n   Active: active (running)"
+        software:
+          rebootRequired: $any
+          bootedAt: $string
+          agent: {version: $string, commit: $string, builtAt: $string}
+          release: $any
+          openclaw: $any
+          features: $any
+        doctor: {fingerprint: $any}
+      absent: [gateway, drive]

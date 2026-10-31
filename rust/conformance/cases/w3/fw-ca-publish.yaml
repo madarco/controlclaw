@@ -1,0 +1,14 @@
+name: firewall publishes its signed CA before the first beat
+agent: mitm-agent
+env:
+  CA_CERT_PATH: ca/ca-cert.pem
+files:
+  ca/ca-cert.pem: "-----BEGIN CERTIFICATE-----\nMIIBfake\n-----END CERTIFICATE-----\n"
+steps:
+  - name: the cert and an Ed25519 signature by the box key
+    received:
+      - path: /api/vm-agent/ca
+        method: POST
+        json_subset: {ca_cert: "-----BEGIN CERTIFICATE-----\nMIIBfake\n-----END CERTIFICATE-----\n", ca_sig: "CqnD1BursA9X2dL417rjTFFnnlZrPaXgT6HSQoZyYD1BSYAuomlJOXbUsWgRbCzw7wOrlaX9xPPAs2pNQ5piAA=="}
+  - beat:
+      json_subset: {proxy: $string}

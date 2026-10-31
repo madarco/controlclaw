@@ -1,0 +1,198 @@
+# P6: credential swaps (legacy and custom secrets), the included AI, model errors (features 4, 5,
+# 14, 15). Ported from test_secrets.py, test_included.py, test_model_errors.py and run-smoke.sh's
+# swap checks.
+name: a legacy credential is swapped on its own domain only, and its name goes on the record
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  credentials.json:
+    - {placeholder: __ECHO_TOKEN, secret: REAL-SECRET-abc123, match_domain: origin.test}
+    - {placeholder: __PATH_TOKEN, secret: path-secret, match_domain: origin.test, locations: [path, query, body, "header:x-token"]}
+steps:
+  - http: {url: "https://origin.test/bot__PATH_TOKEN/send?t=__PATH_TOKEN&z=1", method: POST,
+           body: "token=__PATH_TOKEN", headers: {Authorization: Bearer __ECHO_TOKEN, X-Token: a-__PATH_TOKEN-b,
+                                                 Content-Type: application/x-www-form-urlencoded}}
+    expect: {status: 200, json: {path: "/botpath-secret/send?t=path-secret&z=1", body: token=path-secret,
+                                 headers: {Authorization: Bearer REAL-SECRET-abc123, X-Token: a-path-secret-b}}}
+  - log: {last: {effect: allow, swapped: [__ECHO_TOKEN, __PATH_TOKEN]}}
+  - http: {url: "https://other.test/x", headers: {Authorization: Bearer __ECHO_TOKEN}}
+    expect: {status: 200, json: {headers: {Authorization: Bearer __ECHO_TOKEN}}}
+  - log: {last: {swapped: []}}
+  - output: {lacks: [REAL-SECRET-abc123]}
+---
+name: the record keeps the path as the agent sent it, so a path credential never reaches the log
+skip: {mitmproxy: "the addon records the path after the swap (host review of #543, item 4)"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  credentials.json:
+    - {placeholder: __PATH_TOKEN, secret: path-secret, match_domain: origin.test, locations: [path]}
+steps:
+  - http: {url: "https://origin.test/bot__PATH_TOKEN/send?q=1"}
+    expect: {status: 200, json: {path: "/botpath-secret/send?q=1"}}
+  - log: {last: {effect: allow, swapped: [__PATH_TOKEN], path: /bot__PATH_TOKEN/send}}
+  - log: {file: traffic.jsonl, where: {path: /botpath-secret/send}, count: 0}
+---
+name: over plain HTTP nothing is swapped, whatever the request names
+skip: {mitmproxy: "the 12.2.2 addon here swaps over plain HTTP; production refuses (T-sni, host review of #543)"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: a}]
+  credentials.json:
+    - {placeholder: __PATH_TOKEN, secret: path-secret, match_domain: origin.test, locations: [path, query]}
+    - {placeholder: sk-cc-openai, match_domain: api.openai.com, secret: sk_openai_real, locations: ["header:authorization"], model: true}
+    - {secret_name: API_TOKEN, placeholder: CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, secret: private-test-value, vm_id: a,
+       allowed_hosts: [secret.test], secret_locations: [{kind: header, name: authorization, prefix: "Bearer "}]}
+steps:
+  # A path credential, behind redsocks (CONNECT ip:80).
+  - http: {url: "http://origin.test/bot__PATH_TOKEN/getMe?t=__PATH_TOKEN"}
+    expect: {status: 200, json: {path: "/bot__PATH_TOKEN/getMe?t=__PATH_TOKEN"}}
+  # A header credential, the Host naming the provider.
+  - http: {url: "http://api.openai.com/v1/chat/completions", method: POST, body: {model: x},
+           headers: {Authorization: Bearer sk-cc-openai}}
+    expect: {status: 200, json: {headers: {Authorization: Bearer sk-cc-openai}}}
+  # A custom secret, absolute-form to the proxy.
+  - http: {via: absolute, url: "http://secret.test/x", headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}
+    expect: {status: 200, json: {headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}}
+  - log: {where: {swapped: [__PATH_TOKEN]}, count: 0}
+  - output: {lacks: [path-secret, sk_openai_real, private-test-value]}
+
+---
+name: an agent's own credential beats the org one, another agent's is never used
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: a}, {private_ip: 10.0.0.4, vm_id: b}]
+  credentials.json:
+    - {placeholder: __K, secret: org-key, match_domain: origin.test}
+    - {placeholder: __K, secret: a-key, match_domain: origin.test, vm_id: a}
+steps:
+  - http: {url: "https://origin.test/", headers: {Authorization: Bearer __K}}
+    expect: {json: {headers: {Authorization: Bearer a-key}}}
+  - http: {agent: agent2, url: "https://origin.test/", headers: {Authorization: Bearer __K}}
+    expect: {json: {headers: {Authorization: Bearer org-key}}}
+---
+name: a custom secret goes only to its hosts, its agent, its exact places
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: a}, {private_ip: 10.0.0.4, vm_id: b}]
+  credentials.json:
+    - {secret_name: API_TOKEN, placeholder: CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, secret: private-test-value, vm_id: a,
+       allowed_hosts: [secret.test, "*.origin.test"],
+       secret_locations: [{kind: header, name: authorization, prefix: "Bearer "}, {kind: query, name: api_key}]}
+steps:
+  - http: {url: "https://secret.test/echo?api_key=CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&other=CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", method: POST, body: "CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, X-Other: CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}
+    expect: {status: 200, json: {path: "/echo?api_key=private-test-value&other=CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", body: "CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                 headers: {Authorization: Bearer private-test-value, X-Other: CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}}
+  - log: {last: {effect: allow, swapped: [API_TOKEN]}}
+  - http: {url: "https://www.origin.test/x", headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}
+    expect: {json: {headers: {Authorization: Bearer private-test-value}}}
+  - http: {url: "https://origin.test/x", headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}
+    expect: {json: {headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}}
+  - http: {url: "https://secret.test/x", headers: {Authorization: Basic CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}
+    expect: {json: {headers: {Authorization: Basic CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}}
+  - http: {agent: agent2, url: "https://secret.test/x", headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}
+    expect: {json: {headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}}
+  - http: {url: "https://other.test/x", headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}
+    expect: {json: {headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}}
+  - output: {lacks: [private-test-value]}
+---
+name: a failed request with a custom secret says only that
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: a}]
+  credentials.json:
+    - {secret_name: API_TOKEN, placeholder: CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, secret: private-test-value, vm_id: a,
+       allowed_hosts: [secret.test], secret_locations: [{kind: header, name: authorization, prefix: "Bearer "}]}
+steps:
+  - http: {url: "https://secret.test:9/x", headers: {Authorization: Bearer CC-SEC-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}
+    expect: {status: 502}
+  - log: {last: {effect: allow, error: Secret request failed, swapped: [API_TOKEN]}}
+---
+name: the included key is swapped only for its models and the model list
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  credentials.json:
+    - {placeholder: vck-cc-included123, match_domain: ai-gateway.vercel.sh, secret: vck_real,
+       locations: ["header:authorization"], allowed_models: [moonshotai/kimi-k2.6], included: true}
+steps:
+  - http: {url: "https://ai-gateway.vercel.sh/v1/chat/completions", method: POST,
+           body: {model: moonshotai/kimi-k2.6}, headers: {Authorization: Bearer vck-cc-included123}}
+    expect: {status: 200, json: {headers: {Authorization: Bearer vck_real}}}
+  - log: {last: {effect: allow, included: ok}}
+  - http: {url: "https://ai-gateway.vercel.sh/v1/chat/completions", method: POST,
+           body: {model: anthropic/claude-opus-5}, headers: {Authorization: Bearer vck-cc-included123}}
+    expect: {status: 400, json: {error: {code: model_not_included, type: invalid_request_error,
+             message: "anthropic/claude-opus-5 is not included in your plan. Included models: moonshotai/kimi-k2.6. Pick one of your plan's models, or add your own provider key in ControlClaw under Model providers."}}}
+  - log: {last: {effect: block, rule: included_ai, status: 400}}
+  - http: {url: "https://ai-gateway.vercel.sh/v1/models", headers: {Authorization: Bearer vck-cc-included123}}
+    expect: {status: 200}
+  - http: {url: "https://ai-gateway.vercel.sh/v1/credits", headers: {Authorization: Bearer vck-cc-included123}}
+    expect: {status: 400}
+  - http: {url: "https://ai-gateway.vercel.sh/v1/chat/completions", method: POST, body: "{}",
+           headers: {Authorization: Bearer vck-cc-included123}}
+    expect: {status: 400, json: {error: {message: "$contains:the request names no model"}}}
+  - http: {url: "https://ai-gateway.vercel.sh/v1/chat/completions", method: POST, body: {model: x},
+           headers: {Authorization: Bearer sk-own}}
+    expect: {status: 200}
+  - log: {last: {included: $absent}}
+  - seen: {server: origin, requests: 3}
+---
+name: the gateway's 402 is reworded and classified
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  credentials.json:
+    - {placeholder: vck-cc-included123, match_domain: ai-gateway.vercel.sh, secret: vck_real,
+       locations: ["header:authorization"], allowed_models: [m], included: true}
+steps:
+  - http: {url: "https://ai-gateway.vercel.sh/v1/chat/completions", method: POST, body: {model: m},
+           headers: {Authorization: Bearer vck-cc-included123},
+           respond: {status: 402, headers: {Content-Type: application/json},
+                     body: '{"error": {"type": "quota_for_entity_exceeded", "message": "key api_key_id_1 over $5"}}'}}
+    expect: {status: 402, headers: {content-type: application/json},
+             json: {error: {code: included_tokens_used_up, type: invalid_request_error}}}
+  - log: {last: {included: used_up, status: 402}}
+  - http: {url: "https://ai-gateway.vercel.sh/v1/chat/completions", method: POST, body: {model: m},
+           headers: {Authorization: Bearer vck-cc-included123},
+           respond: {status: 402, body: '{"error": {"message": "Your credit balance is too low"}}'}}
+    expect: {status: 402, json: {error: {code: included_ai_no_credit}}}
+  - log: {last: {included: no_credit}}
+  - http: {url: "https://ai-gateway.vercel.sh/v1/chat/completions", method: POST, body: {model: m},
+           headers: {Authorization: Bearer vck-cc-included123}, respond: {status: 503, body: down}}
+    expect: {status: 503, body: down}
+  - log: {last: {included: $absent}}
+  - http: {url: "https://ai-gateway.vercel.sh/v1/chat/completions", method: POST, body: {model: m},
+           headers: {Authorization: Bearer sk-own}, respond: {status: 402, body: original}}
+    expect: {status: 402, body: original}
+---
+name: a model provider's refusal is classified on the record, without its body
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+  credentials.json:
+    - {placeholder: sk-cc-openai, match_domain: api.openai.com, secret: sk_openai_real, locations: ["header:authorization"], model: true}
+    - {placeholder: sk-ant-cc, match_domain: api.anthropic.com, secret: sk_ant_real, locations: ["header:x-api-key"], model: true}
+    - {placeholder: or-cc, match_domain: openrouter.ai, secret: or_real, locations: ["header:authorization"], model: true}
+    - {placeholder: sk-cc-custom, match_domain: www.origin.test, secret: sk_real, locations: ["header:authorization"], model: true}
+steps:
+  - http: {url: "https://api.openai.com/v1/chat/completions", method: POST, body: {model: x}, headers: {Authorization: Bearer sk-cc-openai},
+           respond: {status: 401, body: '{"error": {"code": "invalid_api_key"}}'}}
+  - log: {last: {model_error: auth, status: 401}}
+  - http: {url: "https://api.openai.com/v1/chat/completions", method: POST, body: {model: x}, headers: {Authorization: Bearer sk-cc-openai},
+           respond: {status: 403, body: '{"error": "region not supported"}'}}
+  - log: {last: {model_error: $absent, status: 403}}
+  - http: {url: "https://api.openai.com/v1/chat/completions", method: POST, body: {model: x}, headers: {Authorization: Bearer sk-cc-openai},
+           respond: {status: 429, body: '{"error": {"type": "insufficient_quota"}}'}}
+  - log: {last: {model_error: credit}}
+  - http: {url: "https://api.anthropic.com/v1/messages", method: POST, body: {model: x}, headers: {X-Api-Key: sk-ant-cc},
+           respond: {status: 400, body: '{"error": {"message": "Your credit balance is too low to access the API"}}'}}
+  - log: {last: {model_error: credit}}
+  - http: {url: "https://openrouter.ai/api/v1/chat", method: POST, body: {model: x}, headers: {Authorization: Bearer or-cc},
+           respond: {status: 402, body: "{}"}}
+  - log: {last: {model_error: credit}}
+  - http: {url: "https://api.openai.com/v1/chat/completions", method: POST, body: {model: x}, headers: {Authorization: Bearer sk-cc-openai},
+           respond: {status: 429, body: '{"error": "slow down"}'}}
+  - log: {last: {model_error: rate_limit}}
+  - http: {url: "https://api.openai.com/v1/chat/completions", method: POST, body: {model: x}, headers: {Authorization: Bearer sk-own},
+           respond: {status: 401, body: "{}"}}
+  - log: {last: {model_error: $absent}}
+  - http: {url: "https://api.openai.com/v1/models", headers: {Authorization: Bearer sk-cc-openai}, respond: {status: 401, body: "{}"}}
+  - log: {last: {model_error: $absent}}
+  - http: {url: "https://www.origin.test/v1/chat", method: POST, body: {model: x}, headers: {Authorization: Bearer sk-cc-custom},
+           respond: {status: 401, body: "{}"}}
+  - log: {last: {model_error: auth}}
+  - http: {url: "https://api.openai.com/v1/chat/completions", method: POST, body: {model: x}, headers: {Authorization: Bearer sk-cc-openai}}
+  - log: {last: {model_error: $absent, status: 200}}

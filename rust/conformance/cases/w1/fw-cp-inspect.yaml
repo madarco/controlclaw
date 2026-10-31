@@ -1,0 +1,41 @@
+name: the firewall agent gives its CA on 3940, marks a box that installed it for inspection, and writes org.json (main #564)
+agent: mitm-agent
+env:
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  CA_CERT_PATH: ca-cert.pem
+  CP_INSPECT_PATH: state/cp-inspect.json
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+  ca-cert.pem: "-----BEGIN CERTIFICATE-----\nMIIBrig\n-----END CERTIFICATE-----\n"
+console:
+  /api/vm-agent/store: [[200, {"alg":"AES-256-GCM","version":3,"salt":"EOAs1CQu5G+TauJ9Vr3rGA==","payload_box":{"nonce":"+YiBQEkV9gqfkwgw","ct":"toh5QvWD2tHplOMcVi5LEyTJNqDVg2yQAC3yP2PzhmN/dDr4VEHKJCrZH0NUbhKCWq+n03F7/zBfXmQhL/I5fO/g9oxQ//o3TP22BpXh6fHOb+I9EQ9ccKbcrpuz033jnKRoBJK1gl+bSNB4wmdTDxcXKgTmipHxDMjKdYdvJtvP4RoccSCUlAypqz/82MiBfie16MA3xrcCHuk5TLQiAVrhFrfa71xTfag3f1W0v+Jv25/eX8dxWL+yp+b8S+VBCvkutcgUmEFEB8WRhu1GcR0EOtkrlLRuHN75RCr6GHc2butnGlo6TpLGHwI2xU3nst2tMgjNCVJD5fk="},"payload_user":{"nonce":"uHdb9w+WFDr6ReZl","ct":"8awnwLeJby/fhRhIdpdAxo0bLvmeiWrsTWcuG5ClyDWxayDvypjnRUOikEtTb8XULqUpnso45CY/0ot4wYiZa5IsTgbe3FlIgEOTbrUhsIhebDmIucGYc2+aHbtIAYs/6EB7RptVjLiU0cPBCNTkfxHMKChdtSv0K1KPs26vVJt/2Bw+hQZTjDVojYtoXGFUk5NclU/RZ7LycCGKqlOOh/NF7OCrM7phbH/C+IULFttOGjde/b9CKst4vCG9bv+e01scbHxrVZfWHxRZXJVS7LaBt7jQT4GJj43nrHssCyWo09QCvyJBSyD+1YE2ZbYKA/I2IB2KbAoQMxI="}}]]
+  /api/vm-agent/egress-rules: [[200, {rules: [], ai: null}]]
+  /api/vm-agent/webhooks: [[200, {hooks: []}]]
+  # The control plane's own cp_inspect is never passed on: only this firewall decides it.
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, private_ip: 127.0.0.1, tailscale: false, cp_inspect: true}, {vm_id: vm_2, private_ip: 10.0.0.9, tailscale: false}]}]]
+ports:
+  tools: CONTROLPLANE_MCP_GATE_PORT
+steps:
+  - name: org.json from ORG_ID; the control plane's cp_inspect dropped
+    files:
+      run/org.json: {json: {org_id: org_1}}
+      run/identities.json: {json: [{vm_id: vm_1, private_ip: 127.0.0.1, tailscale: false, cp_inspect: $absent}, {vm_id: vm_2, private_ip: 10.0.0.9, tailscale: false}]}
+  - name: the CA for an agent of the organization, nothing recorded for a fetch
+    request: {method: GET, path: /ca, port: tools}
+    expect: {status: 200, json: {caCert: "-----BEGIN CERTIFICATE-----\nMIIBrig\n-----END CERTIFICATE-----\n", caSig: $string}}
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, private_ip: 127.0.0.1, tailscale: false, cp_inspect: $absent}, {vm_id: vm_2, private_ip: 10.0.0.9, tailscale: false}], for_ms: 300}
+  - name: another CA's hash is not recorded
+    request: {method: GET, path: "/ca?installed=bdb0f04f7a4297b38085b8b5cd6c193c431e73dd70a1b76669224169518f1ebf", port: tools}
+    expect: {status: 200}
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, private_ip: 127.0.0.1, tailscale: false, cp_inspect: $absent}, {vm_id: vm_2, private_ip: 10.0.0.9, tailscale: false}], for_ms: 300}
+  - name: this CA's hash marks the box for inspection, at once and for good
+    request: {method: GET, path: "/ca?installed=c7f1990ec86c8a977c05b3f6a27852e23ba93d57742add8be19d2b32f8925437", port: tools}
+    expect: {status: 200}
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, private_ip: 127.0.0.1, tailscale: false, cp_inspect: true}, {vm_id: vm_2, private_ip: 10.0.0.9, tailscale: false}]}
+      state/cp-inspect.json: {json: [vm_1]}
+  - name: only GET
+    request: {method: POST, path: /ca, port: tools, json: {}}
+    expect: {status: 405}

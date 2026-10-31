@@ -1,0 +1,59 @@
+name: firewall apps.* commands (Integrations rules)
+agent: mitm-agent
+env:
+  APPS_RULES_PATH: state/apps-rules.enc
+steps:
+  - name: a new store starts with the seeded rule
+    command:
+      id: r1
+      action: apps.read
+      result:
+        command_id: r1
+        ok: true
+        status: read
+        message: ""
+        data:
+          rules:
+            - {id: ask-destructive, name: Ask before destructive integration actions, enabled: true, agents: [],
+               service: null, connectionId: null, match: {kind: operation, operations: [destructive]}, then: ask}
+  - name: a narrowing change applies at once
+    command:
+      id: r2
+      action: apps.propose
+      payload:
+        changeId: c1
+        change:
+          op: put
+          at: 0
+          rule: {id: no-gh-writes, name: No GitHub writes, enabled: true, agents: [], service: github,
+                 connectionId: null, match: {kind: operation, operations: [write]}, then: block}
+      result:
+        command_id: r2
+        ok: true
+        status: applied
+        data: {rules: [{id: no-gh-writes}, {id: ask-destructive}]}
+  - name: a malformed change
+    command:
+      id: r4
+      action: apps.propose
+      payload: {changeId: c3, change: {op: put, rule: {id: x, then: maybe}}}
+      result: {command_id: r4, ok: false, status: failed,
+               message: "The integration rules change could not be applied. Check the input, then retry."}
+  - name: confirm with nothing waiting
+    command:
+      id: r5
+      action: apps.confirm
+      payload: {changeId: c9, code: "123456"}
+      result: {command_id: r5, ok: false, status: expired, message: "", data: {}}
+  - name: cancel
+    command:
+      id: r6
+      action: apps.cancel
+      payload: {changeId: c9}
+      result: {command_id: r6, ok: true, status: cancelled, data: {changeId: c9}}
+  - name: the rules are kept across a restart
+    restart: true
+    command:
+      id: r7
+      action: apps.read
+      result: {command_id: r7, ok: true, status: read, data: {rules: [{id: no-gh-writes}, {id: ask-destructive}]}}

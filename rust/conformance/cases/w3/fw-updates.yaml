@@ -1,0 +1,44 @@
+name: firewall updates, batches, nightly updates and apply, the paths that need no code
+agent: mitm-agent
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  BACKUP_STORE_PATH: state/backup.enc
+  SELF_UPDATE_CONF_PATH: state/update.conf
+  SELF_UPDATE_STATE_PATH: state/update.json
+  AUTO_UPDATE_STORE_PATH: state/auto-update.enc
+  UPDATE_ALL_STORE_PATH: state/update-all.enc
+  RECOVERY_NOTICES_PATH: state/recovery-notices.enc
+  DISK_RESEAL_PATH: state/disk-reseal.enc
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2"}]}]]
+steps:
+  - name: the beat says no update runs and nightly updates are off
+    beat:
+      json_subset: {update: {phase: idle, detail: null, ref: null, at: null}, auto_update: {confirmedAt: null}}
+  - name: a firewall with no update pin is rebuilt instead
+    command: {id: f1, action: firewall-update.propose, payload: {changeId: c1}, result: {command_id: f1, ok: false, status: failed, message: "This firewall was created before in-place updates; it has to be rebuilt instead.", data: {changeId: c1, summary: Update the software on your firewall}}}
+  - command: {id: f2, action: firewall-update.confirm, payload: {changeId: c1, code: "1"}, result: {command_id: f2, ok: false, status: expired, message: "No update is waiting for a code, or the code expired.", data: {changeId: c1}}}
+  - command: {id: f3, action: firewall-update.cancel, payload: {changeId: c1}, result: {command_id: f3, ok: true, status: cancelled, data: {changeId: c1}}}
+  - command: {id: u1, action: update.propose, payload: {changeId: c2}, result: {command_id: u1, ok: false, status: failed, message: "malformed update.propose payload"}}
+  - command: {id: u2, action: update.confirm, payload: {changeId: c2, vmId: vm_1, code: "1"}, result: {command_id: u2, ok: false, status: expired, message: "No update is waiting for a code, or the code expired.", data: {changeId: c2}}}
+  - command: {id: u3, action: update.cancel, payload: {changeId: c2, vmId: vm_1}, result: {command_id: u3, ok: true, status: cancelled, data: {changeId: c2}}}
+  - command: {id: a1, action: apply.propose, payload: {changeId: c3, agents: []}, result: {command_id: a1, ok: false, status: failed, message: "malformed apply.propose payload"}}
+  - name: apply names agents by this firewall's record only
+    command: {id: a2, action: apply.propose, payload: {changeId: c3, agents: [{vmId: vm_x, ref: ref_12345}]}, result: {command_id: a2, ok: false, status: failed, message: "Your firewall does not know that agent. If it was just created, try again in a minute.", data: {changeId: c3}}}
+  - command: {id: a3, action: apply.confirm, payload: {changeId: c3, code: "1"}, result: {command_id: a3, ok: false, status: expired, message: "Nothing is waiting for a code, or the code expired.", data: {changeId: c3}}}
+  - command: {id: a4, action: apply.cancel, payload: {changeId: c3}, result: {command_id: a4, ok: true, status: cancelled, data: {changeId: c3}}}
+  - command: {id: n1, action: auto-update.propose, payload: {}, result: {command_id: n1, ok: false, status: failed, message: Missing change id}}
+  - command: {id: n2, action: auto-update.confirm, payload: {changeId: c4, code: "1"}, result: {command_id: n2, ok: false, status: expired, message: The code expired., data: {changeId: c4}}}
+  - command: {id: n3, action: auto-update.cancel, payload: {changeId: c4}, result: {command_id: n3, ok: true, status: cancelled, data: {changeId: c4}}}
+  - command: {id: n4, action: auto-update.disable, payload: {}, result: {command_id: n4, ok: true, status: applied, data: {confirmedAt: null}}}
+  - name: a box can only be started out of a confirmed batch
+    command: {id: b1, action: update-all.apply, payload: {changeId: c5, vmId: vm_1, hostname: "127.0.0.2"}, result: {command_id: b1, ok: false, status: failed, message: "Your firewall no longer has a confirmed batch. Start the update again.", data: {changeId: c5, vmId: vm_1}}}
+  - command: {id: b2, action: update-all.auto, payload: {changeId: c5, boxes: [{vmId: vm_1, name: atlas, hostname: "127.0.0.2"}], windowEndsAt: "2099-01-01T00:00:00.000Z"}, result: {command_id: b2, ok: false, status: failed, message: Automatic updates are off., data: {changeId: c5, summary: Update the software on atlas}}}
+  - command: {id: b3, action: update-all.propose, payload: {changeId: c5, boxes: [{vmId: vm_1}]}, result: {command_id: b3, ok: false, status: failed, message: "malformed update-all.propose payload"}}
+  - name: a batch with this firewall in it needs an update pin
+    command: {id: b4, action: update-all.propose, payload: {changeId: c5, boxes: [{vmId: fw_1, role: mitm, name: firewall}, {vmId: vm_1, name: atlas, hostname: "127.0.0.2"}]}, result: {command_id: b4, ok: false, status: failed, message: "This firewall was created before in-place updates; it has to be rebuilt instead. Leave it out of the batch.", data: {changeId: c5, summary: Update the software on firewall and atlas, boxes: [fw_1, vm_1]}}}
+  - command: {id: b5, action: update-all.confirm, payload: {changeId: c5, code: "1"}, result: {command_id: b5, ok: false, status: expired, data: {changeId: c5}}}
+  - command: {id: b6, action: update-all.cancel, payload: {changeId: c5}, result: {command_id: b6, ok: true, status: cancelled, data: {changeId: c5}}}

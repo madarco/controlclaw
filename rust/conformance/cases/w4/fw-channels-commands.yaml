@@ -1,0 +1,95 @@
+name: channels commands with nobody approved (first use), an unknown agent, and the store across a restart
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  CHANNEL_STORE_PATH: state/channels.enc
+  STORE_URL: "file:state/no-record.json"
+steps:
+  - name: nobody gets codes yet
+    beat:
+      json_subset: {code_recipients: {approved: []}}
+  - name: a malformed proposal
+    command:
+      id: c_bad
+      action: channels.propose
+      payload: {changeId: x, kind: add, connectionId: c, type: fax}
+      result: {ok: false, status: failed, message: "malformed channels.propose payload"}
+  - name: a malformed push
+    command:
+      id: c_bad2
+      action: channels.push
+      payload: {}
+      result: {ok: false, status: failed, message: "malformed channels.push payload"}
+  - name: no code is waiting
+    command:
+      id: c_conf
+      action: channels.confirm
+      payload: {changeId: chg-0, code: "123456"}
+      result: {ok: false, status: expired, message: "No change is waiting for a code, or the code expired.", data: {changeId: chg-0}}
+  - name: cancel
+    command:
+      id: c_cancel
+      action: channels.cancel
+      payload: {changeId: chg-0}
+      result: {ok: true, status: cancelled, message: "", data: {changeId: chg-0}}
+  - name: the first connection is stored on first use, on no agent
+    command:
+      id: c_add
+      action: channels.propose
+      payload: {changeId: chg-1, kind: add, connectionId: conn-1, type: telegram, hint: "…abcd", label: "@testbot", secret: {botToken: "123456:AAnotarealtoken"}}
+      result:
+        ok: true
+        status: applied
+        data: {changeId: chg-1, summary: "Add a Telegram connection (…abcd)", mode: plain, vmId: null, tofu: true}
+  - name: putting it on an agent the identity map does not list
+    command:
+      id: c_assign
+      action: channels.propose
+      payload: {changeId: chg-2, kind: assign, connectionId: conn-1, type: telegram, label: "@testbot", agent: {vmId: vm_9, name: nine}}
+      result: {ok: false, status: failed, message: "This agent has no hostname yet."}
+  - name: the failed assign still put it on that agent (both builds save before the write)
+    command:
+      id: c_pair
+      action: channels.propose
+      payload: {changeId: chg-3, kind: approve_pairing, connectionId: conn-1, type: telegram, pairing: {code: P1, senderId: "8734"}}
+      result: {ok: false, status: failed, message: "This agent has no hostname yet."}
+  - name: unassigning from an agent the identity map does not list lets it go
+    command:
+      id: c_unassign
+      action: channels.propose
+      payload: {changeId: chg-3b, kind: unassign, connectionId: conn-1, type: telegram}
+      result: {ok: true, status: applied, data: {vmId: null, tofu: true}}
+  - name: approving somebody on a connection that is on no agent
+    command:
+      id: c_pair2
+      action: channels.propose
+      payload: {changeId: chg-3c, kind: approve_pairing, connectionId: conn-1, type: telegram, pairing: {code: P1, senderId: "8734"}}
+      result: {ok: false, status: failed, message: "This connection is not on an agent, so nobody can be approved on it."}
+  - name: the store survives a restart; a push for an agent with nothing on it
+    restart: true
+    command:
+      id: c_push
+      action: channels.push
+      payload: {vmId: vm_unknown}
+      result: {ok: true, status: applied, data: {vmId: vm_unknown, applied: [], failed: []}}
+  - name: removing it
+    command:
+      id: c_rm
+      action: channels.propose
+      payload: {changeId: chg-4, kind: remove, connectionId: conn-1, type: telegram, label: "@testbot"}
+      result: {ok: true, status: applied, data: {summary: "Remove Telegram @testbot from the organization", vmId: null, tofu: true}}
+  - name: removing one this firewall never had
+    command:
+      id: c_rm2
+      action: channels.propose
+      payload: {changeId: chg-5, kind: remove, connectionId: conn-9, type: slack}
+      result: {ok: true, status: applied, data: {vmId: null, missing: true, tofu: true}}
+  - name: the tap listener refuses what is not taps
+    request: {method: POST, path: /, listener: !port 8793, json: {queries: 5}}
+    expect: {status: 403, body: "{\"ok\":false}"}
+  - name: and takes taps it decides later
+    request: {method: POST, path: /, listener: !port 8793, json: {botId: "123456", queries: []}}
+    expect: {status: 200, body: "{\"ok\":true}"}

@@ -1,0 +1,54 @@
+name: the firewall pushes a model to the organization's brain, which is in the identity map as role gbrain
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  LLM_STORE_PATH: state/llm.enc
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  GBRAIN_STORE_PATH: state/gbrain.enc
+fake_agent:
+  /llm/apply: [[200, {ok: true}], [200, {ok: true}]]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.3", private_ip: 10.0.0.5}, {vm_id: vm_b, role: gbrain, hostname: "127.0.0.2", private_ip: 10.0.0.9}]}]]
+steps:
+  - name: the map is synced, the brain in it
+    files:
+      run/identities.json: {json: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.3", private_ip: 10.0.0.5, tailscale: false}, {vm_id: vm_b, role: gbrain, hostname: "127.0.0.2", private_ip: 10.0.0.9, tailscale: false}]}
+  - name: the included key, first use, for the brain
+    command:
+      id: c_add
+      action: llm.propose
+      payload:
+        changeId: chg-1
+        kind: add
+        credentialId: cred-inc
+        provider: controlclaw
+        providerName: Included AI tokens
+        credKind: api_key
+        placeholder: vck-cc-included123
+        hint: Included
+        profileId: controlclaw:included
+        swap: {matchDomain: ai-gateway.vercel.sh, locations: ["header:authorization"]}
+        allowedModels: [moonshotai/kimi-k2.6]
+        agents: [{vmId: vm_b, name: brain, hostname: brain.vm.example, model: controlclaw/moonshotai/kimi-k2.6, role: primary}]
+        secret: {apiKey: vck_real_key}
+      result:
+        command_id: c_add
+        ok: true
+        status: applied
+        data: {changeId: chg-1, mode: placeholder, applied: [vm_b], failed: [], tofu: true}
+    agent_received:
+      - {path: /llm/apply, method: POST}
+  - name: the hourly push reaches the brain
+    command:
+      id: c_push
+      action: llm.push
+      payload: {vmId: vm_b}
+      result: {command_id: c_push, ok: true, status: applied, data: {vmId: vm_b, applied: [cred-inc], failed: []}}
+    agent_received:
+      - {path: /llm/apply, method: POST}

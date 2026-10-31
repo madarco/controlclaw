@@ -1,0 +1,60 @@
+name: firewall logins.* commands, the agent's login tools on 3940 and the logins page's refusals
+agent: mitm-agent
+env:
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  APPS_RULES_PATH: state/apps-rules.enc
+  MCP_SERVERS_STORE_PATH: state/mcp-servers.enc
+  MCP_CATALOG_PATH: state/mcp-catalog.enc
+  MCP_ASKS_PATH: state/mcp-asks.json
+  MCP_SERVER_CALLS_PATH: state/mcp-server-calls.jsonl
+ports:
+  tools: CONTROLPLANE_MCP_GATE_PORT
+steps:
+  - name: no logins yet
+    command:
+      id: l1
+      action: logins.read
+      result: {command_id: l1, ok: true, status: read, message: "", data: {logins: [], onePassword: null}}
+  - name: disconnecting a 1Password that is not there
+    command:
+      id: l2
+      action: logins.1password_disconnect
+      result: {command_id: l2, ok: true, status: applied, message: "", data: {logins: [], onePassword: null}}
+  - name: a 1Password read with nothing connected
+    command:
+      id: l3
+      action: logins.1password_sync
+      result: {command_id: l3, ok: true, status: applied, message: Reading 1Password now. Refresh in a minute., data: {logins: [], onePassword: null}}
+  - name: a malformed change
+    command:
+      id: l4
+      action: logins.propose
+      payload: {action: update, id: nope, changeId: c1}
+      result: {command_id: l4, ok: false, status: failed, message: That change is not valid.}
+  - name: a change to a login it does not have
+    command:
+      id: l5
+      action: logins.propose
+      payload: {action: delete, id: lg_abcdefgh1234, changeId: c2}
+      result: {command_id: l5, ok: false, status: failed, message: That login is gone. Refresh the page.}
+  - name: confirm with nothing waiting
+    command:
+      id: l6
+      action: logins.confirm
+      payload: {id: lg_abcdefgh1234, changeId: c2, code: "1"}
+      result: {command_id: l6, ok: false, status: expired, message: ""}
+  - name: cancel
+    command:
+      id: l7
+      action: logins.cancel
+      payload: {id: lg_abcdefgh1234, changeId: c2}
+      result: {command_id: l7, ok: true, status: cancelled, message: ""}
+  - name: the login tools refuse a caller that is no agent of the organization
+    request: {method: POST, path: /logins/mcp, port: tools, json: {jsonrpc: "2.0", id: 1, method: tools/list}}
+    expect: {status: 403, body: ""}
+  - name: the logins page without a grant
+    request: {method: GET, path: /__cc/logins/state, listener: ingress}
+    expect: {status: 403, json: {message: This page has expired. Open Logins again from your ControlClaw console.}}
+  - name: opening the logins page from another origin
+    request: {method: POST, path: /__cc/logins/open, listener: ingress, headers: {origin: "https://evil.example"}, json: {intent: x}}
+    expect: {status: 403, body: ""}

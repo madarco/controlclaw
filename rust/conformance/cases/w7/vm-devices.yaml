@@ -1,0 +1,23 @@
+name: vm-agent /devices with no gateway and no CLI (the listing says why, writes refuse)
+agent: vm-agent
+steps:
+  - name: the console reads the list, and an unreadable list is an error, not empty
+    request: {method: GET, path: /devices, token: {signer: console}}
+    expect:
+      status: 200
+      json: {pending: [], paired: [], error: {busy: false, message: "The agent could not list its paired devices: spawn /usr/bin/openclaw ENOENT"}}
+  - name: the console never approves
+    request: {method: POST, path: /devices/approve, json: {requestId: req-1}, token: {signer: console}}
+    expect: {status: 401, json: {error: device approvals must come from the org firewall}}
+  - name: a mangled id
+    request: {method: POST, path: /devices/approve, json: {requestId: "a b"}, token: {signer: firewall, bind: true, claims: {purpose: devices}}}
+    expect: {status: 400, json: {ok: false, error: requestId required}}
+  - name: remove needs a device id
+    request: {method: POST, path: /devices/remove, json: {requestId: req-1}, token: {signer: firewall, bind: true, claims: {purpose: devices}}}
+    expect: {status: 400, json: {ok: false, error: deviceId required}}
+  - name: an approve the CLI cannot run is a 500 with why
+    request: {method: POST, path: /devices/approve, json: {requestId: req-1}, token: {signer: firewall, bind: true, claims: {purpose: devices}}}
+    expect: {status: 500, json: {ok: false, error: "spawn /usr/bin/openclaw ENOENT"}}
+  - name: an unknown devices route
+    request: {method: POST, path: /devices/other, json: {}, token: {signer: firewall, bind: true, claims: {purpose: devices}}}
+    expect: {status: 404, json: {error: Not found}}

@@ -1,0 +1,111 @@
+name: vm-agent /__cc Origin checks and forged cookies
+agent: vm-agent
+files:
+  keys/session_secret: "0909090909090909090909090909090909090909090909090909090909090909\n"
+  keys/access_hostname: "agent.vm.example\n"
+  keys/config_api_url: "https://console.example/api/vm-agent/config\n"
+steps:
+  - name: a session opens the agent
+    request: {method: GET, path: /__cc/verify, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 200}
+  - name: from the access hostname too
+    request: {method: GET, path: /__cc/verify, headers: {origin: "https://agent.vm.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 200}
+  - name: another box's page is refused even with a valid session
+    request: {method: GET, path: /__cc/verify, headers: {origin: "https://other.vm.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 401}
+  - name: so is the console's
+    request: {method: GET, path: /__cc/verify, headers: {origin: "https://console.example"}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 401}
+  - name: a request that says it is cross-site
+    request: {method: GET, path: /__cc/verify, headers: {sec-fetch-site: cross-site}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 401}
+  - name: a WebSocket upgrade from another box (forward_auth asks with a GET)
+    request:
+      method: GET
+      path: /__cc/verify
+      headers: {origin: "https://other.vm.example", x-forwarded-method: GET, upgrade: websocket}
+      token: {signer: session, cookie: __Host-cc_session}
+    expect: {status: 401}
+  - name: a write forwarded without an Origin
+    request: {method: GET, path: /__cc/verify, headers: {x-forwarded-method: POST}, token: {signer: session, cookie: __Host-cc_session}}
+    expect: {status: 401}
+  - name: following a link from another site to one's own agent
+    request:
+      method: GET
+      path: /__cc/verify
+      headers: {sec-fetch-site: cross-site, sec-fetch-mode: navigate, sec-fetch-dest: document}
+      token: {signer: session, cookie: __Host-cc_session}
+    expect: {status: 200}
+  - name: but not into a frame
+    request:
+      method: GET
+      path: /__cc/verify-view
+      headers: {sec-fetch-site: cross-site, sec-fetch-mode: navigate, sec-fetch-dest: iframe}
+      token: {signer: session, cookie: __Host-cc_session}
+    expect: {status: 401}
+  - name: a view token in the session cookie
+    request: {method: GET, path: /__cc/verify, token: {signer: session, cookie: __Host-cc_session, claims: {aud: view}}}
+    expect: {status: 401}
+  - name: a session token in the view cookie
+    request: {method: GET, path: /__cc/verify-view, token: {signer: session, cookie: __Secure-cc_view}}
+    expect: {status: 401}
+  - name: a view cookie opens the live browser
+    request: {method: GET, path: /__cc/verify-view, token: {signer: session, cookie: __Secure-cc_view, claims: {aud: view}}}
+    expect: {status: 200}
+  - name: but not the agent
+    request: {method: GET, path: /__cc/verify, token: {signer: session, cookie: __Secure-cc_view, claims: {aud: view}}}
+    expect: {status: 401}
+  - name: another box's session
+    request: {method: GET, path: /__cc/verify, token: {signer: session, cookie: __Host-cc_session, claims: {sub: vm_2}}}
+    expect: {status: 401}
+  - name: an expired session
+    request: {method: GET, path: /__cc/verify, token: {signer: session, cookie: __Host-cc_session, lifetime: -5}}
+    expect: {status: 401}
+  - name: a cookie tossed in twice is read as none
+    request:
+      method: GET
+      path: /__cc/verify
+      headers: {cookie: "__Host-cc_session=x"}
+      token: {signer: session, cookie: __Host-cc_session}
+    expect: {status: 401}
+  - name: a device's session, before the revoke
+    request: {method: GET, path: /__cc/verify, token: {signer: session, cookie: __Host-cc_session, claims: {dev: dev_a}}}
+    expect: {status: 200}
+  - name: the firewall revokes it
+    request:
+      method: POST
+      path: /access/revoke
+      json: {deviceIds: [dev_a]}
+      token: {signer: firewall, bind: true, claims: {purpose: access}}
+    expect: {status: 200, json: {ok: true, revoked: 1}}
+  - name: the revoked device is out
+    request: {method: GET, path: /__cc/verify, token: {signer: session, cookie: __Host-cc_session, claims: {dev: dev_a}}}
+    expect: {status: 401}
+  - name: and out of the live browser
+    request: {method: GET, path: /__cc/verify-view, token: {signer: session, cookie: __Secure-cc_view, claims: {aud: view, dev: dev_a}}}
+    expect: {status: 401}
+  - name: another device is still in
+    request: {method: GET, path: /__cc/verify, token: {signer: session, cookie: __Host-cc_session, claims: {dev: dev_b}}}
+    expect: {status: 200}
+  - name: the revoke survives a restart
+    restart: true
+    request: {method: GET, path: /__cc/verify, token: {signer: session, cookie: __Host-cc_session, claims: {dev: dev_a}}}
+    expect: {status: 401}
+  - name: sign out all browsers
+    request:
+      method: POST
+      path: /access/revoke
+      json: {all: true}
+      # Newer than the last token taken before the restart.
+      token: {signer: firewall, bind: true, iat_offset: 2, claims: {purpose: access}}
+    expect: {status: 200, json: {ok: true, all: true}}
+  - name: a session from before is out
+    request: {method: GET, path: /__cc/verify, token: {reuse: another device is still in, signer: session, cookie: __Host-cc_session}}
+    expect: {status: 401}
+  - name: logout with no Origin
+    request: {method: POST, path: /__cc/logout}
+    expect: {status: 403}
+  - name: logout from the box itself
+    request: {method: POST, path: /__cc/logout, headers: {origin: "https://box.example"}}
+    expect: {status: 200}

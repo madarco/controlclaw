@@ -1,0 +1,32 @@
+name: AI review history doors with no grant
+agent: mitm-agent
+shims:
+  - argv: [systemctl, is-active, controlclaw-mitmproxy]
+    stdout: "inactive\n"
+    code: 3
+env:
+  STORE_URL: "file:state/no-record.json"
+  CHANNEL_STORE_PATH: state/channels.enc
+  AI_TRACE_DIR: state/ai-review-traces
+steps:
+  - name: the open script
+    request: {method: GET, path: /__cc/doctor/ai-review/open.js, listener: ingress}
+    expect:
+      status: 200
+      body: "const p=new URLSearchParams(location.hash.slice(1)),intent=p.get(\"i\"),run=p.get(\"run\");history.replaceState(null,\"\",location.pathname+(run?\"#run=\"+encodeURIComponent(run):\"\"));if(!intent){document.getElementById(\"status\").textContent=\"Open the review history from the console.\"}else{const form=document.createElement(\"form\");form.method=\"POST\";form.action=\"/__cc/doctor/ai-review/open\"+(run?\"#run=\"+encodeURIComponent(run):\"\");const input=document.createElement(\"input\");input.type=\"hidden\";input.name=\"intent\";input.value=intent;form.append(input);document.body.append(form);form.submit()}"
+      headers: {content-type: "text/javascript; charset=utf-8", cache-control: no-store, x-content-type-options: nosniff, referrer-policy: same-origin, content-security-policy: "default-src 'none'; script-src 'self'; style-src 'self'; font-src data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"}
+  - name: the open page
+    request: {method: GET, path: /__cc/doctor/ai-review/open, listener: ingress}
+    expect: {status: 200, headers: {content-type: "text/html; charset=utf-8"}}
+  - name: an open from another origin
+    request: {method: POST, path: /__cc/doctor/ai-review/open, listener: ingress, headers: {origin: "https://evil.example", content-type: application/x-www-form-urlencoded}, body: "intent=x"}
+    expect: {status: 403}
+  - name: an agent's page with no cookie
+    request: {method: GET, path: /__cc/doctor/ai-review/a/vm-agent-0001/, listener: ingress}
+    expect: {status: 403, headers: {content-type: "text/html; charset=utf-8"}}
+  - name: an agent's runs with no cookie
+    request: {method: GET, path: /__cc/doctor/ai-review/a/vm-agent-0001/runs, listener: ingress}
+    expect: {status: 403}
+  - name: the root
+    request: {method: GET, path: /__cc/doctor/ai-review, listener: ingress}
+    expect: {status: 403}

@@ -1,0 +1,36 @@
+name: vm-agent refuses console tokens that are not for this route or box
+agent: vm-agent
+steps:
+  - name: a browser login token (it has a purpose)
+    request: {method: GET, path: /health, token: {signer: console, claims: {purpose: browser-login}}}
+    expect: {status: 401, body: '{"error":"Unauthorized"}'}
+  - name: a null purpose still counts as one
+    request: {method: GET, path: /health, token: {signer: console, claims: {purpose: null}}}
+    expect: {status: 401}
+  - name: another box
+    request: {method: GET, path: /health, token: {signer: console, claims: {vmId: vm_2}}}
+    expect: {status: 401}
+  - name: expired
+    request: {method: GET, path: /health, token: {signer: console, lifetime: -5}}
+    expect: {status: 401}
+  - name: signed by the firewall instead
+    request: {method: GET, path: /health, token: {signer: firewall}}
+    expect: {status: 401}
+  - name: a path that is not on the list
+    request: {method: GET, path: /logs, token: {signer: console}}
+    expect: {status: 401}
+  - name: a method that is not on the list
+    request: {method: POST, path: /health, token: {signer: console}}
+    expect: {status: 401}
+  - name: an unknown path
+    request: {method: GET, path: /nope, token: {signer: console}}
+    expect: {status: 401, body: '{"error":"Unauthorized"}'}
+  - name: dot segments are resolved before the list is read
+    request: {method: GET, path: /channels/../health, token: {signer: console}}
+    expect: {status: 200}
+  - name: the query is not part of the path
+    request: {method: GET, path: "/health?fresh=1", token: {signer: console}}
+    expect: {status: 200}
+  - name: not a bearer
+    request: {method: GET, path: /health, headers: {authorization: "Basic eDp5"}}
+    expect: {status: 401}

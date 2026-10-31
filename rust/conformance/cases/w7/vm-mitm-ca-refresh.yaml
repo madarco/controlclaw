@@ -1,0 +1,9 @@
+name: vm-agent POST /mitm-ca/refresh on a box with no firewall
+agent: vm-agent
+steps:
+  - name: nothing to install is trusted
+    request: {method: POST, path: /mitm-ca/refresh, token: {signer: console}}
+    expect: {status: 200, json: {ok: true, installed: false, message: This box is not behind a firewall proxy.}}
+  - name: the console's token only
+    request: {method: POST, path: /mitm-ca/refresh}
+    expect: {status: 401, json: {error: Unauthorized}}

@@ -1,0 +1,21 @@
+name: vm-agent /agentmail (firewall only, the checks, an apply answered at once)
+agent: vm-agent
+steps:
+  - name: the console cannot even read it
+    request: {method: GET, path: /agentmail/status, token: {signer: console}}
+    expect: {status: 401, json: {error: AgentMail changes must come from the org firewall}}
+  - name: nothing applied yet
+    request: {method: GET, path: /agentmail/status, token: {signer: firewall, bind: true, claims: {purpose: agentmail}}}
+    expect: {status: 200, json: {apply: null}}
+  - name: an unknown path
+    request: {method: POST, path: /agentmail/other, json: {}, token: {signer: firewall, bind: true, claims: {purpose: agentmail}}}
+    expect: {status: 404, json: {error: Not found}}
+  - name: a real key is refused
+    request: {method: POST, path: /agentmail/apply, json: {placeholder: am_live_123, inboxId: bot@agentmail.to, humanEmail: ada@example.com}, token: {signer: firewall, bind: true, claims: {purpose: agentmail}}}
+    expect: {status: 400, json: {error: Invalid AgentMail configuration}}
+  - name: an injected sender is refused
+    request: {method: POST, path: /agentmail/apply, json: {placeholder: CC-AMAIL-0123456789abcdef0123456789abcdef, inboxId: bot@agentmail.to, humanEmail: ada@example.com, allowedSenders: ["a@b.co\nX=1"]}, token: {signer: firewall, bind: true, claims: {purpose: agentmail}}}
+    expect: {status: 400, json: {error: Invalid AgentMail configuration}}
+  - name: a good apply is answered at once, pending
+    request: {method: POST, path: /agentmail/apply, json: {placeholder: CC-AMAIL-0123456789abcdef0123456789abcdef, inboxId: bot@agentmail.to, humanEmail: ada@example.com, allowedSenders: [ada@example.com, ada@example.com, bob@example.com]}, token: {signer: firewall, bind: true, claims: {purpose: agentmail}}}
+    expect: {status: 200, json: {ok: true, inboxId: bot@agentmail.to, placeholder: CC-AMAIL-0123456789abcdef0123456789abcdef, allowedSenders: [ada@example.com, bob@example.com], status: pending}}

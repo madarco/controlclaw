@@ -1,0 +1,122 @@
+{
+  "name": "w2 AgentMail paths with dot segments, and HTML references as CPython's html.unescape reads them",
+  "files": {
+    "content-rules.json": {
+      "version": 1,
+      "rules": [
+        {
+          "id": "cust",
+          "name": "cust",
+          "direction": "out",
+          "channels": [
+            "slack"
+          ],
+          "patterns": [
+            "customer list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "cust reason"
+        },
+        {
+          "id": "garcon",
+          "name": "garcon",
+          "direction": "out",
+          "channels": [
+            "slack"
+          ],
+          "patterns": [
+            "garçon list"
+          ],
+          "detectors": [],
+          "action": "block",
+          "reason": "garcon reason"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "name": "an AgentMail send with a dot segment goes through the email rules",
+      "loopback": {
+        "email": {
+          "/": [
+            {
+              "status": 200,
+              "json": {
+                "ok": true,
+                "decision": "refuse",
+                "reason": "not_allowed"
+              }
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "POST",
+        "host": "api.agentmail.to",
+        "path": "/v0/inboxes/ana%40agentmail.to/messages/x/../send",
+        "json": {
+          "to": [
+            "eve@y.com"
+          ],
+          "text": "body"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "upstream": "none",
+        "json_subset": {
+          "error": "email_refused"
+        }
+      }
+    },
+    {
+      "name": "a code point HTML forbids does not split a word (cust&#1;omer)",
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.postMessage",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        },
+        "json": {
+          "channel": "C1",
+          "text": "the cust&#1;omer list"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json_subset": {
+          "ok": false,
+          "error": "blocked_by_organization_rules"
+        }
+      }
+    },
+    {
+      "name": "a named reference mail does not use is decoded (&ccedil;)",
+      "request": {
+        "method": "POST",
+        "host": "slack.com",
+        "path": "/api/chat.postMessage",
+        "headers": {
+          "Authorization": "Bearer __cc_slack_bot_conn1"
+        },
+        "json": {
+          "channel": "C1",
+          "text": "the gar&ccedil;on list"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "upstream": "none",
+        "json_subset": {
+          "ok": false,
+          "error": "blocked_by_organization_rules"
+        }
+      }
+    }
+  ],
+  "addon_has": "_content_evaluate_shown"
+}

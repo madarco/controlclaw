@@ -1,0 +1,58 @@
+name: firewall health probe reads an agent's summary with a token bound to that read
+agent: mitm-agent
+fake_agent:
+  /health/summary:
+    - [200, {now: 5, openclaw: {state: running, gateway: true, extra: x}, disk: {usedPct: 40.5, freeBytes: 1000}, memory: [], load1: "high", cpus: 2, clock: null, dns: {ok: true, ms: 3, reason: "Bad Reason"}, egress: {ok: "yes"}, rebootRequired: false, secret: dropped}]
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, hostname: "127.0.0.2", name: atlas, private_ip: 10.0.0.2}]}]]
+steps:
+  - name: the reach round at start lands on the beat
+    beat:
+      json_subset: {agents_reach: [{vm_id: vm_1, ok: true, at: $number, last_ok_at: $number, down_since: null, error: null, ms: $number}]}
+  - name: the read is signed for the health route on that host only
+    agent_received:
+      - path: /health/summary
+        method: GET
+        json_subset: {claims: {vmId: vm_1, purpose: health, iss: fw_1, m: GET, p: /health/summary, h: "127.0.0.2", jti: $uuid, iat: $number, exp: $number}, body: null}
+  - name: a probe of a known agent hands back its summary, field by field
+    command:
+      id: cmd_h1
+      action: health.probe
+      payload: {vmId: vm_1, hostname: evil.example}
+      result:
+        command_id: cmd_h1
+        ok: true
+        status: done
+        message: ""
+        data: {vmId: vm_1, known: true, reachable: true, ms: $number, error: null, outdated: false, summary: {now: 5, openclaw: {state: running, gateway: true}, disk: {usedPct: 40.5, freeBytes: 1000}, memory: {usedPct: null, totalBytes: null}, load1: null, cpus: 2, clock: null, dns: {ok: true, ms: 3, reason: null}, egress: {ok: false, ms: null, reason: null}, rebootRequired: false}}
+  - name: an agent this firewall does not know is not called
+    command:
+      id: cmd_h2
+      action: health.probe
+      payload: {vmId: vm_9}
+      result: {command_id: cmd_h2, ok: false, status: failed, message: "This firewall does not know that agent.", data: {vmId: vm_9, known: false}}
+  - name: an older agent refuses the route, which still proves it is up
+    agent_answers:
+      /health/summary: [[404, {error: "Not found"}]]
+    command:
+      id: cmd_h3
+      action: health.probe
+      payload: {vmId: vm_1}
+      result: {command_id: cmd_h3, ok: true, status: done, data: {vmId: vm_1, known: true, reachable: true, ms: $number, error: null, outdated: true, summary: null}}
+  - name: a token the agent refused names why
+    agent_answers:
+      /health/summary: [[401, {error: "the firewall's token was refused (unbound)"}]]
+    command:
+      id: cmd_h4
+      action: health.probe
+      payload: {vmId: vm_1}
+      result: {command_id: cmd_h4, ok: true, data: {reachable: true, outdated: false, refused: unbound, summary: null}}
+  - name: an agent whose service is down
+    agent_answers:
+      /health/summary: [[502, {}]]
+    command:
+      id: cmd_h5
+      action: health.probe
+      payload: {vmId: vm_1}
+      result: {command_id: cmd_h5, ok: true, data: {reachable: false, error: service_down, outdated: false, summary: null}}

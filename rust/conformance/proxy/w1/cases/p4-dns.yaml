@@ -1,0 +1,70 @@
+# P4: DNS and non-routable targets (feature 11), ported from test_non_routable.py. The address
+# checks are unit-tested in net/target.rs (classifier, is_global, own addresses).
+name: a CONNECT to the metadata address is refused whatever the Host header says
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "http://harmless.example.com/latest/meta-data/", connect: "169.254.169.254:80"}
+    expect: {status: 403, json: {error: non_routable_target, host: "169.254.169.254", tenant: rig-org,
+                                 reason: "169.254.169.254 is a link-local address; the firewall never connects there"}}
+  - log:
+      records: [{effect: block, rule: non_routable_target, status: 403, port: 80, vm_id: test-agent,
+                 error: "169.254.169.254 is a link-local address; the firewall never connects there"}]
+---
+name: a name that resolves to the metadata address is refused
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {via: absolute, url: "http://metadata.test/latest/"}
+    expect: {status: 403, json: {error: non_routable_target, host: metadata.test,
+                                 reason: "metadata.test (169.254.169.254) is a link-local address; the firewall never connects there"}}
+---
+name: a name with any refused address is refused
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {via: absolute, url: "http://mixed.test/"}
+    expect: {status: 403, json: {error: non_routable_target, reason: "$contains:loopback"}}
+  - http: {via: absolute, url: "http://mapped.test/"}
+    expect: {status: 403, json: {error: non_routable_target, reason: "$contains:link-local"}}
+  - seen: {server: origin, connections: 0}
+---
+name: loopback is refused by address and by name
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {via: absolute, url: "http://127.0.0.1:3100/health"}
+    expect: {status: 403, json: {error: non_routable_target, reason: "$contains:loopback"}}
+  - http: {via: absolute, url: "http://loopback.test:3101/judge", method: POST, body: "{}"}
+    expect: {status: 403, json: {error: non_routable_target}}
+  - seen: {server: judge, requests: 0}
+---
+name: public and private targets are not refused by the address check
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {via: absolute, url: "http://origin.test/ok"}
+    expect: {status: 200, json: {path: /ok}}
+  - http: {via: absolute, url: "http://private.test:5432/"}
+    expect: {status: 502}
+  - log: {last: {effect: allow, host: private.test, error: $string}}
+---
+name: a name that does not resolve is refused when it is dialled, with one record
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {via: absolute, url: "http://nowhere.invalid/x"}
+    expect: {status: 502, body_contains: "refused by the firewall: could not resolve nowhere.invalid"}
+  - log:
+      records: [{flow_id: "$re:^nr_[0-9a-f]{24}$", effect: block, rule: non_routable_target,
+                 host: nowhere.invalid, port: 80, error: "$contains:could not resolve nowhere.invalid"}]
+---
+name: an intercepted name that does not resolve is refused when it is dialled
+skip: {mitmproxy: "dialled the CONNECT address before #511"}
+files:
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - http: {url: "https://nowhere.invalid/x", connect: "203.0.113.10:443"}
+    expect: {status: 502, body_contains: "could not resolve nowhere.invalid"}
+  - seen: {server: origin, connections: 0}
+  - log: {records: [{effect: block, rule: non_routable_target, host: nowhere.invalid, port: 443}]}

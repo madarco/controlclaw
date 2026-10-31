@@ -1,0 +1,22 @@
+name: vm-agent GET /status reads a crash loop from the journal
+agent: vm-agent
+shims:
+  - argv: [systemctl, is-active, openclaw]
+    stdout: "activating\n"
+    code: 3
+  - argv: [systemctl, status, openclaw]
+    stdout: "openclaw.service - OpenClaw\n   Active: activating (auto-restart)\n"
+    code: 3
+  - argv: [sudo, -n, journalctl, -u, openclaw, --since, -120s, --no-pager, -o, cat]
+    stdout: "openclaw.service: Scheduled restart job, restart counter is at 5.\nstarting\nopenclaw.service: Scheduled restart job, restart counter is at 6.\nopenclaw.service: Scheduled restart job, restart counter is at 7.\nopenclaw.service: Scheduled restart job, restart counter is at 8.\n"
+steps:
+  - request: {method: GET, path: /status, token: {signer: console}}
+    expect:
+      status: 200
+      json_subset:
+        active: false
+        status: activating
+        state: crashing
+        message: "openclaw.service - OpenClaw\n   Active: activating (auto-restart)"
+      calls_include:
+        - [sudo, -n, journalctl, -u, openclaw, --since, -120s, --no-pager, -o, cat]
