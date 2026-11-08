@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build the page assets the firewall agent serves (`dist-ui/`: the stylesheet, the Logs page
-# script, the Doctor start script, and the local panel `panel.*`) into <out>, one file per line of
-# rust/scripts/box-ui.
+# script, the Doctor start script, the local panel `panel.*` and its app logos `connector-icons.pack`)
+# into <out>, one file per line of rust/scripts/box-ui.
 #
 #   rust/scripts/build-ui.sh <out>
 #

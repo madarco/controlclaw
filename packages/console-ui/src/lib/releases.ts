@@ -20,7 +20,12 @@ export type Release = {
   /** YYYY-MM-DD. */
   date: string;
   changes: string[];
+  /** Optional in the file; `releaseKind` derives it from the version when absent. */
+  kind?: ReleaseKind;
 };
+
+export type ReleaseKind = "major" | "minor" | "patch";
+const KINDS: readonly string[] = ["major", "minor", "patch"] satisfies ReleaseKind[];
 
 /** The changes between two releases, ready to draw. `more` counts the lines left out. */
 export type ReleaseChanges = { lines: string[]; more: number };
@@ -68,9 +73,21 @@ export function parseReleases(body: unknown): Release[] | null {
       date: r.date,
       changes,
       ...(typeof r.commit === "string" && r.commit.length >= 7 ? { commit: r.commit } : {}),
+      ...(typeof r.kind === "string" && KINDS.includes(r.kind) ? { kind: r.kind as ReleaseKind } : {}),
     });
   }
   return out.sort((a, b) => compareVersions(b.version, a.version));
+}
+
+/**
+ * Major, minor or patch: what the entry says, else the step its version took (`release.sh`
+ * bumps one part and zeroes the ones after it, so 1.4.0 is a minor and 2.0.0 a major).
+ */
+export function releaseKind(release: Pick<Release, "version" | "kind">): ReleaseKind {
+  if (release.kind) return release.kind;
+  const [, minor, patch] = release.version.split(".").map(Number);
+  if (patch !== 0) return "patch";
+  return minor !== 0 ? "minor" : "major";
 }
 
 /** What a box says it has installed, as far as naming it goes. */

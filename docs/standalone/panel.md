@@ -96,6 +96,10 @@ script, in the theme's colours by `prefers-color-scheme`).
   other path outside `/api/`, so the panel's own routes load the app. No part of the path reaches the
   file system. The page is sent with `Cache-Control: no-store` and a CSP that allows only the
   firewall's own origin.
+- The app logos (`packages/console-ui/connector-icons/`) go in one more flat file,
+  `connector-icons.pack`, written by `build-fw-files.mjs` and listed in `box-ui`. `panel.rs` reads it
+  once and serves `/connector-icons/<version>/<service>.webp` from it, cached for a year (the
+  version is in the path). Any other path under `/connector-icons/` is a 404.
 - A firewall in SaaS mode has the files too, and never serves them.
 - `pnpm --filter @controlclaw/firewall-panel dev` runs the panel on Vite with `/api` proxied to
   `PANEL_API` (`http://127.0.0.1:8800` by default).

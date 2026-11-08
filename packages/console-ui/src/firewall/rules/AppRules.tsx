@@ -132,7 +132,7 @@ export function AppsTable({
                 title={r.name}
                 sub={
                   <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                    {r.app ? <AppLogo name={r.app.name} home={r.app.home ?? undefined} size={15} /> : null}
+                    {r.app ? <AppLogo name={r.app.name} home={r.app.home ?? undefined} service={r.app.service} icon={r.app.icon} size={15} /> : null}
                     {[r.app?.name ?? (r.rule.service ? integrationLabel(r.rule.service) : "Any integration"), r.detail].filter(Boolean).join(" · ")}
                   </span>
                 }

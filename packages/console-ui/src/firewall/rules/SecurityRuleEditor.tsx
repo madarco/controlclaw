@@ -73,6 +73,7 @@ const KIND_OPTIONS: Array<{ value: PermissionKind; label: string }> = [
   { value: "payment", label: "Payment" },
   { value: "delete", label: "Delete" },
   { value: "access", label: "Outbound call" },
+  { value: "app_call", label: "App or MCP tool call" },
   { value: "exec", label: "Shell command" },
   { value: "plugin", label: "Plugin action" },
   { value: "system", label: "System agent" },

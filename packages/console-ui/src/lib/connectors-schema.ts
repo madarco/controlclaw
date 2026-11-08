@@ -131,6 +131,8 @@ export type ConnectorConnectionView = {
   serviceName: string;
   /** The app's home page from the catalog, for the colour of its logo tile. */
   home?: string;
+  /** The catalog has a logo for it (`connectorIconUrl`). */
+  icon?: boolean;
   authType: ConnectorAuthType;
   label: string | null;
   accountLabel: string | null;
@@ -282,6 +284,8 @@ export type CatalogProvider = {
   actions: number;
   desc?: string;
   home?: string;
+  /** A logo is bundled for it (`packages/console-ui/connector-icons/`, see `connectorIconUrl`). */
+  icon?: boolean;
 };
 
 /** A catalog entry as the picker sees it: the pinned row plus whether we wrote a setup guide. */

@@ -48,13 +48,13 @@ export interface IntegrationsPanelProps {
   live?: boolean;
   /** Demo pages pass the catalog, which the panel otherwise searches on the server. */
   demoCatalog?: CatalogResult;
-  /** Demo pages open the Composio tab; `?source=mcp` opens MCP servers. */
+  /** `?source=mcp` opens MCP servers. */
   initialSource?: Source;
   /** The organization's MCP servers, for their tab. Absent: the tab says it could not load. */
   mcp?: McpServersView | null;
 }
 
-export type Source = "open-connector" | "mcp" | "composio";
+export type Source = "open-connector" | "mcp";
 
 export function IntegrationsPanel({ initial, live = true, demoCatalog, initialSource = "open-connector", mcp = null }: IntegrationsPanelProps) {
   const routes = useRoutes();
@@ -220,9 +220,7 @@ export function IntegrationsPanel({ initial, live = true, demoCatalog, initialSo
       {/* The switch picks where new apps come from; the apps already connected stay above it. */}
       <h3 className="mt-2 text-[14px] font-semibold text-ink">Add an app</h3>
       <SourceSwitch source={source} onChange={setSource} />
-      {source === "composio" ? (
-        <ComposioTeaser />
-      ) : source === "mcp" ? (
+      {source === "mcp" ? (
         mcp ? (
           <McpServersPanel initial={mcp} live={live} />
         ) : (
@@ -298,7 +296,7 @@ export function IntegrationsPanel({ initial, live = true, demoCatalog, initialSo
  * build's catalog does not know still has to render, so it falls back to the stored ids.
  */
 function providerOf(c: ConnectorConnectionView): CatalogProvider {
-  return { service: c.service, name: c.serviceName, categories: [], authTypes: [c.authType], actions: 0 };
+  return { service: c.service, name: c.serviceName, categories: [], authTypes: [c.authType], actions: 0, home: c.home, icon: c.icon };
 }
 
 function ConnectionCard({
@@ -327,7 +325,7 @@ function ConnectionCard({
       data-testid={`connector-card-${connection.service}`}
     >
       <div className="flex items-center gap-2.5">
-        <AppLogo name={connection.serviceName} home={connection.home} size={36} />
+        <AppLogo name={connection.serviceName} home={connection.home} service={connection.service} icon={connection.icon} size={36} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px] font-semibold text-ink">
             {connection.serviceName}
@@ -393,8 +391,7 @@ function ConnectionCard({
 
 /**
  * Where other apps come from. Open Connector runs on the firewall, MCP servers are the
- * organization's own remote servers (their keys on the firewall too); Composio is not built, so its
- * tab says so and nothing more.
+ * organization's own remote servers (their keys on the firewall too).
  */
 function SourceSwitch({ source, onChange }: { source: Source; onChange: (s: Source) => void }) {
   const tabs: Array<{ id: Source; mark: string; logo: string; name: string; sub: string; badge: React.ReactNode }> = [
@@ -422,17 +419,9 @@ function SourceSwitch({ source, onChange }: { source: Source; onChange: (s: Sour
         </Badge>
       ),
     },
-    {
-      id: "composio",
-      mark: "C",
-      logo: "bg-[linear-gradient(135deg,#7c4dff,#3d5afe)] text-white",
-      name: "Composio",
-      sub: "850+ apps · managed sign-ins",
-      badge: <Badge tone="brand">Coming soon</Badge>,
-    },
   ];
   return (
-    <div role="tablist" aria-label="Where apps come from" className="grid grid-cols-1 gap-2.5 lg:grid-cols-3" data-testid="integrations-sources" data-tour="integrations-sources">
+    <div role="tablist" aria-label="Where apps come from" className="grid grid-cols-1 gap-2.5 lg:grid-cols-2" data-testid="integrations-sources" data-tour="integrations-sources">
       {tabs.map((t) => (
         <button
           key={t.id}
@@ -454,24 +443,6 @@ function SourceSwitch({ source, onChange }: { source: Source; onChange: (s: Sour
           <span className="shrink-0">{t.badge}</span>
         </button>
       ))}
-    </div>
-  );
-}
-
-const COMPOSIO_TILES = ["#ea4335", "#ff7a59", "#00a1e0", "#2d8cff", "#e01e5a", "#fcb400", "#0052cc", "#96bf48"];
-
-function ComposioTeaser() {
-  return (
-    <div className="flex flex-col items-center gap-2.5 rounded-xl border border-line bg-surface px-[18px] py-7 text-center" data-testid="integrations-composio">
-      <div className="mb-1 flex gap-1.5" aria-hidden="true">
-        {COMPOSIO_TILES.map((c, i) => (
-          <span key={c} className={cn("h-[26px] w-[26px] rounded-[8px] opacity-85", i % 2 === 0 && "-translate-y-1")} style={{ background: c }} />
-        ))}
-      </div>
-      <div className="text-[16px] font-semibold text-ink">Composio is coming soon</div>
-      <p className="max-w-[52ch] text-[13.5px] text-ink-2">
-        Salesforce, Zoom, Asana and 850 more, with sign-ins Composio manages for you. Calls will still go through your firewall and its rules.
-      </p>
     </div>
   );
 }

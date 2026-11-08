@@ -698,3 +698,115 @@ async fn keys_another_server_reads_otherwise_are_refused_unread() {
     assert!(super::may_run_tool(r#"{"METHOD":"tools/call"}"#.as_bytes()));
     assert!(!super::may_run_tool(list.as_bytes()));
 }
+
+/// ControlClaw's default web search (OpenClaw's `parallel-free`): one MCP server every agent uses,
+/// whose tools the plugin never lists, and which puts a new `session_id` in every search.
+fn parallel(args: Value) -> McpCallRequest {
+    McpCallRequest {
+        host: "search.parallel.ai".into(),
+        ..req(tool_call("web_search", args, 1))
+    }
+}
+
+#[tokio::test]
+async fn a_parallel_search_reads_so_the_seeded_destructive_rule_lets_it_through() {
+    let h = harness(vec![seeded_app_rule()], false);
+    let v = h
+        .calls
+        .check(parallel(
+            json!({"objective": "news", "search_queries": ["news"], "session_id": "s-1"}),
+        ))
+        .await;
+    let Verdict::Allow(t) = v else {
+        panic!("a search is a read")
+    };
+    t.done(200, Some(true), None);
+    assert!(h.asks.asks.lock().expect("lock").is_empty(), "nobody asked");
+    assert_eq!(
+        h.catalog.kind_of("search.parallel.ai", "web_search"),
+        Some(AppOperation::Read)
+    );
+    assert_eq!(
+        h.catalog.kind_of("search.parallel.ai", "send_feedback"),
+        Some(AppOperation::Write)
+    );
+    assert_eq!(h.catalog.kind_of("search.parallel.ai", "other"), None);
+    assert_eq!(
+        h.catalog.kind_of("search.parallel.ai", "web_fetch"),
+        None,
+        "it fetches any address"
+    );
+    assert_eq!(
+        h.catalog.kind_of("mcp.example.com", "web_search"),
+        None,
+        "only on Parallel's host"
+    );
+}
+
+#[tokio::test]
+async fn a_strict_rule_asks_once_and_the_retry_with_a_new_session_id_uses_the_approval() {
+    let h = harness(
+        vec![rule(|r| {
+            r.name = "Ask for every search".into();
+            r.then = AppEffect::Ask;
+            r.service = Some("mcp:search.parallel.ai".into());
+        })],
+        false,
+    );
+    let first = answer(
+        &h.calls
+            .check(parallel(
+                json!({"objective": "news", "search_queries": ["news"], "session_id": "s-1"}),
+            ))
+            .await,
+    );
+    assert_eq!(
+        first["result"]["structuredContent"]["error"]["code"],
+        "app_needs_approval"
+    );
+    let pid = first["result"]["structuredContent"]["permission_id"]
+        .as_str()
+        .expect("pid")
+        .to_string();
+    // Retried before anyone answered, with the new session the plugin makes: still the one request.
+    h.calls
+        .check(parallel(
+            json!({"objective": "news", "search_queries": ["news"], "session_id": "s-2"}),
+        ))
+        .await;
+    assert_eq!(h.asks.asks.lock().expect("lock").len(), 1);
+    h.asks.granted.lock().expect("lock").push(pid);
+    assert!(
+        matches!(
+            h.calls
+                .check(parallel(
+                    json!({"objective": "other", "search_queries": ["other"], "session_id": "s-3"})
+                ))
+                .await,
+            Verdict::Answer { .. }
+        ),
+        "another search is another call"
+    );
+    let Verdict::Allow(t) = h
+        .calls
+        .check(parallel(
+            json!({"objective": "news", "search_queries": ["news"], "session_id": "s-4"}),
+        ))
+        .await
+    else {
+        panic!("the approval is used");
+    };
+    t.done(200, Some(true), None);
+}
+
+#[test]
+fn only_parallels_per_call_arguments_are_left_out_of_the_key() {
+    use super::super::catalog::key_input;
+    let args = json!({"objective": "x", "session_id": "s"});
+    assert_eq!(
+        key_input("search.parallel.ai", "web_search", &args),
+        json!({"objective": "x"})
+    );
+    assert_eq!(key_input("search.parallel.ai", "send_feedback", &args), args);
+    assert_eq!(key_input("mcp.example.com", "web_search", &args), args);
+}

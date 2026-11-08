@@ -4,7 +4,8 @@
  * /__cc/doctor/logs/ (`app.js`, fw/fw-logs-main.tsx), the Doctor start page at /__cc/doctor/start/
  * (`doctor-start.js`, fw/doctor-start-main.tsx), and `app.css`, the one stylesheet every page of the
  * firewall links (the Logins, content rules, AI review history, Doctor chat and team chat pages the
- * agent draws itself), with Inter inlined.
+ * agent draws itself), with Inter inlined, and `connector-icons.pack`, the app logos the local panel
+ * serves.
  *
  *   node apps/firewall-panel/scripts/build-fw-files.mjs <out>
  *
@@ -21,7 +22,7 @@ import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -93,7 +94,23 @@ const inter = await readFile(createRequire(import.meta.url).resolve("@fontsource
 const fontFace = `@font-face{font-family:"Inter Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url(data:font/woff2;base64,${inter.toString("base64")}) format("woff2")}:root{--font-inter:"Inter Variable";--font-jetbrains-mono:ui-monospace;--font-instrument-serif:Georgia}`;
 await writeFile(join(OUT, "app.css"), fontFace + css.css);
 
+// The app logos (packages/console-ui/connector-icons) as one file, `connector-icons.pack`, because the
+// page assets are flat files, each one a release asset: `CCICONS1\n`, a JSON line
+// `{"<service>": [offset, length]}`, then the WebP bytes. The panel serves it (cc-local `panel.rs`).
+const ICONS = join(REPO, "packages/console-ui/connector-icons");
+const iconFiles = (await readdir(ICONS)).filter((f) => f.endsWith(".webp")).sort();
+const iconIndex = {};
+const iconBytes = [];
+let iconAt = 0;
+for (const f of iconFiles) {
+  const b = await readFile(join(ICONS, f));
+  iconIndex[f.slice(0, -5)] = [iconAt, b.length];
+  iconBytes.push(b);
+  iconAt += b.length;
+}
+await writeFile(join(OUT, "connector-icons.pack"), Buffer.concat([Buffer.from(`CCICONS1\n${JSON.stringify(iconIndex)}\n`), ...iconBytes]));
+
 const js = (await readFile(entry)).length;
 const startJs = (await readFile(join(OUT, "doctor-start.js"))).length;
 const cssSize = (await readFile(join(OUT, "app.css"))).length;
-console.log(`fw-ui: app.js ${(js / 1024).toFixed(0)} KiB, doctor-start.js ${(startJs / 1024).toFixed(0)} KiB, app.css ${(cssSize / 1024).toFixed(0)} KiB → ${OUT}`);
+console.log(`fw-ui: app.js ${(js / 1024).toFixed(0)} KiB, doctor-start.js ${(startJs / 1024).toFixed(0)} KiB, app.css ${(cssSize / 1024).toFixed(0)} KiB, ${iconFiles.length} logos ${(iconAt / 1024).toFixed(0)} KiB → ${OUT}`);

@@ -57,6 +57,7 @@ export function toConnectorsView(read: ConnectorsRead | null, agents: AgentRow[]
     service: c.service,
     serviceName: serviceName(c.service),
     home: catalogProvider(c.service)?.home,
+    icon: catalogProvider(c.service)?.icon,
     authType: c.authType as ConnectorAuthType,
     label: c.label ?? null,
     accountLabel: c.accountLabel ?? null,
@@ -133,7 +134,7 @@ export async function connectedApps(): Promise<AppOption[]> {
   const read = await readOrNull<ConnectorsRead>(() => fw.get("/api/connectors"));
   const by = new Map<string, AppOption>();
   for (const c of read?.connections ?? []) {
-    const o = by.get(c.service) ?? { service: c.service, name: serviceName(c.service), home: catalogProvider(c.service)?.home ?? null, connections: [] };
+    const o = by.get(c.service) ?? { service: c.service, name: serviceName(c.service), home: catalogProvider(c.service)?.home ?? null, icon: catalogProvider(c.service)?.icon, connections: [] };
     o.connections.push({ id: c.id, label: c.label || c.accountLabel || serviceName(c.service) });
     by.set(c.service, o);
   }

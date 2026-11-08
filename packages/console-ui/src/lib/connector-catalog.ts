@@ -7,8 +7,7 @@ import type { CatalogProvider, CatalogProviderView } from "./connectors-schema";
  * cannot change for a pinned version, so the console and the firewall's panel both search it here
  * rather than asking a firewall for 1500 providers.
  */
-/** The OpenConnector release the catalog was generated from. */
-export const CONNECTOR_VERSION = "v1.6.3";
+export { CONNECTOR_VERSION } from "./connector-version";
 
 export const CONNECTOR_CATALOG = (catalogJson as CatalogProvider[]).filter((p) => p.service !== "agent_mail");
 

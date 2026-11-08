@@ -55,6 +55,8 @@ export type AppOption = {
   service: string;
   name: string;
   home: string | null;
+  /** A logo is bundled for it. */
+  icon?: boolean;
   connections: Array<{ id: string; label: string }>;
   mcp?: { host: string; managed: string | null; tools: McpToolOption[]; agents: string[] };
 };

@@ -8,8 +8,9 @@
 #
 # arch is x86_64 (the default) or aarch64.
 #
-# The tarball is fetched from our own copy first (a release asset, so a change upstream cannot
-# reach a build), then from musl.cc, whose URL has no version. Either must have the pinned hash.
+# The tarball is fetched from our own copy first (a release asset on the public repo, so a change
+# upstream cannot reach a build), then from musl.cc, whose URL has no version. Either must have the
+# pinned hash. The toolchain-musl-cross-11.2.1 release is not uploaded yet, so today it comes from musl.cc.
 set -euo pipefail
 
 cmd="${1:-}"
@@ -22,7 +23,7 @@ case "$arch" in
 esac
 # MUSL_CROSS_MIRROR is the x86_64 copy (the only one with a mirror today); an aarch64 copy goes
 # under the same release as aarch64-linux-musl-cross.tgz when it is uploaded.
-mirror="https://github.com/madarco/controlclaw-oss/releases/download/toolchain-musl-cross-11.2.1/$arch-linux-musl-cross.tgz"
+mirror="https://github.com/madarco/controlclaw/releases/download/toolchain-musl-cross-11.2.1/$arch-linux-musl-cross.tgz"
 [ "$arch" = x86_64 ] && mirror="${MUSL_CROSS_MIRROR:-$mirror}"
 URLS=("$mirror" "https://musl.cc/$arch-linux-musl-cross.tgz")
 # Written next to the unpacked toolchain: the hash of the tarball it came from.

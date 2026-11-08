@@ -536,7 +536,12 @@ impl McpCalls {
         let mut approval: Option<Approval> = None;
         let mut _in_flight: Option<Release> = None;
         if decision.then == AppEffect::Ask {
-            let key = match call_key(&req.vm_id, Some(&service), &tool, &args) {
+            let key = match call_key(
+                &req.vm_id,
+                Some(&service),
+                &tool,
+                &super::catalog::key_input(&req.host, &tool, &args),
+            ) {
                 Ok(k) => k,
                 Err(_) => {
                     return Self::refusal(

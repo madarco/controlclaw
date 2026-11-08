@@ -16,9 +16,14 @@ pub const EMAIL_GRANT_SECONDS: u64 = 30 * 60;
 /// An app call's approval is kept as long as the gate waits for its retry.
 const APP_GRANT_SECONDS: u64 = 24 * 3600;
 
-/// Approvals used once: an email recipient's window, one app call.
+/// One call a person approves: an app action (`APP …`) or an MCP tool call (`MCP …`, `call_asks`).
+fn call_ask(scope: &str) -> bool {
+    scope.starts_with("APP ") || scope.starts_with("MCP ")
+}
+
+/// Approvals used once: an email recipient's window, one app call or MCP tool call.
 fn once(scope: &str) -> bool {
-    scope.starts_with("EMAIL ") || scope.starts_with("APP ")
+    scope.starts_with("EMAIL ") || call_ask(scope)
 }
 
 /// `encodeURIComponent`.
@@ -219,7 +224,7 @@ impl PermissionBridge {
                         .unwrap_or_default();
                     let ttl = if scope.starts_with("EMAIL ") {
                         EMAIL_GRANT_SECONDS
-                    } else if scope.starts_with("APP ") {
+                    } else if call_ask(&scope) {
                         APP_GRANT_SECONDS
                     } else {
                         self.ttl_seconds
@@ -469,5 +474,35 @@ mod tests {
         grants.delete("perm_a");
         b.tick().await;
         assert!(grants.get("perm_a").is_none());
+    }
+
+    #[tokio::test]
+    async fn an_mcp_tool_calls_approval_is_kept_as_long_as_an_app_calls_and_used_once() {
+        let d = tempfile::tempdir().expect("dir");
+        let rec = json!({"permission_id": "perm_m", "vm_id": "vm-a", "scope": "MCP mcp:x t #1", "summary": "s", "kind": "app_call", "service": "mcp:x", "action": "t"});
+        std::fs::write(d.path().join("pending.jsonl"), format!("{rec}\n")).expect("pending");
+        let (url, _) = console(|m, _| {
+            (
+                200,
+                if m == "GET" {
+                    json!({"status": "approved"})
+                } else {
+                    json!({})
+                },
+            )
+        })
+        .await;
+        let grants = Arc::new(GrantStore::new(d.path().join("grants.json")));
+        let b = bridge(d.path(), &url, grants.clone());
+        b.tick().await;
+        let g = grants.get("perm_m").expect("granted");
+        let left = g["expires_at"].as_u64().expect("n") - now_s();
+        assert!(
+            (APP_GRANT_SECONDS - 5..=APP_GRANT_SECONDS).contains(&left),
+            "not the website grant's minutes"
+        );
+        grants.delete("perm_m");
+        b.tick().await;
+        assert!(grants.get("perm_m").is_none(), "used once: not granted again");
     }
 }

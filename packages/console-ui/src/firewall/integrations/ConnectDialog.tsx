@@ -5,6 +5,7 @@ import { ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 import { useApi } from "../../lib/api";
 import { Button } from "../../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../ui/dialog";
+import { AppLogo } from "./AppLogo";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Checkbox } from "../../ui/checkbox";
@@ -141,8 +142,9 @@ export function ConnectDialog({ provider, agents, state, onSubmit, onClose, repl
       */}
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-[520px]" data-testid="connector-dialog-connect">
         <DialogHeader>
-          <DialogTitle>
-            {replacing ? `Replace ${provider?.name} credentials` : `Connect ${provider?.name}`}
+          <DialogTitle className="flex min-w-0 items-center gap-2.5">
+            {provider ? <AppLogo name={provider.name} home={provider.home} service={provider.service} icon={provider.icon} size={28} /> : null}
+            <span className="min-w-0">{replacing ? `Replace ${provider?.name} credentials` : `Connect ${provider?.name}`}</span>
           </DialogTitle>
           <DialogDescription>
             {provider?.desc ??

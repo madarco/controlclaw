@@ -22,8 +22,6 @@ export const PythonIcon = () => (
   </svg>
 );
 
-export const RubyIcon = () => <img src="/ruby_logo.svg" alt="Ruby" width="16" height="16" />;
-
 export const OtherIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"

@@ -1,4 +1,4 @@
-import { existsSync, renameSync } from "node:fs";
+import { existsSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
@@ -21,8 +21,29 @@ function panelHtml(): Plugin {
   };
 }
 
+/**
+ * `pnpm dev`: the app logos from packages/console-ui/connector-icons, at the path the firewall
+ * serves them from its `connector-icons.pack` (cc-local `panel.rs`).
+ */
+function connectorIcons(): Plugin {
+  const dir = join(import.meta.dirname, "../../packages/console-ui/connector-icons");
+  return {
+    name: "connector-icons",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use("/connector-icons/", (req, res, next) => {
+        const service = /^\/[^/]+\/([a-z0-9][a-z0-9_-]{0,63})\.webp$/.exec(req.url?.split("?")[0] ?? "")?.[1];
+        const file = service ? join(dir, `${service}.webp`) : null;
+        if (!file || !existsSync(file)) return next();
+        res.setHeader("Content-Type", "image/webp");
+        res.end(readFileSync(file));
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), panelHtml()],
+  plugins: [react(), tailwindcss(), panelHtml(), connectorIcons()],
   base: "/",
   build: {
     outDir: "dist",

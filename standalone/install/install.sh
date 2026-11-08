@@ -36,7 +36,7 @@ set -euo pipefail
 
 # The standalone releases (standalone/release/release.sh stamps both from release.conf and the
 # signing key; from a checkout the key is read from ../release/controlclaw.pub).
-BASE_URL_DEFAULT=https://github.com/madarco/controlclaw-oss/releases/download
+BASE_URL_DEFAULT=https://github.com/madarco/controlclaw/releases/download
 RELEASE_PUBKEY=""
 CONNECTOR_IMAGE=ghcr.io/oomol-lab/open-connector@sha256:f25207e6f71eabc70182c4f5db5c01db79091d0f4523a7495b35e649d5b6c006
 ROOT=/opt/controlclaw

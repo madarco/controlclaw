@@ -45,6 +45,50 @@ pub fn kind_from_annotations(a: Option<&Value>) -> Option<AppOperation> {
     }
 }
 
+/// A tool of an MCP server every agent uses without anyone adding it: ControlClaw's default web
+/// search, Parallel's free Search MCP (OpenClaw's `parallel-free`). The plugin never lists the tools,
+/// so the server's own hints never reach the catalog; these are those hints, as Parallel gives them.
+/// A rule on `mcp:search.parallel.ai` still decides over them: only the seeded rule reads the kind.
+pub struct Builtin {
+    pub kind: AppOperation,
+    /// Arguments made fresh for every call, left out of the call's key so a retry is the same call.
+    pub per_call: &'static [&'static str],
+}
+
+const PARALLEL_SEARCH: &str = "search.parallel.ai";
+
+pub fn builtin(host: &str, tool: &str) -> Option<Builtin> {
+    if host != PARALLEL_SEARCH {
+        return None;
+    }
+    match tool {
+        // The plugin puts a new random `session_id` in every search. Not `web_fetch`: Parallel
+        // fetches any address for it, outside the Internet access rules, so it keeps the default.
+        "web_search" => Some(Builtin {
+            kind: AppOperation::Read,
+            per_call: &["session_id"],
+        }),
+        "send_feedback" => Some(Builtin {
+            kind: AppOperation::Write,
+            per_call: &[],
+        }),
+        _ => None,
+    }
+}
+
+/// The input a call's key is made from: the call's arguments without the built-in ones made per call.
+pub fn key_input(host: &str, tool: &str, args: &Value) -> Value {
+    let (Some(b), Value::Object(o)) = (builtin(host, tool), args) else {
+        return args.clone();
+    };
+    Value::Object(
+        o.iter()
+            .filter(|(k, _)| !b.per_call.contains(&k.as_str()))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
+    )
+}
+
 /// One tool of a `tools/list` answer, cleaned, in the TS's key order (without `kind`/`kindBy`).
 pub fn clean_listed_tool(raw: &Value) -> Option<Map<String, Value>> {
     let t = raw.as_object()?;
@@ -272,11 +316,16 @@ impl McpCatalog {
     }
 
     /// The kind the rules use for a tool: its hints, the AI's label, or None (acts as destructive).
+    /// A tool's kind: what its server or the AI said, else what this firewall knows of a built-in one.
     pub fn kind_of(&self, host: &str, tool: &str) -> Option<AppOperation> {
-        let st = self.lock();
-        let s = st.servers.get(host)?;
-        let t = s.get("tools")?.as_array()?.iter().find(|t| t["name"] == tool)?;
-        t.get("kind").and_then(Value::as_str).and_then(AppOperation::parse)
+        let listed = {
+            let st = self.lock();
+            st.servers
+                .get(host)
+                .and_then(|s| s.get("tools")?.as_array()?.iter().find(|t| t["name"] == tool).cloned())
+                .and_then(|t| t.get("kind").and_then(Value::as_str).and_then(AppOperation::parse))
+        };
+        listed.or_else(|| builtin(host, tool).map(|b| b.kind))
     }
 
     pub fn servers(&self) -> Vec<Value> {

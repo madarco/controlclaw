@@ -165,7 +165,7 @@ export function CatalogBrowser({
                   data-testid={`connector-catalog-${p.service}`}
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <AppLogo name={p.name} home={p.home} size={36} />
+                    <AppLogo name={p.name} home={p.home} service={p.service} icon={p.icon} size={36} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5">
                         <span className="truncate text-[14px] font-semibold text-ink">{p.name}</span>

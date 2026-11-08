@@ -1,5 +1,5 @@
 {
-  "name": "controlclaw-oss",
+  "name": "controlclaw",
   "private": true,
   "license": "AGPL-3.0-only",
   "packageManager": "pnpm@9.15.0",

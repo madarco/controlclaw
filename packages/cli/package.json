@@ -7,7 +7,7 @@
   "main": "./dist/index.js",
   "files": ["dist/index.js", "README.md"],
   "engines": { "node": ">=22" },
-  "repository": { "type": "git", "url": "git+https://github.com/madarco/controlclaw-oss.git", "directory": "packages/cli" },
+  "repository": { "type": "git", "url": "git+https://github.com/madarco/controlclaw.git", "directory": "packages/cli" },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
     "build": "tsup",
