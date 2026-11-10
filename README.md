@@ -4,11 +4,11 @@
 
 # ControlClaw
 
-ControlClaw is an AI firewall and control panel for [OpenClaw](https://openclaw.ai). Every request
-your agent makes goes through it. You see each one, your rules decide what goes out, and your
-passwords and API keys stay on the firewall.
+ControlClaw is an AI firewall and control panel for OpenClaw. It filters every request, including MCPs and OpenConnector integrations. 
+You can monitor everything and firewal rules are written in plain English. 
+Also your passwords and API keys stay on the firewall and are swapped on the the fly.
 
-It runs on your own machine and has its own web panel. You need no account and no cloud service.
+It can runs on a dedicated machine or in a docker container next to your OpenClaw, or run it from our managed service: [controlclaw.com](https://controlclaw.com) with multi agents team chat, GBrain and daily backups.
 
 - **AI content rules.** You write rules as sentences, such as "Don't share pay details" or "Ask me
   before pushing anything to GitHub". The firewall's AI checks what agents send and receive against
