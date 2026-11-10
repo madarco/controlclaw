@@ -4,6 +4,7 @@ import { Activity, Ban, Check, Globe, Play, Plug, RefreshCw, Search, Sparkles, U
 import type { Schemas } from "@controlclaw/fw-api";
 import { PageHead } from "@controlclaw/console-ui/kit/PageHead";
 import { Card, EmptyState } from "@controlclaw/console-ui/kit/console-ui";
+import { RoutineSwitch, useShowRoutine } from "@controlclaw/console-ui/kit/RoutineSwitch";
 import { Button } from "@controlclaw/console-ui/ui/button";
 import { cn } from "@controlclaw/console-ui/lib/utils";
 import { errorText, fw } from "../api/client";
@@ -63,6 +64,8 @@ export function ActivityPage() {
   const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
+  // Model calls and bot polling under the firewall's own rules: out of the list unless asked for.
+  const [routine, setRoutine] = useShowRoutine();
 
   // Search as the person types, a moment after they stop.
   useEffect(() => {
@@ -74,8 +77,10 @@ export function ActivityPage() {
   }, [qInput]);
 
   const data = useQuery({
-    queryKey: ["activity", source, verdict, q, page],
-    queryFn: () => fw.get("/api/activity", { query: { source, verdict, q: q || undefined, limit: PAGE, offset: page * PAGE } }),
+    // Only Network has routine rows: the switch does not refetch the other views.
+    queryKey: ["activity", source, verdict, q, page, source === "network" && routine],
+    queryFn: () =>
+      fw.get("/api/activity", { query: { source, verdict, q: q || undefined, routine: (source === "network" && routine) || undefined, limit: PAGE, offset: page * PAGE } }),
     // The last page stays up while the next one or a search loads, never under another tab.
     placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === source && prevQuery?.queryKey[2] === verdict ? prev : undefined),
     refetchInterval: 30_000,
@@ -103,6 +108,16 @@ export function ActivityPage() {
               className="h-[34px] w-full rounded-[10px] border border-line bg-surface pr-3 pl-[34px] text-[13px] text-ink placeholder:text-ink-2 focus:border-line-2 focus:outline-none"
             />
           </div>
+          {source === "network" ? (
+            <RoutineSwitch
+              on={routine}
+              hidden={data.data?.routine ?? 0}
+              onChange={(v) => {
+                setRoutine(v);
+                setPage(0);
+              }}
+            />
+          ) : null}
           <div className="flex-1" />
           <div className="-mx-1 flex max-w-full items-center gap-0.5 overflow-x-auto rounded-[9px] border border-line bg-surface p-0.5 px-1 [scrollbar-width:none]">
             {SOURCES.map(({ key, label, Icon }) => (

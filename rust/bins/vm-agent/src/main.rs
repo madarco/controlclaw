@@ -241,6 +241,25 @@ pub fn router(app: &Arc<App>) -> Router {
     router
 }
 
+/// Serve `addr` with the same router once it can be bound, trying every 10 s; says so once.
+async fn serve_legacy(addr: String, router: Arc<Router>, allow: Vec<std::net::IpAddr>) {
+    let mut warned = false;
+    loop {
+        match tokio::net::TcpListener::bind(&addr).await {
+            Ok(l) => {
+                tracing::info!("ControlClaw agent also listening on {addr} (the old port)");
+                return cc_http::serve_from(l, router, allow).await;
+            }
+            Err(e) if !warned => {
+                tracing::warn!("not listening on the old port {addr} yet, trying every 10 s: {e}");
+                warned = true;
+            }
+            Err(_) => {}
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    }
+}
+
 #[tokio::main]
 async fn main() {
     cc_http::log::init();
@@ -297,6 +316,16 @@ async fn main() {
         },
     };
     tracing::info!("ControlClaw agent listening on {addr}");
+    // The old port, for callers that still dial it. Best effort and retried: the main port is what
+    // Caddy tries first, and a port someone else holds for a while must not stop the agent.
+    let allow = app.unmanaged.as_ref().map(|u| u.file.allow_from()).unwrap_or_default();
+    if let Some(legacy) = app.config.legacy_port {
+        tokio::spawn(serve_legacy(
+            format!("{}:{legacy}", app.config.bind),
+            router.clone(),
+            allow.clone(),
+        ));
+    }
     // W6: the bootstrap (keys, CA, egress, gateway, HTTPS, ready) and the timers start from here.
     if app.unmanaged.is_some() {
         unmanaged::start(&app);
@@ -306,7 +335,6 @@ async fn main() {
         // W8: the brain's first boot, after the bind as `server.listen`'s callback in gbrain.ts.
         gbrain::start(&app);
     }
-    let allow = app.unmanaged.as_ref().map(|u| u.file.allow_from()).unwrap_or_default();
     if !allow.is_empty() {
         tracing::info!("[unmanaged] only {allow:?} may connect");
     }

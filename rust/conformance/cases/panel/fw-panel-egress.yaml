@@ -29,13 +29,23 @@ steps:
   - name: no session, no rules
     request: {method: GET, path: /api/egress/rules, port: panel}
     expect: {status: 401}
-  - name: the admin is set up; a fresh firewall has the block-all rule
+  - name: the admin is set up; a fresh firewall has no rule
     panel_login: panel
     request: {method: GET, path: /api/egress/rules, port: panel, jar: true}
     expect:
       status: 200
-      json:
-        - {id: block-all, name: Block everything until you add rules, matchDomain: "*", matchPath: null, matchMethod: null, matchPort: null, effect: block, exit: firewall, exitCountry: null, priority: 100000, enabled: true, vmId: null, aiReview: false, aiPolicy: null, createdAt: $string, updatedAt: $string}
+      json: []
+  - name: and every other site is allowed (and logged)
+    request: {method: GET, path: /api/egress/default, port: panel, jar: true}
+    expect: {status: 200, json: {effect: allow}}
+  - name: every other site is blocked, and the proxy has the one rule at once
+    request: {method: PUT, path: /api/egress/default, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {effect: block}}
+    expect: {status: 200, json: {effect: block}}
+    files:
+      run/rules.json:
+        within_ms: 3000
+        json:
+          - {id: block-all, name: Every other site, match_domain: "*", effect: block, priority: 100000}
   - name: a write without the CSRF token is refused
     request: {method: POST, path: /api/egress/rules, port: panel, jar: true, json: {name: GitHub, matchDomain: api.github.com}}
     expect: {status: 403}
@@ -51,7 +61,7 @@ steps:
         within_ms: 3000
         json:
           - {id: $string, name: GitHub, match_domain: api.github.com, effect: allow, priority: 10}
-          - {id: block-all, name: Block everything until you add rules, match_domain: "*", effect: block, priority: 100000}
+          - {id: block-all, name: Every other site, match_domain: "*", effect: block, priority: 100000}
   - name: its effect cycles to ask
     request: {method: POST, path: /api/egress/rules/$rule/cycle, port: panel, jar: true, headers: {x-csrf-token: $csrf}}
     expect: {status: 200, json_subset: {effect: require_permission}}
@@ -62,7 +72,7 @@ steps:
       run/rules.json:
         within_ms: 3000
         json:
-          - {id: block-all, name: Block everything until you add rules, match_domain: "*", effect: block, priority: 100000}
+          - {id: block-all, name: Every other site, match_domain: "*", effect: block, priority: 100000}
   - name: a model key is taken by the firewall with no code to type (nobody is set to get codes)
     request: {method: POST, path: /api/llm/keys, port: panel, jar: true, headers: {x-csrf-token: $csrf}, json: {provider: vercel_gateway, key: vck_conformance_key_0123456789}}
     keep: {key: keys.0.id}

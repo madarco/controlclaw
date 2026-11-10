@@ -1,14 +1,13 @@
-//! Updating this firewall in place (`firewall-update.ts`). Like an agent update, with two
-//! differences: it applies to itself (a local spawn), and there is no first use. This box holds
-//! every channel token, every model key and the CA every agent pinned, so with nobody to ask it
-//! refuses.
+//! Updating this firewall in place (`firewall-update.ts`). Like an agent update, but it applies to
+//! itself (a local spawn). Like an agent update it applies on first use: with nobody to ask, the
+//! console chooses when, not what, because the run pulls this box's own pinned repo
+//! (`/etc/controlclaw/update.conf`).
 
 use std::sync::Arc;
 
 use serde_json::{Map, Value, json};
 
 use super::code_message::CodeParts;
-use super::consent::no_recipients;
 use super::kit::{CHANNELS_UNREADABLE, Kit, awaiting, fail, obj, ok, text};
 use super::self_update::{SelfUpdate, Status};
 use crate::commands::CommandOutcome;
@@ -77,14 +76,16 @@ impl FirewallUpdate {
         };
         if routes.is_empty() {
             self.kit.consent.forget(SCOPE);
-            let (message, extra) = no_recipients(self.kit.agent_allowed());
-            let mut d = data;
-            d.extend(extra);
-            return fail(
-                "failed",
-                format!("{message} Your firewall cannot be updated until then."),
-                d,
-            );
+            return match self.apply(false, None) {
+                Ok(applied) => {
+                    tracing::info!("[firewall-update] no code recipient: applied on first use");
+                    let mut d = data;
+                    d.extend(applied);
+                    d.insert("tofu".into(), json!(true));
+                    ok("applied", d)
+                }
+                Err(e) => CommandOutcome::failed("failed", e),
+            };
         }
         // Nothing in this message came from anywhere else.
         let sent = self

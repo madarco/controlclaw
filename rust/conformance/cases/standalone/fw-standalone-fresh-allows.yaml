@@ -1,4 +1,4 @@
-name: a fresh standalone firewall blocks everything until rules are added
+name: a fresh standalone firewall allows and logs every site until it is told to block
 agent: mitm-agent
 skip:
   ts: "standalone mode is in the Rust build only"
@@ -20,8 +20,7 @@ env:
 files:
   keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 steps:
-  - name: the proxy gets one rule, block every host, so a client's request is refused
+  - name: the proxy gets no rule, so every host is let through and logged ("Every other site" is Allow)
     files:
       run/rules.json:
-        json:
-          - {id: block-all, name: Block everything until you add rules, match_domain: "*", effect: block, priority: 100000}
+        json: []

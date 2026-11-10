@@ -506,6 +506,11 @@ async fn callback(c: &Ctx, b: OauthCallback) -> Result {
             Err(e) => return Err(e),
         };
         if !not_mine(action, &r) {
+            if action == "google.callback"
+                && let Err(e) = super::managed::refresh_accounts(c).await
+            {
+                tracing::warn!("[cc-local] the accounts' rules: {}", e.body);
+            }
             return Ok(r.reply());
         }
         // The first refusal is the one shown: the connectors' "no longer waiting, start it again"

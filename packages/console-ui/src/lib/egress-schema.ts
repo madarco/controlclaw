@@ -104,6 +104,11 @@ export interface EgressRuleListItem {
   aiPolicy: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Set on a rule ControlClaw added by itself for a model provider or a channel (its key,
+   * `managed-egress.ts`): read-only, and gone when the provider or the channel is.
+   */
+  managed?: string | null;
 }
 
 /**

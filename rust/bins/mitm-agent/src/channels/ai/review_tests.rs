@@ -371,6 +371,63 @@ async fn the_reviewer() {
         .map(|e| e["host"].clone())
         .collect();
     assert_eq!(hosts, vec![json!(s3), json!("evil.example")]);
+
+    // what a managed rule let through is not reviewed; a refusal there, or an owner's rule for
+    // the same host and with the same name, is
+    let f = Fake::new(risk(1.0, "unusual_destination"));
+    let (r, log) = rig.reviewer(
+        "managed",
+        client(Some(settings()), &f, rig.now.clone()),
+        &posted,
+        vec![],
+        None,
+    );
+    r.tick().await;
+    let tg = "api.telegram.org";
+    let managed = json!({"host": tg, "rule": "Channel: Telegram", "rule_id": "managed:telegram:api.telegram.org", "managed": "telegram",
+                         "swapped": ["CC-TG-1"]});
+    append(&log, &rec(80, managed.clone()));
+    append(
+        &log,
+        &rec(
+            81,
+            json!({"host": "api.anthropic.com", "method": "POST", "path": "/v1/messages", "rule": "Model provider: Anthropic",
+                   "rule_id": "managed:anthropic:api.anthropic.com", "managed": "anthropic", "bytes_out": 400_000,
+                   "swapped": ["sk-ant-cc-1"]}),
+        ),
+    );
+    assert_eq!(r.tick().await, 0);
+    assert_eq!(f.n(), 0, "a batch of only managed traffic asks nothing");
+    let mut refused = managed.clone();
+    refused["effect"] = json!("block");
+    append(&log, &rec(82, refused));
+    append(
+        &log,
+        &rec(
+            83,
+            json!({"host": tg, "path": "/x", "rule": "Channel: Telegram", "rule_id": "r9"}),
+        ),
+    );
+    append(
+        &log,
+        &rec(
+            84,
+            json!({"host": "evil.example", "path": "/y", "rule_id": "r9", "managed": "telegram"}),
+        ),
+    );
+    // another bot's token, not one the firewall put in
+    let mut foreign = managed.clone();
+    foreign["swapped"] = json!([]);
+    foreign["path"] = json!("/bot<redacted>/sendMessage");
+    append(&log, &rec(85, foreign));
+    assert_eq!(r.tick().await, 1);
+    let paths: Vec<Value> = f.state(0)["requests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["host"].clone())
+        .collect();
+    assert_eq!(paths, vec![json!(tg), json!(tg), json!("evil.example"), json!(tg)]);
 }
 
 #[tokio::test]

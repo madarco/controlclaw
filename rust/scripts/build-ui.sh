@@ -17,6 +17,9 @@ OUT="${1:?usage: build-ui.sh <out>}"
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 mapfile -t FILES < "$(dirname "$0")/box-ui"
 [ -d "$REPO/node_modules" ] || { echo "build-ui: no node_modules in $REPO: run pnpm install first" >&2; exit 1; }
+# The build writes into apps/firewall-panel: one at a time per checkout (two release builds at once).
+exec 9> "$REPO/rust/target-build-ui.lock"
+flock 9
 (cd "$REPO/apps/firewall-panel" && node scripts/build-fw-files.mjs dist-fw >/dev/null && node_modules/.bin/vite build --logLevel error)
 rm -rf "$OUT"; mkdir -p "$OUT"
 for f in "${FILES[@]}"; do

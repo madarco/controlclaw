@@ -41,6 +41,43 @@ pub static UNIT_ACTIONS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(
 pub async fn run_action(runner: &dyn Runner, action: &str, service: &str) -> Result<(), String> {
     super::stop_mark::STOP_MARK.note(action, None);
     let _one = UNIT_ACTIONS.lock().await;
+    systemctl(runner, action, service).await
+}
+
+/// [`super::common::OfflineRun`] on a managed box: this agent's own short stop (the watchdog leaves
+/// it alone), the writes, the unit started again, all in one unit action. The mark is set inside
+/// that action, and a Stop asked for meanwhile (noted while it waits for its turn) is left standing.
+pub async fn offline_writes(
+    deps: &super::common::Deps,
+    service: &str,
+    bin: &str,
+    writes: Vec<super::common::CliWrite>,
+) -> Result<super::common::Offline, String> {
+    let mark = &super::stop_mark::STOP_MARK;
+    let runner = deps.runner.as_ref();
+    let _one = UNIT_ACTIONS.lock().await;
+    let own = mark.note_own();
+    if let Err(e) = systemctl(runner, "stop", service).await {
+        if mark.clear_own(own) {
+            let _ = systemctl(runner, "start", service).await;
+        }
+        return Err(format!("OpenClaw did not stop to save it: {e}"));
+    }
+    let mut results = Vec::new();
+    for w in writes {
+        let args: Vec<&str> = w.args.iter().map(String::as_str).collect();
+        results.push(deps.exec(bin, &args, w.timeout, w.stdin, &[]).await);
+    }
+    let started = if mark.clear_own(own) {
+        // On failure the mark is cleared all the same: the watchdog starts it.
+        systemctl(runner, "start", service).await
+    } else {
+        Err("OpenClaw was stopped meanwhile, and stays stopped".into())
+    };
+    Ok(super::common::Offline { results, started })
+}
+
+async fn systemctl(runner: &dyn Runner, action: &str, service: &str) -> Result<(), String> {
     let cmd = Cmd::sudo("systemctl").args([action, service]).timeout(ACTION_TIMEOUT);
     match runner.run(cmd).await {
         Ok(out) if out.success() => Ok(()),

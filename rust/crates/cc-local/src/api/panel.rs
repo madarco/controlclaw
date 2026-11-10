@@ -139,10 +139,11 @@ fn rules(c: &Ctx) -> Result {
     let db = c.db.lock();
     let mut q = db.prepare(
         "SELECT id, name, match_domain, match_path, match_method, match_port, vm_id, effect, priority, enabled
-         FROM egress_rules ORDER BY priority, created_at, rowid",
+         FROM egress_rules WHERE id <> ?1 ORDER BY priority, created_at, rowid",
     )?;
+    // "Every other site" is not in the list, and the list's PUT leaves it as it is (`/api/egress/default`).
     let rows: Vec<Value> = q
-        .query_map([], |r| {
+        .query_map([crate::db::BLOCK_ALL_ID], |r| {
             Ok(json!({
                 "id": r.get::<_, String>(0)?, "name": r.get::<_, String>(1)?,
                 "match_domain": r.get::<_, String>(2)?, "match_path": r.get::<_, Option<String>>(3)?,
@@ -380,7 +381,8 @@ async fn command(c: &Ctx, action: &str, payload: Option<Value>) -> Result {
 pub fn replace_rules(db: &Db, list: &[Value]) -> rusqlite::Result<std::result::Result<usize, String>> {
     let mut c = db.lock();
     let tx = c.transaction()?;
-    tx.execute("DELETE FROM egress_rules", [])?;
+    // Every rule but "Every other site", which is set on its own (`/api/egress/default`).
+    tx.execute("DELETE FROM egress_rules WHERE id <> ?1", [crate::db::BLOCK_ALL_ID])?;
     let now = now_s();
     for (i, r) in list.iter().enumerate() {
         let s = |k: &str| r.get(k).and_then(Value::as_str).filter(|v| !v.is_empty());
@@ -394,6 +396,18 @@ pub fn replace_rules(db: &Db, list: &[Value]) -> rusqlite::Result<std::result::R
             )));
         }
         let id = s("id").map_or_else(|| new_id("r"), str::to_string);
+        if id == crate::db::BLOCK_ALL_ID {
+            return Ok(Err(format!(
+                "rule {i}: {id} is \"Every other site\": set it with PUT /api/egress/default"
+            )));
+        }
+        // Those are the firewall's own (`plane::managed_rules`), never a row.
+        if id.starts_with(cc_contracts::managed::ID_PREFIX) {
+            return Ok(Err(format!(
+                "rule {i}: ids starting with {} are the firewall's own",
+                cc_contracts::managed::ID_PREFIX
+            )));
+        }
         tx.execute(
             "INSERT INTO egress_rules (id, name, match_domain, match_path, match_method, match_port, vm_id, effect,
                                        priority, enabled, ai_review, ai_policy, created_at, updated_at, exit, exit_country)

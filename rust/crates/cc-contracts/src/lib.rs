@@ -27,6 +27,7 @@ pub mod grants;
 pub mod identities;
 pub mod login_targets;
 pub mod loopback;
+pub mod managed;
 pub mod maybe;
 pub mod media;
 pub mod pending;

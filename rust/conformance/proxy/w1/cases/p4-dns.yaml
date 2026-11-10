@@ -35,6 +35,8 @@ files:
 steps:
   - http: {via: absolute, url: "http://127.0.0.1:3100/health"}
     expect: {status: 403, json: {error: non_routable_target, reason: "$contains:loopback"}}
+  - http: {via: absolute, url: "http://127.0.0.1:3102/health"}
+    expect: {status: 403, json: {error: non_routable_target, reason: "$contains:loopback"}}
   - http: {via: absolute, url: "http://loopback.test:3101/judge", method: POST, body: "{}"}
     expect: {status: 403, json: {error: non_routable_target}}
   - seen: {server: judge, requests: 0}

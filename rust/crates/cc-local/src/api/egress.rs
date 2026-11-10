@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Value, json};
 
 use super::{CommandAnswer, Ctx, Reply, Result, Route, new_id};
-use crate::db::{Db, now_s};
+use crate::db::{BLOCK_ALL_ID, BLOCK_ALL_NAME, BLOCK_ALL_PRIORITY, Db, now_s};
 use crate::plane::iso;
 
 const TAG: &str = "egress";
@@ -52,6 +52,7 @@ pub fn routes() -> Vec<Route> {
             TAG,
             "Delete an egress rule",
             |c, _| async move {
+                locked(c.param("id"))?;
                 let n =
                     c.db.lock()
                         .execute("DELETE FROM egress_rules WHERE id = ?1", [c.param("id")])?;
@@ -63,6 +64,19 @@ pub fn routes() -> Vec<Route> {
                     id: c.param("id").into(),
                 }))
             },
+        ),
+        Route::get::<(), EveryOtherSite, _, _>(
+            "/api/egress/default",
+            TAG,
+            "What happens to a site no rule names: allow (and logged), or block",
+            |c| async move { Ok(Reply::ok(&every_other_site(&c.db)?)) },
+        ),
+        Route::write::<EveryOtherSite, EveryOtherSite, _, _>(
+            Method::PUT,
+            "/api/egress/default",
+            TAG,
+            "Allow or block every site no rule names. The rules added for model keys and bots still let those through",
+            |c, b| async move { put_every_other_site(&c, b) },
         ),
         Route::get::<(), AiView, _, _>("/api/egress/ai", TAG, "The AI review settings", |c| async move {
             Ok(Reply::ok(&ai_view(&c.db)?))
@@ -163,6 +177,24 @@ pub struct EgressRule {
     pub ai_policy: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// Set on a rule this firewall added by itself for a model key (`anthropic`, `openai`, …) or a
+    /// bot (`telegram`, `slack`): it cannot be changed, and goes when the key or the bot does.
+    pub managed: Option<String>,
+}
+
+/// "Every other site": what happens to a request no rule matches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DefaultEffect {
+    /// Let through, and logged (and read by the AI log review when it is on).
+    Allow,
+    Block,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EveryOtherSite {
+    pub effect: DefaultEffect,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -272,15 +304,94 @@ fn row(r: &Row) -> rusqlite::Result<EgressRule> {
         ai_policy: r.get(13)?,
         created_at: iso(created),
         updated_at: iso(r.get::<_, Option<i64>>(15)?.unwrap_or(created)),
+        managed: None,
     })
 }
 
+/// A managed rule (`plane::managed_rules`) as the list shows it.
+fn managed_row(r: &Value) -> EgressRule {
+    let s = |k: &str| r.get(k).and_then(Value::as_str).map(str::to_string);
+    EgressRule {
+        id: s("id").unwrap_or_default(),
+        name: s("name").unwrap_or_default(),
+        match_domain: s("match_domain").unwrap_or_default(),
+        match_path: s("match_path"),
+        match_method: None,
+        match_port: None,
+        effect: Effect::Allow,
+        exit: Exit::Firewall,
+        exit_country: None,
+        priority: r.get("priority").and_then(Value::as_i64).unwrap_or_default(),
+        enabled: true,
+        vm_id: s("vm_id"),
+        ai_review: false,
+        ai_policy: None,
+        created_at: iso(0),
+        updated_at: iso(0),
+        managed: s(cc_contracts::managed::FIELD),
+    }
+}
+
+/// The rules in order: the managed ones first, then the admin's. "Every other site" is not one of
+/// them (`/api/egress/default`).
 pub fn list(db: &Db) -> rusqlite::Result<Vec<EgressRule>> {
     let c = db.lock();
+    let mut out: Vec<EgressRule> = crate::plane::managed_rules(&c)?.iter().map(managed_row).collect();
     let mut q = c.prepare(&format!(
-        "SELECT {COLUMNS} FROM egress_rules ORDER BY priority, created_at, rowid"
+        "SELECT {COLUMNS} FROM egress_rules WHERE id <> ?1 ORDER BY priority, created_at, rowid"
     ))?;
-    q.query_map([], row)?.collect()
+    for r in q.query_map([BLOCK_ALL_ID], row)? {
+        out.push(r?);
+    }
+    Ok(out)
+}
+
+/// A rule the firewall keeps by itself, refused here as the SaaS refuses the brain's.
+fn locked(id: &str) -> Result<()> {
+    if id.starts_with(cc_contracts::managed::ID_PREFIX) {
+        return Err(Reply::error(
+            403,
+            "This rule was added for a model key or a bot, and goes when they do. It can't be changed or deleted.",
+        ));
+    }
+    if id == BLOCK_ALL_ID {
+        return Err(Reply::bad(
+            "This is \"Every other site\": change it with PUT /api/egress/default.",
+        ));
+    }
+    Ok(())
+}
+
+pub fn every_other_site(db: &Db) -> rusqlite::Result<EveryOtherSite> {
+    let block = db
+        .lock()
+        .query_row("SELECT 1 FROM egress_rules WHERE id = ?1", [BLOCK_ALL_ID], |_| Ok(()))
+        .optional()?
+        .is_some();
+    Ok(EveryOtherSite {
+        effect: if block {
+            DefaultEffect::Block
+        } else {
+            DefaultEffect::Allow
+        },
+    })
+}
+
+/// Block: the one rule after every other, `*` blocked. Allow: no such rule.
+fn put_every_other_site(c: &Ctx, b: EveryOtherSite) -> Result {
+    {
+        let db = c.db.lock();
+        match b.effect {
+            DefaultEffect::Block => db.execute(
+                "INSERT OR REPLACE INTO egress_rules (id, name, match_domain, effect, priority, enabled, created_at, updated_at)
+                 VALUES (?1, ?2, '*', 'block', ?3, 1, ?4, ?4)",
+                params![BLOCK_ALL_ID, BLOCK_ALL_NAME, BLOCK_ALL_PRIORITY, now_s()],
+            )?,
+            DefaultEffect::Allow => db.execute("DELETE FROM egress_rules WHERE id = ?1", [BLOCK_ALL_ID])?,
+        };
+    }
+    (c.hooks.rules_changed)();
+    Ok(Reply::ok(&every_other_site(&c.db)?))
 }
 
 fn get(db: &Db, id: &str) -> rusqlite::Result<Option<EgressRule>> {
@@ -512,6 +623,7 @@ fn create(c: &Ctx, b: NewEgressRule) -> Result {
 }
 
 fn update(c: &Ctx, p: EgressRulePatch) -> Result {
+    locked(c.param("id"))?;
     let Some(cur) = get(&c.db, c.param("id"))? else {
         return Err(Reply::not_found("Egress rule"));
     };
@@ -583,6 +695,7 @@ fn update(c: &Ctx, p: EgressRulePatch) -> Result {
 
 /// allow → ask → block → allow; a tunnel rule goes back to allow. Never into `tunnel`.
 fn cycle(c: &Ctx) -> Result {
+    locked(c.param("id"))?;
     let Some(cur) = get(&c.db, c.param("id"))? else {
         return Err(Reply::not_found("Egress rule"));
     };

@@ -6,6 +6,7 @@
 #   rust/scripts/build-box.sh            # natively when the musl cross toolchain is installed, else in Docker
 #   rust/scripts/build-box.sh --docker   # always in the pinned build image (what releases use)
 #   rust/scripts/build-box.sh --arch aarch64 [--docker]   # the arm build (x86_64 is the default)
+#   rust/scripts/build-box.sh --prepare  # only build the pinned image (build-release.sh, before two builds at once)
 #
 # The firewall's page assets (dist-ui) need `pnpm install` first; CC_BUILD_NO_UI=1 builds the
 # binaries without them.
@@ -16,12 +17,14 @@ set -euo pipefail
 
 RUST_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DOCKER=0
+PREPARE=0
 ARCH=x86_64
 while [ $# -gt 0 ]; do
   case "$1" in
     --docker) DOCKER=1 ;;
+    --prepare) PREPARE=1 ;;
     --arch) ARCH="${2:-}"; [ $# -gt 1 ] && shift ;;
-    *) echo "usage: build-box.sh [--docker] [--arch x86_64|aarch64]" >&2; exit 2 ;;
+    *) echo "usage: build-box.sh [--docker] [--arch x86_64|aarch64] | --prepare" >&2; exit 2 ;;
   esac
   shift
 done
@@ -83,14 +86,19 @@ native() {
     cargo build --manifest-path "$RUST_DIR/Cargo.toml" --release --locked --target "$TARGET" $PKGS
 }
 
+IMAGE=controlclaw-rust-build:6
+build_image() { docker build -q --platform linux/amd64 -t "$IMAGE" -f "$RUST_DIR/scripts/Dockerfile.build" "$RUST_DIR/scripts" >/dev/null; }
+if [ "$PREPARE" = 1 ]; then build_image; exit 0; fi
+
 in_docker() {
-  local image=controlclaw-rust-build:6
-  docker build -q --platform linux/amd64 -t "$image" -f "$RUST_DIR/scripts/Dockerfile.build" "$RUST_DIR/scripts" >/dev/null
+  local image=$IMAGE
+  build_image
   # Fixed paths inside, whatever they are on this machine. The crate registry is kept between runs
   # (it is only downloads; Cargo.lock's checksums decide what is in it).
   local registry="${CC_BUILD_REGISTRY:-$RUST_DIR/target-cargo-registry}"
   mkdir -p "$TARGET_DIR" "$registry"
-  docker run --rm --platform linux/amd64 -u "$(id -u):$(id -g)" -e HOME=/tmp -e SOURCE_DATE_EPOCH -e CC_BUILD_COMMIT -e CC_BUILD_AT -e CC_BUILD_VERSION \
+  # CC_BUILD_LABEL labels the container, so the caller can stop it (build-release.sh, when stopped).
+  docker run --rm ${CC_BUILD_LABEL:+--label "cc-build=$CC_BUILD_LABEL"} --platform linux/amd64 -u "$(id -u):$(id -g)" -e HOME=/tmp -e SOURCE_DATE_EPOCH -e CC_BUILD_COMMIT -e CC_BUILD_AT -e CC_BUILD_VERSION \
     -v "$RUST_DIR:/src" -v "$TARGET_DIR:/target" -v "$registry:/opt/cargo/registry" -w /src "$image" \
     bash -c "RUSTFLAGS='--remap-path-prefix=/src=/build --remap-path-prefix=/opt/cargo=/cargo --remap-path-prefix=/opt/rustup=/rustup' \
       CFLAGS_$T_ENV='-ffile-prefix-map=/src=/build -ffile-prefix-map=/opt/cargo=/cargo' \

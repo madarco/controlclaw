@@ -55,8 +55,11 @@ export interface UseFirewallChangeOptions<T extends FirewallChangeLike> {
    * The change is over and there is nothing left for the person to do in the form that started it
    * — it applied, or the agent never confirmed it. A failure does NOT call this: the error belongs
    * in the dialog that collected the token, next to the field that has to change.
+   *
+   * It is handed the change, so a caller can tell which one ended (the Channels page keeps its
+   * dialog open after an `add` to walk the person through pairing).
    */
-  onDone?: () => void;
+  onDone?: (change: T) => void;
   /**
    * A feature whose change has states this hook does not know, consulted before anything else.
    *
@@ -144,7 +147,7 @@ export function useFirewallChange<T extends FirewallChangeLike>(opts: UseFirewal
       setTracking(null);
       if (c.status === "unconfirmed") toast.info(boxErrorMessage(c.error) ?? "The agent has not confirmed this yet.");
       else toast.success(c.tofu ? `${c.summary}: done.` : `${c.summary}: confirmed and applied.`);
-      onDone.current?.();
+      onDone.current?.(c);
       w?.resolve();
       return true;
     }

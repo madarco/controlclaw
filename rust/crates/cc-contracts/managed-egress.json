@@ -1,0 +1,52 @@
+{
+  "priority": -5,
+  "sources": [
+    { "key": "anthropic", "kind": "provider", "name": "Anthropic", "hosts": [{ "domain": "api.anthropic.com" }] },
+    { "key": "openai", "kind": "provider", "name": "OpenAI", "hosts": [{ "domain": "api.openai.com" }] },
+    {
+      "key": "openai_codex",
+      "kind": "provider",
+      "name": "ChatGPT sign-in",
+      "hosts": [{ "domain": "chatgpt.com" }]
+    },
+    {
+      "key": "google",
+      "kind": "provider",
+      "name": "Google Gemini",
+      "hosts": [{ "domain": "generativelanguage.googleapis.com" }]
+    },
+    { "key": "openrouter", "kind": "provider", "name": "OpenRouter", "hosts": [{ "domain": "openrouter.ai" }] },
+    {
+      "key": "vercel_gateway",
+      "kind": "provider",
+      "name": "Vercel AI Gateway",
+      "hosts": [{ "domain": "ai-gateway.vercel.sh" }]
+    },
+    {
+      "key": "controlclaw_included",
+      "kind": "provider",
+      "name": "Included AI",
+      "hosts": [{ "domain": "ai-gateway.vercel.sh" }]
+    },
+    { "key": "telegram", "kind": "channel", "name": "Telegram", "hosts": [{ "domain": "api.telegram.org" }] },
+    {
+      "key": "slack",
+      "kind": "channel",
+      "name": "Slack",
+      "hosts": [{ "domain": "slack.com" }, { "domain": "wss-primary.slack.com" }, { "domain": "wss-backup.slack.com" }]
+    },
+    {
+      "key": "whatsapp",
+      "kind": "channel",
+      "name": "WhatsApp",
+      "hosts": [{ "domain": "web.whatsapp.com" }, { "domain": "mmg.whatsapp.net" }]
+    },
+    {
+      "key": "agentmail",
+      "kind": "channel",
+      "name": "AgentMail",
+      "hosts": [{ "domain": "api.agentmail.to" }, { "domain": "ws.agentmail.to" }]
+    },
+    { "key": "gmail", "kind": "channel", "name": "Gmail", "hosts": [{ "domain": "gmail.googleapis.com" }] }
+  ]
+}

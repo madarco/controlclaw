@@ -146,6 +146,32 @@ impl Admin {
         })
     }
 
+    /// Read the firewall's bots, inboxes and Google grants for their rules (`api::managed`): one set
+    /// up before the rules existed, or changed while nobody read them, gets its rule without anyone
+    /// opening its page. Retried until the firewall's modules answer; after that, every change made
+    /// here reads them again.
+    pub async fn read_managed(&self) {
+        let c = api::Ctx {
+            db: self.db.clone(),
+            plane: self.plane.clone(),
+            hooks: self.hooks.clone(),
+            params: HashMap::new(),
+            query: String::new(),
+        };
+        let mut wait = std::time::Duration::from_secs(5);
+        loop {
+            tokio::time::sleep(wait).await;
+            match api::managed::refresh_all(&c).await {
+                Ok(()) => return,
+                Err(e) => tracing::warn!(
+                    "[cc-local] the bots' and accounts' rules (again in a while): {}",
+                    e.body
+                ),
+            }
+            wait = (wait * 2).min(std::time::Duration::from_secs(300));
+        }
+    }
+
     /// The request's `Host` names this API (`AdminConfig::hosts`).
     pub(crate) fn host_ok(&self, host: Option<&str>) -> bool {
         let Some(h) = host.map(str::trim).filter(|h| !h.is_empty()) else {

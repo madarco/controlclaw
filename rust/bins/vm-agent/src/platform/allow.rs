@@ -238,11 +238,39 @@ fn parse_offset_iso(raw: &str) -> Option<i64> {
     Some(t - offset_min * 60_000)
 }
 
-/// The name on a request's meta, in the order the console prefers (`toPairing`, `labelFromMeta`).
+/// The console's limit on a sender label (`approvePairingSchema`, the firewall beat's `senderLabel`).
+/// Longer, and the approval the label travels with would be refused.
+const LABEL_MAX_CHARS: usize = 120;
+
+/// The name on a request's meta, as the console shows it.
+///
+/// What OpenClaw puts there (2026.11): Slack and WhatsApp `name` (Slack's display name, WhatsApp's
+/// push name); Telegram `firstName`, `lastName` and `username`, and no `name`. So a Telegram user
+/// reads "Ada Lovelace (@ada)", "Ada Lovelace" or "@ada", and the id only when none is set.
 pub fn label_of(meta: &Value) -> Option<String> {
-    ["name", "displayName", "username", "title"]
-        .iter()
-        .find_map(|k| super::common::text(meta.get(*k)))
+    let field = |k: &str| {
+        super::common::text(meta.get(k))
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    };
+    let full = [field("firstName"), field("lastName")]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let name = field("name")
+        .or_else(|| field("displayName"))
+        .or_else(|| (!full.is_empty()).then_some(full));
+    let username = field("username")
+        .map(|u| u.trim_start_matches('@').to_string())
+        .filter(|u| !u.is_empty());
+    let label = match (name, username) {
+        (Some(n), Some(u)) => format!("{n} (@{u})"),
+        (Some(n), None) => n,
+        (None, Some(u)) => format!("@{u}"),
+        (None, None) => field("title")?,
+    };
+    Some(label.chars().take(LABEL_MAX_CHARS).collect())
 }
 
 fn label_from_meta(meta: Option<String>) -> Option<String> {
@@ -468,7 +496,7 @@ pub(crate) mod tests {
         assert_eq!(r.error, None);
         let ids: Vec<&str> = r.senders.iter().map(|s| s.sender_id.as_str()).collect();
         assert_eq!(ids, ["111", "222", "U1"]);
-        assert_eq!(r.senders[1].label.as_deref(), Some("lydia"));
+        assert_eq!(r.senders[1].label.as_deref(), Some("@lydia"));
         assert_eq!(r.senders[0].at.as_deref(), Some("2025-10-09T08:53:20.000Z"));
         assert_eq!(
             r.senders[1].at.as_deref(),
@@ -524,6 +552,41 @@ pub(crate) mod tests {
         assert_eq!(r.pairings[0].created_at.as_deref(), Some("2025-10-09T08:53:20.000Z"));
         assert_eq!(r.pairings[1].label.as_deref(), Some("Ann"));
         assert_eq!(r.pairings[1].created_at.as_deref(), Some("2026-10-12T07:59:00.000Z"));
+    }
+
+    #[test]
+    fn labels_from_what_each_channel_stores() {
+        use serde_json::json;
+        let l = |v: Value| label_of(&v);
+        // Telegram: first and last name and username, no `name`. Read as `name` alone, a Telegram
+        // user with no username showed as a bare id.
+        assert_eq!(
+            l(json!({"firstName": "Ada", "lastName": "Lovelace", "username": "ada", "accountId": "default"}))
+                .as_deref(),
+            Some("Ada Lovelace (@ada)")
+        );
+        assert_eq!(
+            l(json!({"firstName": "Ada", "accountId": "default"})).as_deref(),
+            Some("Ada")
+        );
+        assert_eq!(l(json!({"lastName": " Lovelace "})).as_deref(), Some("Lovelace"));
+        assert_eq!(l(json!({"username": "@ada"})).as_deref(), Some("@ada"));
+        assert_eq!(
+            l(json!({"accountId": "default"})),
+            None,
+            "the console falls back to the id"
+        );
+        // Slack and WhatsApp: `name`.
+        assert_eq!(
+            l(json!({"name": "Ann", "teamId": "T1", "senderId": "U1"})).as_deref(),
+            Some("Ann")
+        );
+        assert_eq!(l(json!({"displayName": "Ann"})).as_deref(), Some("Ann"));
+        assert_eq!(l(json!({"title": "Ops room"})).as_deref(), Some("Ops room"));
+        assert_eq!(l(json!({"name": "  ", "firstName": ""})), None);
+        // Capped at what the console accepts with an approval, on a char boundary.
+        let long = l(json!({"firstName": "\u{00e9}".repeat(200)})).expect("label");
+        assert_eq!(long.chars().count(), 120);
     }
 
     #[test]

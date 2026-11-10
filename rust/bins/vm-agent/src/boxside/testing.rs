@@ -28,6 +28,7 @@ pub fn test_box() -> TestBox {
     std::fs::write(keys.dir.join("session_secret"), hex::encode([7u8; 32])).expect("secret");
     let config = Config {
         port: 0,
+        legacy_port: None,
         bind: "127.0.0.1".into(),
         keys_dir: keys.dir.clone(),
         state_dir: dir.path().join("state"),

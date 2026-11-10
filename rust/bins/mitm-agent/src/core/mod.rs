@@ -45,6 +45,7 @@ pub mod env;
 pub mod exit;
 pub mod exit_check;
 pub mod firewall_update;
+mod first_use_tests;
 pub mod fw_logs;
 pub mod gbrain;
 // Also used by later groups (C3-C6), W4 and W5.
@@ -1045,6 +1046,8 @@ fn register_updates(reg: &mut Registry, app: &Arc<App>, core: &Arc<Core>) {
     handle(reg, "update-all.cancel", &ua, |u, p| async move { u.cancel(p) });
     core.beat.feature("update_all", || true);
     core.beat.feature("auto_update", || true);
+    // Updates of this box and the nightly grant apply on first use (an older build refused both).
+    core.beat.feature("update_tofu", || true);
 
     let c = core.clone();
     reg.commands.status(&["update", "disk_reseal", "auto_update"], move || {

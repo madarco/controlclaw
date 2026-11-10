@@ -4,7 +4,7 @@
 //! Every route takes only the firewall's token with purpose `hooks`, reads included: a control
 //! plane that could feed the agent input of its own choosing is what ingress on the firewall exists
 //! to prevent. `/hooks/deliver` does not know what Gmail is; it replays bytes to a port in
-//! 8700-8799 and nothing else (not 3100, not the browser's debugger).
+//! 8700-8799 and nothing else (not the agent's own 3102 or 3100, not the browser's debugger).
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -294,6 +294,10 @@ mod tests {
 
     #[test]
     fn only_a_hook_port_and_a_plain_path() {
+        assert_eq!(
+            p(json!({ "port": 3102, "path": "/", "bodyB64": "" })).expect_err("e"),
+            "port must be between 8700 and 8799"
+        );
         assert_eq!(
             p(json!({ "port": 3100, "path": "/", "bodyB64": "" })).expect_err("e"),
             "port must be between 8700 and 8799"

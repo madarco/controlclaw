@@ -1,5 +1,7 @@
-//! Nightly automatic updates (`auto-update.ts`): a standing grant, written only after a code this
-//! firewall sent was verified, and taken away with `auto-update.disable`. No first use.
+//! Nightly automatic updates (`auto-update.ts`): a standing grant, written after a code this
+//! firewall sent was verified, or on first use while nobody is set to get codes, and taken away
+//! with `auto-update.disable`. A grant written on first use stays when somebody is added later,
+//! like every other first-use change.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -7,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::{Map, Value, json};
 
 use super::code_message::CodeParts;
-use super::consent::{iso, no_recipients};
+use super::consent::iso;
 use super::kit::{Kit, awaiting, fail, obj, ok, text};
 use super::now_ms;
 use crate::commands::CommandOutcome;
@@ -92,7 +94,16 @@ impl AutoUpdate {
             return fail("failed", "Your firewall cannot read its channel list right now.", data);
         };
         if routes.is_empty() {
-            return fail("failed", no_recipients(self.kit.agent_allowed()).0, data);
+            self.kit.consent.forget(SCOPE);
+            let confirmed_at = iso(now_ms());
+            if let Err(e) = self.store.put(Some(confirmed_at.clone())) {
+                return CommandOutcome::failed("failed", e);
+            }
+            tracing::info!("[auto-update] no code recipient: turned on on first use");
+            let mut d = data;
+            d.insert("confirmedAt".into(), json!(confirmed_at));
+            d.insert("tofu".into(), json!(true));
+            return ok("applied", d);
         }
         let sent = self
             .kit

@@ -3247,6 +3247,7 @@ mod tests {
             log: Arc::new(|_| {}),
             bin: crate::platform::common::OPENCLAW_BIN.to_string(),
             unit_down: None,
+            offline: crate::platform::common::no_offline(),
         };
         let svc = TemplateService::new(TemplateOptions {
             console: console.clone(),

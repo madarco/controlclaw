@@ -1,7 +1,7 @@
 # Quickstart: the panel's first run
 
-The firewall's panel is where you sign in, connect agents, set the rules and see the traffic. It is
-on the firewall's port 8800, on loopback only. From another machine, open an SSH tunnel first:
+In the firewall's panel you sign in, connect agents, set the rules and see the traffic. It listens on
+the firewall's port 8800, on loopback only. From another machine, open an SSH tunnel first:
 
 ```bash
 ssh -L 8800:127.0.0.1:8800 <the firewall's machine>
@@ -9,50 +9,62 @@ ssh -L 8800:127.0.0.1:8800 <the firewall's machine>
 
 Then open <http://localhost:8800>.
 
-## 1. The setup token and the password
+## 1. Enter the setup token and choose a password
 
-The panel first asks for a one-time setup token. The firewall writes it to its log at each start,
-until there is an admin:
+The panel first asks for a one-time setup token. On the firewall's machine, `controlclaw open` gives
+the panel's link with the token in it, and the panel fills it in. For a firewall installed with
+`install.sh`, run it with `sudo`. `up` and `install` show the same link when they finish.
+
+The token is also in the firewall's log, which writes a new one at each start until there is an
+admin:
 
 ```bash
-sudo journalctl -u controlclaw-mitm-agent | grep 'no admin yet'      # installed with install.sh
-sudo docker compose -p controlclaw-local logs firewall | grep 'no admin yet'   # up --local
+sudo journalctl -u controlclaw-mitm-agent | grep 'no admin yet'                     # install.sh
+sudo docker compose -p controlclaw-firewall logs firewall | grep 'no admin yet'    # install, up --here
+sudo docker compose -p controlclaw-local logs firewall | grep 'no admin yet'       # up --all
 ```
 
-Only the newest token works. `up --local` also prints it.
+Only the newest token works.
 
-Paste it, then choose the admin password (12 characters or more). The password signs you in for 12
-hours.
+Paste the token if the panel did not fill it in, then choose the admin password (12 characters or
+more). The password signs you in for 12 hours.
 
-## 2. An AI model key (optional)
+## 2. Add an AI model key (optional)
 
-This key is for the firewall itself: it uses it for its AI review of what agents send. It is not
-OpenClaw's model key. Skip it if you do not want the AI review; you can add one later in
-**Settings**.
+This key is for the firewall itself, which uses it to review what agents send. It is not OpenClaw's
+model key. Skip it if you don't want the AI review. You can add one later in **Settings**.
 
-## 3. The first agent (optional)
+## 3. Connect your first agent (optional)
 
 **Make a pairing code** gives a one-time code and the command to run on the agent's machine. The
-command says `--mode host`: change it to the mode you chose ([protection.md](protection.md)). The code
-works once, within 10 minutes, and is not shown again. Skip this step with **Go to the panel**: for
-`up --local`, which pairs OpenClaw itself, or to make the code later in **Agents**.
+command says `--mode host`. Change it to the mode you chose ([protection.md](protection.md)). The code
+works once, within 10 minutes, and the panel does not show it again.
 
-You can also let OpenClaw connect itself: give it the
+Skip this step with **Go to the panel** when:
+
+- you ran `up` or `connect` on the firewall's machine, which pair OpenClaw by themselves;
+- you want to make the code later, in **Agents**.
+
+You can also let OpenClaw connect itself. Give it the
 [`controlclaw-connect` skill](../../packages/skills/controlclaw-connect/SKILL.md) and the code in
 chat. It runs `doctor`, explains what the firewall will protect, and asks you before it connects.
 
-## 4. Allow what the agent needs
+## 4. Decide what the agent may reach
 
-A new firewall blocks every request. Before the agent can do anything, open **Internet access** and
-add an allow rule for your model provider, for example `api.openai.com` or `api.anthropic.com`. A
-change applies at once.
+A new firewall allows every site and logs it. To allow only the sites you choose, open **Internet
+access** and set **Every other site** to **Block**. The change applies at once.
 
-A Telegram bot (**Channels**) needs `api.telegram.org` allowed too: adding the bot does not allow it,
-and until then OpenClaw cannot reach Telegram.
+The model keys in **Settings** and the bots in **Channels** keep working after that. The firewall adds
+a rule for each, such as `api.anthropic.com` for an Anthropic key or `api.telegram.org` for a
+Telegram bot's agent. The rule says what added it, and goes away with the key or the bot. You can't
+change those rules. Add your own rules for anything else the agent needs, such as the host of a model
+key you typed into OpenClaw itself.
 
 ## 5. See the traffic
 
-**Overview** and **Activity** show each request, the agent that made it, and whether it was allowed.
-**Agents** lists the paired agents with their traffic.
+**Overview** and **Activity** show each request, the agent that made it, and whether the firewall let
+it through. **Activity** hides routine traffic (model calls and bot polling made with a key the
+firewall put in) until you turn on **Show routine traffic**. The Overview still counts it. **Agents**
+lists the paired agents with their traffic.
 
 More on the panel: [panel.md](panel.md).

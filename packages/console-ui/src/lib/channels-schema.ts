@@ -70,9 +70,14 @@ export const unassignSchema = connectionIdSchema;
 
 export const approvePairingSchema = z.object({
   connectionId: z.string().min(1),
-  code: z.string().trim().min(4).max(16),
+  code: z.string().trim().min(4).max(16).describe("The pairing code the channel sent the person who messaged the agent. Not a confirmation code."),
   senderId: z.string().trim().min(1).max(128),
   label: z.string().trim().max(120).optional(),
+  /**
+   * The agent the connection is on. Optional; when given, the approval is refused unless the
+   * connection is on that agent. An agent's own ask always carries it (itself).
+   */
+  vmId: z.string().min(1).optional(),
 });
 
 /** Link (or re-link) a WhatsApp number on an agent. The session lives on that box. */
@@ -259,6 +264,24 @@ export type CodeRecipientsView = {
   recent: AgentChannelChangeView[];
 };
 
+/**
+ * Somebody who can talk to an agent on one of its channels, from what the firewall last reported
+ * about who gets confirmation codes (`vm.codeRecipients`, the Firewall page's list).
+ */
+export type ApprovedPersonView = {
+  connectionId: string;
+  type: AgentChannelType;
+  senderId: string;
+  /** The name the firewall kept from the pairing request at approval. Null for an approval made without one. */
+  label: string | null;
+  at: string | null;
+  /**
+   * True: on the firewall's list, so they get confirmation codes. False: the agent allowed them
+   * itself (someone asked it in the chat) and nobody confirmed them on the Firewall page.
+   */
+  getsCodes: boolean;
+};
+
 /** `/dashboard/agents/<id>/channels`: what this agent listens on. */
 export type AgentChannelsView = {
   vm: AgentRefView;
@@ -268,6 +291,17 @@ export type AgentChannelsView = {
   assigned: ConnectionView[];
   /** Unassigned Telegram and Slack connections of the org, ready to be enabled here. */
   available: ConnectionView[];
+  /**
+   * Whether any agent of the organization answers on a channel. Security codes can only go out on
+   * one, so with none the empty state says so. Absent where the view is built without it.
+   */
+  orgHasChannelOnAgent?: boolean;
+  /**
+   * The people approved on this agent's channels, from the firewall's last report. Null when the
+   * firewall has never reported the list (a firewall built before T-83); absent where the view is
+   * built without it (the firewall's own panel, older fixtures).
+   */
+  approved?: ApprovedPersonView[] | null;
   pending: AgentChannelChangeView | null;
   recent: AgentChannelChangeView[];
   live: AgentChannelsLive;

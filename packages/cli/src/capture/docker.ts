@@ -1,8 +1,8 @@
 import { isIPv4 } from "node:net";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Facts } from "../doctor.js";
 import { type Check, dnsAnswers, splitHostPort } from "../probe.js";
-import type { ConnectRecord } from "../state.js";
+import { type ConnectRecord, stateDir } from "../state.js";
 import type { Sys } from "../sys.js";
 import { GATE_PORTS } from "./host.js";
 import type { CaptureMode, Ctx } from "./mode.js";
@@ -24,6 +24,12 @@ import type { CaptureMode, Ctx } from "./mode.js";
 export const DIR = "/etc/controlclaw/docker";
 export const OVERRIDE = `${DIR}/compose.controlclaw.yml`;
 export const BUNDLE = `${DIR}/ca-bundle.crt`;
+/** The override and the CA bundle: in /etc as root, else (`up` by a user who can use Docker) in its config folder. */
+export function dockerFiles(sys: Sys): { override: string; bundle: string } {
+  if (sys.euid === 0) return { override: OVERRIDE, bundle: BUNDLE };
+  const dir = join(stateDir(sys), "docker");
+  return { override: join(dir, "compose.controlclaw.yml"), bundle: join(dir, "ca-bundle.crt") };
+}
 export const SUBNET = "172.31.250.0/24";
 export const GATE_IP = "172.31.250.2";
 export const GATEWAY_IP = "172.31.250.10";
@@ -100,7 +106,9 @@ export function parseInspect(raw: string): ComposeInfo | null {
     if (proto !== "tcp") continue;
     for (const b of binds ?? []) {
       if (!b.HostPort) continue;
-      ports.push({ host: b.HostIp ? `${b.HostIp}:${b.HostPort}` : b.HostPort, container: Number(port) });
+      // An IPv6 address in brackets, as Compose takes it: `[::1]:18789`.
+      const ip = b.HostIp?.includes(":") ? `[${b.HostIp}]` : b.HostIp;
+      ports.push({ host: ip ? `${ip}:${b.HostPort}` : b.HostPort, container: Number(port) });
     }
   }
   return { project, workingDir, files: files.split(","), service, ports, escapes: escapesOf(c) };
@@ -147,7 +155,15 @@ export function proxyEnv(proxyUrl: string, gate?: string): [string, string][] {
   ];
 }
 
-export function overrideYaml(info: ComposeInfo, proxy: { host: string; port: number }, dns: string | null): string {
+export interface HostFiles {
+  /** The CA on this machine, mounted at CONTAINER_CA. */
+  ca: string;
+  bundle: string;
+}
+
+const ROOT_FILES: HostFiles = { ca: CONTAINER_CA, bundle: BUNDLE };
+
+export function overrideYaml(info: ComposeInfo, proxy: { host: string; port: number }, dns: string | null, files: HostFiles = ROOT_FILES): string {
   const env = proxyEnv(`http://${GATE_IP}:8080`, GATE_IP);
   const clash = info.ports.find((p) => p.container === 8080 || p.container === 53 || GATE_PORTS.includes(p.container));
   if (clash) throw new Error(`the gateway publishes port ${clash.container}, which the gate uses for the firewall`);
@@ -167,9 +183,7 @@ export function overrideYaml(info: ComposeInfo, proxy: { host: string; port: num
     `    dns: [${q(GATE_IP)}]`,
     "    environment:",
     ...env.map(([k, v]) => `      ${k}: ${q(v)}`),
-    "    volumes:",
-    `      - ${q(`${CONTAINER_CA}:${CONTAINER_CA}:ro`)}`,
-    `      - ${q(`${BUNDLE}:/etc/ssl/certs/ca-certificates.crt:ro`)}`,
+    ...caVolumes(files),
     `  ${GATE_SERVICE}:`,
     `    image: ${GATE_IMAGE}`,
     "    restart: unless-stopped",
@@ -191,14 +205,59 @@ export function overrideYaml(info: ComposeInfo, proxy: { host: string; port: num
   ].join("\n");
 }
 
-/** Their compose files and ours, for COMPOSE_FILE (paths relative to the project when they are inside it). */
-export function composeFileValue(info: ComposeInfo): string {
-  const rel = (f: string) => (f.startsWith(`${info.workingDir}/`) ? f.slice(info.workingDir.length + 1) : f);
-  return [...info.files.map(rel), OVERRIDE].join(":");
+function caVolumes(files: HostFiles): string[] {
+  return [
+    "    volumes:",
+    `      - ${q(`${files.ca}:${CONTAINER_CA}:ro`)}`,
+    `      - ${q(`${files.bundle}:/etc/ssl/certs/ca-certificates.crt:ro`)}`,
+  ];
 }
 
-function composeArgv(info: ComposeInfo, withOverride: boolean): string[] {
-  const files = withOverride ? [...info.files, OVERRIDE] : info.files;
+/**
+ * The firewall's own network on this machine (`controlclaw up`): the gateway joins it, and the
+ * firewall's container, its only other member, is its proxy and DNS. No gate: the firewall
+ * publishes the gateway's ports itself (CC_FORWARD).
+ */
+export interface FirewallNet {
+  /** The Docker network, made by the firewall's Compose project. */
+  network: string;
+  /** The firewall's address on it. */
+  firewall: string;
+  /** The gateway's address on it, the one the firewall knows it by. */
+  gateway: string;
+}
+
+export function overrideOnFirewallNet(info: ComposeInfo, net: FirewallNet, files: HostFiles): string {
+  const env = proxyEnv(`http://${net.firewall}:8080`, net.firewall);
+  return [
+    "# Written by controlclaw up; removed by controlclaw disconnect.",
+    "# OpenClaw's gateway on the firewall's internal network; the firewall is its only way out.",
+    "services:",
+    `  ${info.service}:`,
+    "    ports: !reset []",
+    "    networks: !override",
+    "      controlclaw:",
+    `        ipv4_address: ${net.gateway}`,
+    `    dns: [${q(net.firewall)}]`,
+    "    environment:",
+    ...env.map(([k, v]) => `      ${k}: ${q(v)}`),
+    ...caVolumes(files),
+    "networks:",
+    "  controlclaw:",
+    "    external: true",
+    `    name: ${q(net.network)}`,
+    "",
+  ].join("\n");
+}
+
+/** Their compose files and ours, for COMPOSE_FILE (paths relative to the project when they are inside it). */
+export function composeFileValue(info: ComposeInfo, override: string = OVERRIDE): string {
+  const rel = (f: string) => (f.startsWith(`${info.workingDir}/`) ? f.slice(info.workingDir.length + 1) : f);
+  return [...info.files.map(rel), override].join(":");
+}
+
+function composeArgv(info: ComposeInfo, override: string | null): string[] {
+  const files = override ? [...info.files, override] : info.files;
   return ["docker", "compose", "-p", info.project, "--project-directory", info.workingDir, ...files.flatMap((f) => ["-f", f])];
 }
 
@@ -251,69 +310,101 @@ export async function gatewayIsolated(sys: Sys, network: string): Promise<Check>
   };
 }
 
+/** What docker mode needs besides root: a Docker that can keep the host off an internal network, and OpenClaw in it. */
+export function dockerNeeds(f: Facts): string[] {
+  const out: string[] = [];
+  if (!f.docker?.ok) out.push("needs Docker");
+  else if (!f.docker.compose || !composeAtLeast(f.docker.compose, 2, 24, 4)) out.push("needs Docker Compose 2.24.4 or newer");
+  const old = f.docker?.ok ? dockerTooOld(f.docker.version) : null;
+  if (old) out.push(old);
+  if (f.openclaw.install.runs.kind !== "docker") out.push("OpenClaw does not run in a Docker container here");
+  return out;
+}
+
+/**
+ * The gateway's Compose project, checked: refused when it could leave the internal network, or
+ * when other services of the project run with it (they would lose it).
+ */
+export async function gatewayProject(sys: Sys, container: string): Promise<ComposeInfo> {
+  const info = parseInspect((await sys.run(["docker", "inspect", "--", container])).stdout);
+  if (!info) throw new Error(`${container} was not started with Docker Compose: docker mode needs its compose file`);
+  if (info.escapes.length) {
+    throw new Error(`${container} could leave the internal network: ${info.escapes.join("; ")}. Remove that from its compose file first`);
+  }
+  // The gateway leaves its networks: services that talk to it there would lose it.
+  const others = (await sys.run(["docker", "ps", "--filter", `label=com.docker.compose.project=${info.project}`, "--format", "{{.Names}}"])).stdout
+    .split("\n")
+    .filter((n) => n && n !== container);
+  if (others.length) {
+    throw new Error(`docker mode takes the gateway off its network, and these services of ${info.project} run with it: ${others.join(", ")}`);
+  }
+  // Compose must read the project's files (its compose files, its .env) to move the gateway, and
+  // again to put it back: a user in the docker group may not (a root project's .env is 0600).
+  const cfg = await sys.run([...composeArgv(info, null), "config", "-q"]);
+  if (cfg.code !== 0) {
+    throw new Error(`docker compose cannot read ${info.project}'s files here (${cfg.stderr.trim().split("\n").pop()}): run this with sudo, or as the user who owns ${info.workingDir}`);
+  }
+  return info;
+}
+
 export const docker: CaptureMode = {
   name: "docker",
   protects: "strong: the gateway container has no route out; its only way to the internet is the firewall",
+  // Root, or a user who can use Docker (the docker group, which can do what root does).
   blockers(f: Facts) {
-    const out: string[] = [];
-    if (!f.root) out.push("needs root (run it with sudo)");
-    if (!f.docker?.ok) out.push("needs Docker");
-    else if (!f.docker.compose || !composeAtLeast(f.docker.compose, 2, 24, 4)) out.push("needs Docker Compose 2.24.4 or newer");
-    const old = f.docker?.ok ? dockerTooOld(f.docker.version) : null;
-    if (old) out.push(old);
-    if (f.openclaw.install.runs.kind !== "docker") out.push("OpenClaw does not run in a Docker container here");
-    return out;
+    return dockerNeeds(f);
   },
   async install(ctx: Ctx) {
     const { sys, rec } = ctx;
     if (ctx.install.runs.kind !== "docker") throw new Error("OpenClaw does not run in Docker");
     const container = ctx.install.runs.container;
-    const info = parseInspect((await sys.run(["docker", "inspect", "--", container])).stdout);
-    if (!info) throw new Error(`${container} was not started with Docker Compose: docker mode needs its compose file`);
-    if (info.escapes.length) {
-      throw new Error(`${container} could leave the internal network: ${info.escapes.join("; ")}. Remove that from its compose file first`);
+    const info = await gatewayProject(sys, container);
+    const net = ctx.firewallNet;
+    if (!net) {
+      const taken = await subnetTaken(sys, `${info.project}_controlclaw`);
+      if (taken) throw new Error(`the Docker network ${taken} already uses ${SUBNET}`);
     }
-    // The gateway leaves its networks: services that talk to it there would lose it.
-    const others = (await sys.run(["docker", "ps", "--filter", `label=com.docker.compose.project=${info.project}`, "--format", "{{.Names}}"])).stdout
-      .split("\n")
-      .filter((n) => n && n !== container);
-    if (others.length) {
-      throw new Error(`docker mode takes the gateway off its network, and these services of ${info.project} run with it: ${others.join(", ")}`);
-    }
-    const taken = await subnetTaken(sys, `${info.project}_controlclaw`);
-    if (taken) throw new Error(`the Docker network ${taken} already uses ${SUBNET}`);
-    const proxy = splitHostPort(ctx.firewall.proxy, 8080);
+    const { override, bundle: bundlePath } = dockerFiles(sys);
+    const files: HostFiles = { ca: ctx.caPath, bundle: bundlePath };
 
     // The image's own CA bundle plus ours, mounted over the system store: no root needed inside.
     const bundle = await sys.run(["docker", "exec", container, "cat", "/etc/ssl/certs/ca-certificates.crt"]);
     if (bundle.code !== 0 || !bundle.stdout.includes("BEGIN CERTIFICATE")) {
       throw new Error(`could not read the CA bundle in ${container}: is it running?`);
     }
-    await rec.file(BUNDLE, `${bundle.stdout.trimEnd()}\n${ctx.caPem.trim()}\n`);
-    await rec.file(OVERRIDE, overrideYaml(info, proxy, ctx.firewall.dns));
+    await rec.file(bundlePath, `${bundle.stdout.trimEnd()}\n${ctx.caPem.trim()}\n`);
+    await rec.file(override, net ? overrideOnFirewallNet(info, net, files) : overrideYaml(info, splitHostPort(ctx.firewall.proxy, 8080), ctx.firewall.dns, files));
 
-    // Only the gateway and the gate are touched. The gate goes first, while the override that
-    // names it is still there.
-    rec.onUndo("put the gateway back on its own network", [
-      [...composeArgv(info, true), "rm", "-s", "-f", GATE_SERVICE],
-      [...composeArgv(info, false), "up", "-d", info.service],
-      ["docker", "network", "rm", `${info.project}_controlclaw`],
-    ]);
+    // Only the gateway (and the gate) are touched. The gate goes first, while the override that
+    // names it is still there. The firewall's network is its own project's: not removed here.
+    rec.onUndo(
+      "put the gateway back on its own network",
+      net
+        ? [[...composeArgv(info, null), "up", "-d", info.service]]
+        : [
+            [...composeArgv(info, override), "rm", "-s", "-f", GATE_SERVICE],
+            [...composeArgv(info, null), "up", "-d", info.service],
+            ["docker", "network", "rm", `${info.project}_controlclaw`],
+          ],
+    );
     ctx.log(`Moving ${container} onto the internal network`);
-    const up = await sys.run([...composeArgv(info, true), "up", "-d", info.service, GATE_SERVICE], { timeoutMs: 600_000 });
+    const up = await sys.run([...composeArgv(info, override), "up", "-d", info.service, ...(net ? [] : [GATE_SERVICE])], { timeoutMs: 600_000 });
     if (up.code !== 0) throw new Error(`docker compose up failed: ${up.stderr.trim().split("\n").slice(-3).join(" ")}`);
-    const notes = [`OpenClaw's container now reaches the internet only through the firewall. Its ports are published by ${GATE_SERVICE}.`];
+    const notes = [`OpenClaw's container now reaches the internet only through the firewall. Its ports are published by ${net ? "the firewall's container" : GATE_SERVICE}.`];
 
     // `docker compose up` in their folder (an OpenClaw update) must keep the override: Compose
     // reads COMPOSE_FILE from the project's .env when no -f is given.
     const env = join(info.workingDir, ".env");
     const before = sys.read(env);
+    const keep = `Otherwise the next "docker compose up" there puts the gateway back on its open network (controlclaw status shows it).`;
     if (before !== null && /^\s*(export\s+)?COMPOSE_(FILE|PATH_SEPARATOR)\s*=/m.test(before)) {
-      notes.push(`Your ${env} sets COMPOSE_FILE or COMPOSE_PATH_SEPARATOR, so it is left as it is: add ${OVERRIDE} to COMPOSE_FILE. Otherwise the next "docker compose up" there puts the gateway back on its open network (controlclaw status shows it).`);
+      notes.push(`Your ${env} sets COMPOSE_FILE or COMPOSE_PATH_SEPARATOR, so it is left as it is: add ${override} to COMPOSE_FILE. ${keep}`);
+    } else if (!canWrite(sys, env)) {
+      notes.push(`This user cannot write ${env}: add COMPOSE_FILE=${composeFileValue(info, override)} to it yourself. ${keep}`);
     } else {
-      const line = `COMPOSE_FILE=${composeFileValue(info)}`;
-      await rec.file(env, `${before === null ? "" : `${before.trimEnd()}\n`}# Added by controlclaw connect; removed by controlclaw disconnect.\n${line}\n`);
-      notes.push(`"docker compose up" in ${info.workingDir} keeps the capture: ${env} now names the override in COMPOSE_FILE. With -f, add -f ${OVERRIDE}; without it the gateway goes back on its open network (controlclaw status shows it).`);
+      const line = `COMPOSE_FILE=${composeFileValue(info, override)}`;
+      await rec.file(env, `${before === null ? "" : `${before.trimEnd()}\n`}# Added by controlclaw; removed by controlclaw disconnect.\n${line}\n`);
+      notes.push(`"docker compose up" in ${info.workingDir} keeps the capture: ${env} now names the override in COMPOSE_FILE. With -f, add -f ${override}; without it the gateway goes back on its open network (controlclaw status shows it).`);
     }
     return notes;
   },
@@ -327,19 +418,30 @@ export const docker: CaptureMode = {
     } catch {
       /* not running */
     }
-    const only = names.length === 1 && names[0]!.endsWith("_controlclaw");
+    const want = record.up?.network;
+    const only = names.length === 1 && (want ? names[0] === want : names[0]!.endsWith("_controlclaw"));
     checks.push({ name: "gateway network", ok: only, detail: names.length ? `${c} is on ${names.join(", ")}` : `${c} is not running` });
     if (only) checks.push(await gatewayIsolated(sys, names[0]!));
-    const gate = await sys.run(["docker", "ps", "-q", "--filter", `label=com.docker.compose.service=${GATE_SERVICE}`]);
-    checks.push({ name: GATE_SERVICE, ok: gate.stdout.trim() !== "", detail: gate.stdout.trim() ? "running" : "not running" });
-    // A request from inside: any HTTP answer means it went through the gate (there is no other way).
+    if (!want) {
+      const gate = await sys.run(["docker", "ps", "-q", "--filter", `label=com.docker.compose.service=${GATE_SERVICE}`]);
+      checks.push({ name: GATE_SERVICE, ok: gate.stdout.trim() !== "", detail: gate.stdout.trim() ? "running" : "not running" });
+    }
+    // A request from inside: any HTTP answer means it went through the firewall (there is no other way).
     const probe = await sys.run(["docker", "exec", c, "node", "-e", PROBE], { timeoutMs: 30_000 });
     const answer = probe.stdout.trim();
     checks.push({ name: "request from the gateway", ok: /^HTTP \d+/.test(answer), detail: answer || "no answer" });
-    if (record.firewall.dns && isIPv4(record.firewall.dns)) checks.push(await dnsAnswers(record.firewall.dns));
+    // The firewall's DNS on its own network is out of this machine's reach: the request above used it.
+    if (!want && record.firewall.dns && isIPv4(record.firewall.dns)) checks.push(await dnsAnswers(record.firewall.dns));
     return checks;
   },
 };
+
+/** Whether this process may write `path` (as root, always): its owner, or the folder's when it is not there. */
+function canWrite(sys: Sys, path: string): boolean {
+  if (sys.euid === 0) return true;
+  const st = sys.stat(path) ?? sys.stat(dirname(path));
+  return st?.uid === sys.euid;
+}
 
 export function composeAtLeast(version: string, major: number, minor: number, patch: number): boolean {
   const m = /(\d+)\.(\d+)(?:\.(\d+))?/.exec(version);

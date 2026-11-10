@@ -1,19 +1,20 @@
-# Quickstart: an OpenClaw you already run
+# Quickstart: one firewall on your network for OpenClaw on other machines
 
-You keep OpenClaw where it is. The firewall goes on another machine on the same private network: a
+You keep OpenClaw where it is. The firewall runs on another machine on the same private network: a
 small server or VM at home or in the office, or a VM on your cloud's private network. OpenClaw's
 machine then sends its traffic through it.
 
-For a firewall reached over the internet instead (another cloud, no shared network), use
-[the remote quickstart](quickstart-remote.md). For a new OpenClaw, the simplest is
-[local Docker](quickstart-docker.md).
+Other guides may fit better:
 
-The firewall cannot run on OpenClaw's own machine in these modes yet: they both use the same local
-port for their agents (3100).
+- To run the firewall on OpenClaw's own machine, in a container, use
+  [`controlclaw up --here`](quickstart-same-machine.md). It is one command.
+- For a firewall you reach over the internet (another cloud, no shared network), use
+  [the remote quickstart](quickstart-remote.md).
+- For a new OpenClaw, the shortest path is [local Docker](quickstart-docker.md).
 
 Pick the mode from what `doctor` says on OpenClaw's machine:
 
-- **docker**, if OpenClaw runs with Docker Compose. Strongest.
+- **docker**, if OpenClaw runs with Docker Compose. This is the strongest.
 - **host**, if OpenClaw is installed on the machine (for example with OpenClaw's installer) and runs
   as its own user.
 - **proxy**, if you have no root, or only want to see what OpenClaw does.
@@ -22,34 +23,45 @@ Pick the mode from what `doctor` says on OpenClaw's machine:
 
 You need:
 
-- **the firewall:** a fresh Ubuntu 24.04 machine (amd64 or arm64, 2 GB of RAM is enough) with an
-  address on the private network (such as `192.168.1.20` or `10.0.1.2`). That address must not be
-  reachable from the internet;
-- **OpenClaw's machine:** Linux with systemd and Node 22 or newer, on the same network. Root for
-  docker and host mode.
+- **For the firewall:** a fresh Ubuntu 24.04 machine (amd64 or arm64, 2 GB of RAM is enough) with an
+  address on the private network, such as `192.168.1.20` or `10.0.1.2`. That address must not be
+  reachable from the internet.
+- **For OpenClaw's machine:** Linux with systemd and Node 22 or newer, on the same network. Docker and
+  host mode need root.
 
 ## 1. Install the firewall
 
-On the firewall's machine, with its private address:
+On the firewall's machine (it needs Docker 28 or newer and Node 22 or newer), give `--listen` the
+machine's private address. This example uses `10.0.1.2`:
 
 ```bash
-VERSION=0.9.0   # the latest: https://github.com/madarco/controlclaw/releases
-curl -fsSLO https://github.com/madarco/controlclaw/releases/download/v$VERSION/controlclaw-install-$VERSION.tar.gz
-tar xzf controlclaw-install-$VERSION.tar.gz
-sudo ./controlclaw-install-$VERSION/install.sh --version $VERSION --listen <firewall's private address>
+sudo npx controlclaw install --listen 10.0.1.2
 ```
 
-The proxy (8080), DNS (53) and NTP (123) answer on that address. Pairing (8801) answers on every
-address of the machine. If other machines share the network, allow only OpenClaw's machine on 8080,
-53 and 123 (with `ufw`, or your cloud's firewall), and close 8801 to the internet. Pairing answers
-only a waiting one-time code, but there is no need to leave it open.
+The firewall runs in a container. Its proxy (8080), DNS (53), pairing (8801) and gates (3900, 3940)
+answer on that address, and its panel stays on the machine's loopback. `install` opens the panel (or
+prints its address) and prints a pairing code for the first OpenClaw machine.
+
+If other machines share the network, allow only OpenClaw's machines on those ports. Use your cloud's
+firewall for this, because Docker's published ports go around `ufw`.
+
+Without Docker, `sudo npx controlclaw install --host --listen 10.0.1.2` installs the firewall as the
+install script's systemd units, which also serve NTP on port 123. It runs the release's `install.sh`.
+You can also download and run that script yourself:
+
+```bash
+VERSION=0.9.4   # the latest: https://github.com/madarco/controlclaw/releases
+curl -fsSLO https://github.com/madarco/controlclaw/releases/download/v$VERSION/controlclaw-install-$VERSION.tar.gz
+tar xzf controlclaw-install-$VERSION.tar.gz
+sudo ./controlclaw-install-$VERSION/install.sh --version $VERSION --listen 10.0.1.2
+```
 
 ## 2. Set up the panel
 
-From your computer, `ssh -L 8800:127.0.0.1:8800 <the firewall's machine>`, then open
-<http://localhost:8800>. Follow [the panel's first run](quickstart-panel.md): the setup token, a
-password, the firewall's own model key (optional), and allowing your model provider. Skip the
-pairing code there (**Go to the panel**).
+From your computer, run `ssh -L 8800:127.0.0.1:8800 <the firewall's machine>`, then open the link
+`install` printed. `controlclaw open` on the firewall's machine prints it again. Follow [the panel's
+first run](quickstart-panel.md): the setup token, a password, and the firewall's own model key
+(optional). Skip the pairing code there with **Go to the panel**.
 
 ## 3. Connect OpenClaw
 
@@ -60,46 +72,58 @@ sudo npm i -g controlclaw
 sudo controlclaw doctor     # without sudo, it marks the modes that need root as blocked
 ```
 
-Before the first `connect`, `doctor` takes only a quick look (it has no vm-agent yet): it may say
-OpenClaw is not running, or not in Docker, when it is. `connect` downloads the vm-agent and looks
+Before the first `connect`, `doctor` can only guess, because it has no vm-agent yet to look with. It may
+say OpenClaw is not running, or not in Docker, when it is. `connect` downloads the vm-agent and looks
 properly before it changes anything.
 
-In the panel, **Agents → Connect an agent → Make a pairing code**. Then the line for your mode. Each
-asks for the code (not shown as you type):
+Use the code `install` printed, or make one in the panel under **Agents**, **Connect an agent**,
+**Make a pairing code**. Then run this. It asks for the code and does not show it as you type:
 
 ```bash
-sudo controlclaw connect --mode docker --firewall http://<firewall's private address>:8801
-sudo controlclaw connect --mode host   --firewall http://<firewall's private address>:8801
-controlclaw connect --mode proxy --firewall http://<firewall's private address>:8801
+sudo controlclaw connect --firewall http://10.0.1.2:8801
 ```
 
-Run proxy mode as OpenClaw's own user, or with `sudo` when OpenClaw runs as a system-wide service.
+`--mode auto`, the default, picks docker for an OpenClaw in Docker Compose and host for one installed
+on the machine. To choose, add `--mode docker`, `--mode host` or `--mode proxy`. Run proxy mode as
+OpenClaw's own user, or with `sudo` when OpenClaw runs as a system-wide service. A user in the
+`docker` group can run docker mode without sudo.
 
 `connect` downloads the vm-agent, pairs, installs the CA and the capture, and restarts OpenClaw.
 
+No OpenClaw on that machine yet? `sudo npx controlclaw openclaw install --firewall
+http://10.0.1.2:8801` installs one (in Docker, or with OpenClaw's own installer when you add `--host`)
+and connects it in the same run.
+
 With the firewall on another machine, the firewall sees OpenClaw's traffic and applies your rules,
 but it cannot call OpenClaw's machine. So Telegram and Slack bots, models, MCP servers, secrets and
-web search set in the panel do not reach OpenClaw, and the emergency stop blocks its traffic but does
-not stop it (`connect` says so). For those, use [remote mode](quickstart-remote.md). Do not put a
-bot on such an agent in the panel: it stays there, waiting for the agent, until you remove it.
+web search set in the panel do not reach OpenClaw. The emergency stop blocks OpenClaw's traffic but
+does not stop OpenClaw. `connect` tells you this. For those features, use [remote
+mode](quickstart-remote.md). Don't give such an agent a bot in the panel: the bot stays there,
+waiting for the agent, until you remove it.
 
-Or let OpenClaw do it: give it the [`controlclaw-connect` skill](../../packages/skills/controlclaw-connect/SKILL.md),
-and the address and the code in chat. It asks before it changes anything.
+You can also let OpenClaw connect itself. Give it the [`controlclaw-connect`
+skill](../../packages/skills/controlclaw-connect/SKILL.md), then the address and the code in chat. It
+asks you before it changes anything.
 
-## 4. Check it works
+## 4. Check that it works
 
 ```bash
-sudo controlclaw status        # without sudo after a proxy-mode connect without it
+sudo controlclaw status        # without sudo if you ran connect in proxy mode without it
 ```
 
-Every line should start with ✓. Ask OpenClaw something that needs the web: the request shows in the
-panel's **Activity**, and a site no rule allows is refused.
+Every line should start with ✓. Ask OpenClaw something that needs the web. The request shows in the
+panel's **Activity**, and your rules decide whether it goes out.
+
+A new firewall allows every site and logs it. To allow only the sites you choose, set **Every other
+site** to **Block** under **Internet access**. The model keys and bots you set up in the panel keep
+working, because the firewall adds a rule for each. A model key typed into OpenClaw itself needs a rule
+of its own for the provider's host.
 
 ## Undo it
 
 ```bash
-sudo controlclaw disconnect                                          # on OpenClaw's machine
-sudo ./controlclaw-install-$VERSION/install.sh --uninstall --purge   # on the firewall
+sudo controlclaw disconnect               # on OpenClaw's machine (--restore-config: its config as it was too)
+sudo npx controlclaw uninstall --purge    # on the firewall (without --purge its data stays)
 ```
 
 When something fails: [troubleshooting.md](troubleshooting.md).

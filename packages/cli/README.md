@@ -1,42 +1,65 @@
 # controlclaw
 
-Connects a machine that runs OpenClaw to a ControlClaw firewall. After `connect`, OpenClaw's traffic
-goes through the firewall, and the vm-agent lets the firewall manage OpenClaw's models and channels.
+The `controlclaw` CLI puts OpenClaw behind a ControlClaw firewall. It installs the firewall, installs
+OpenClaw, and connects the two. After `connect`, OpenClaw's traffic goes through the firewall, and the
+vm-agent lets the firewall manage OpenClaw's models and channels. It runs on Linux only for now.
 
 ```bash
-controlclaw doctor                  # what this machine can do
-# on the firewall: sudo -u controlclaw mitm-agent pair-code --name laptop   → 4F7K-92QD-XM3P
-sudo controlclaw connect --mode host --firewall http://fw.example.com:8801 --vm-agent ./vm-agent
-# Pairing code from the firewall: (type 4F7K-92QD-XM3P; it is not shown)
-controlclaw status
-sudo controlclaw disconnect         # undo all of it
+sudo npx controlclaw up      # a menu: pick one of the ways below
 ```
 
-Linux only for now.
+The three main ways:
+
+| | Command | What it does |
+| --- | --- | --- |
+| A new OpenClaw and its firewall on one machine | `up --all` | Runs the firewall and OpenClaw as two containers. OpenClaw's only way out is the firewall. This is the strongest. |
+| The OpenClaw you run, with its firewall next to it | `up --here` | Runs the firewall in a container on OpenClaw's machine, and connects OpenClaw to it with no code to type. |
+| One firewall for OpenClaw on other machines | `install --listen <ip>` on the firewall, `connect --firewall <url>` on each OpenClaw machine | Runs the firewall on its own machine. Each OpenClaw connects with a one-time code. |
+
+`up` only runs the commands below, in order. You can run each one on its own.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `doctor [--json]` | Shows the OS, root access, nftables, Docker, redsocks, DNS, Chrome, WireGuard and the vm-agent. Shows OpenClaw's CLI, version, config and how it runs. Says which modes this machine can do and how much each protects. |
-| `connect --mode docker\|host\|proxy --firewall <url>` | Pairs with the firewall, then installs the vm-agent, the firewall's CA and the capture for the mode, and checks that it works. |
-| `disconnect` | Undoes everything `connect` did and puts back what it changed. |
-| `status [--json]` | Shows whether the capture, the vm-agent, and the firewall's proxy and DNS are up. Exits 1 if one is not. |
+| `up [--all \| --here]` | Shows a menu of the ways to set it up. `--all` and `--here` skip the menu. `up --local` is `up --all`. |
+| `install [--docker \| --host] [--listen <ip>]` | Runs the firewall on this machine, as a container (the default) or as `install.sh`'s systemd units. Opens the panel. With `--listen`, it also prints a pairing code for other machines. |
+| `openclaw install [--docker \| --host] [--firewall <url>]` | Installs a new OpenClaw on this machine, then connects it to `--firewall` or to the firewall `install` runs here. |
+| `connect [--mode ...] [--firewall <url>] [--capture-only]` | Puts this machine's OpenClaw behind a firewall: installs the vm-agent, the firewall's CA and the capture for the mode. Without `--firewall`, it pairs with the firewall `install` runs here, with no code. |
+| `open` | Opens the panel of the firewall on this machine. Until there is an admin, the link carries the setup token. With no desktop, it prints the link and the SSH tunnel to it. |
+| `status [--json]` | Checks the firewall installed here, the capture, the vm-agent, and the firewall's proxy and DNS. Exits 1 if one of them is down. |
+| `disconnect [--restore-config]` | Undoes everything `connect` did. `--restore-config` also puts back OpenClaw's config as it was before `connect`. |
+| `uninstall [--purge]` | Runs `disconnect`, then removes the firewall installed here. Its data (rules, the panel's password, the CA) goes only with `--purge`. |
+| `doctor [--json]` | Shows the OS, root access, nftables, Docker, redsocks, DNS, Chrome, WireGuard and the vm-agent, and OpenClaw's CLI, version, config and how it runs. Says which modes this machine can use and how much each one protects. |
+
+Host mode and `install --host` need root (sudo). Docker mode needs a user who can use Docker, which
+means root or a member of the `docker` group. That group can do what root does. Proxy mode needs
+neither.
+
+Other ways to do each step:
+
+| Step | The CLI | Otherwise |
+| --- | --- | --- |
+| The firewall | `controlclaw install` | `standalone/docker/compose.yaml` with `docker compose up -d`, or `install.sh` from the release (`install --host` runs it for you). See [`standalone/README.md`](../../standalone/README.md). |
+| OpenClaw | `controlclaw openclaw install` | OpenClaw's own installer or its own `docker-compose.yml`, then `controlclaw connect`. Ansible comes later, because the role needs the control plane. |
+| The connection | `controlclaw connect` | The OpenClaw skill [`controlclaw-connect`](../skills/controlclaw-connect/SKILL.md), which asks you, then runs `connect` for you. |
 
 Options for `connect`:
 
 | Option | Default | What it is |
 | --- | --- | --- |
-| `--firewall <url>` | | The firewall's pairing address, such as `http://fw.example.com:8801`. Its host is also the last default for `--proxy` and `--dns`. |
+| `--mode` | `auto` | `auto` (docker for an OpenClaw in a container, else host), `docker`, `host`, `proxy` or `remote`. With the firewall installed here, only `auto`, `docker` or `host`. |
+| `--firewall <url>` | the firewall installed here | The firewall's pairing address, such as `http://fw.example.com:8801`. Its host is also the last default for `--proxy` and `--dns`. Without it, `connect` pairs with the firewall `install` runs on this machine, with no code. |
+| `--capture-only` | | The capture alone, with no vm-agent. The panel then can't set OpenClaw's models or bots, or stop it. |
 | (asked) | | The one-time code from the firewall (`mitm-agent pair-code`), typed when `connect` asks. It brings the firewall's CA and key, and the agent's id. |
-| `--code -` / `--code-file <file>` | | The code from stdin, or from a file (keep it 0600). `--code <code>` is refused: every user of the machine can read a command line. |
-| `--name <name>` | this machine's hostname | The agent's name on the firewall, when the code has none (`pair-code --name` wins). |
+| `--code -` / `--code-file <file>` | | Reads the code from stdin, or from a file (keep it 0600). `--code <code>` is refused, because every user of the machine can read a command line. |
+| `--name <name>` | this machine's hostname (`openclaw` with the firewall installed here) | The agent's name on the firewall, when the code has none (`pair-code --name` wins). |
 | `--ca <file>` | | Without a code: the firewall's CA certificate (PEM). The firewall re-signs HTTPS with it. |
-| `--firewall-key <pem>` | none | Without a code: the firewall's public key, as a file or the PEM itself. Without it the vm-agent answers nothing. |
+| `--firewall-key <pem>` | none | Without a code: the firewall's public key, as a file or the PEM itself. Without it, the vm-agent answers nothing. |
 | `--proxy <host:port>` | what pairing says, else the firewall's host, port 8080 | The firewall's proxy. |
 | `--dns <ip>` | what pairing says, else the firewall's host | The firewall's DNS server (host and docker modes). |
 | `--user <name>` | found | The user OpenClaw runs as. By default the CLI uses the owner of the running gateway, or else the one user with `~/.openclaw/openclaw.json`. |
-| `--vm-agent <path>` | `$CC_VM_AGENT`, then PATH | The vm-agent binary. There is no release to download yet. |
+| `--vm-agent <path>` | `$CC_VM_AGENT`, then `/usr/local/bin/controlclaw-vm-agent`, then PATH, then this release's download | The vm-agent binary. |
 
 ## Pairing
 
@@ -49,15 +72,15 @@ sudo -u controlclaw mitm-agent pair-code --name laptop      # or: docker compose
 It prints a code such as `4F7K-92QD-XM3P`. It works once, within 10 minutes (`--ttl` up to 60).
 At most 20 codes wait at a time. The admin API makes them too (`POST /api/pairing/codes`).
 
-What only the admin decides, on the code:
+Only the admin decides these, on the code:
 - `--address <ip>`: the address the proxy will see the machine at, when it is not the one pairing
   comes from (a NAT, a container on the firewall's machine). Without it, the agent's address is the
   one its request comes from, and that must be the address the machine says it has.
-- `--replace`: the machine may take the place of an agent already at its address. Without it,
-  pairing at an address that has an agent is refused.
+- `--replace`: the machine may take the place of an agent already at its address. Without it, the
+  firewall refuses pairing at an address that has an agent.
 
-`connect` checks first that the machine can do the mode, so a code is not spent on a machine
-that cannot. Then it pairs:
+`connect` first checks that the machine can use the mode, so it never spends a code on a machine
+that can't. Then it pairs:
 - it makes the vm-agent's key pair;
 - it sends the public half to the firewall's `/pair` (port 8801);
 - the firewall records the agent (its id, name, key, and the address the proxy will see it at);
@@ -68,41 +91,47 @@ that cannot. Then it pairs:
 CA's SHA-256, which the firewall's log shows at start, so you can compare them. The proxy knows the
 agent at its next sync, within a minute.
 
-Where the firewall calls the vm-agent (to set a bot or a model, or for the emergency stop): pairing
-tells the firewall (`agent_listen`), and the vm-agent listens there for the firewall's address alone
-(`allow_from`; any other connection is closed). The calls are plain HTTP with the firewall's signed
-tokens, as the SaaS sends them over HTTPS.
+The firewall calls the vm-agent to set a bot or a model, or for the emergency stop. Pairing tells the
+firewall where to call (`agent_listen`), and the vm-agent listens there for the firewall's address
+alone (`allow_from`; it closes any other connection). The calls are plain HTTP with the firewall's
+signed tokens, the same tokens the SaaS sends over HTTPS.
 
 | Mode | The vm-agent listens on | Who may connect |
 | --- | --- | --- |
-| host, proxy, docker, the firewall in a container on this machine (behind one of its Docker bridges, or published on a bridge's address such as `172.17.0.1`) | this machine's address on that bridge, port 3100 | the address the firewall calls from (pairing's `calls_from`: its container's) |
+| host, proxy, docker, the firewall in a container on this machine (behind one of its Docker bridges, or published on a bridge's address such as `172.17.0.1`) | this machine's address on that bridge, port 3102 | the address the firewall calls from (pairing's `calls_from`: its container's) |
 | host, proxy, the firewall installed on this machine itself (`install.sh`) | loopback only: the vm-agent would listen on the firewall's own address, which pairing refuses | nobody |
 | host, proxy, docker, the firewall elsewhere | loopback only: the firewall does not call it (plain HTTP across a network) | nobody |
 | remote | this machine's tunnel address, port 3100 | the firewall's tunnel address |
-| `up --local` | `172.31.252.1:3100`, this machine on the `outside` network | the firewall's container (`172.31.252.2`) |
+| `up --all`, `up --here`, `connect` to the firewall `install` runs here | `172.31.252.1:3102`, this machine on the firewall's `outside` network | the firewall's container (`172.31.252.2`) |
 
-Gotchas:
-- With the firewall on another machine, use `--mode remote` for bots, models and the emergency stop:
-  the other modes capture traffic, but the firewall cannot reach the vm-agent there. `connect` says so.
-- Agents paired before this release have no address for the firewall's calls: run `connect` again.
+The vm-agent's port is 3102. Port 3100 belongs to the firewall agent and 3101 to its AI judge, and
+with `up` the firewall shares the machine. Remote mode keeps 3100 on the tunnel address, where the
+firewall calls it. A machine connected before keeps the `listen` its config has (port 3100) until it
+connects again. The firewall has that address on record, so nothing changes for it.
+
+Things to know about the firewall's calls:
+- With the firewall on another machine, use `--mode remote` for bots, models and the emergency stop.
+  The other modes capture traffic, but there the firewall can't reach the vm-agent. `connect` says
+  so.
+- Agents paired before this release have no address for the firewall's calls. Run `connect` again.
 - `allow_from` is the firewall container's address at pairing. The Docker setup in
-  `standalone/docker/compose.yaml` gives the firewall a fixed one (`172.31.249.2`); a firewall
+  `standalone/docker/compose.yaml` gives the firewall a fixed one (`172.31.249.2`). A firewall
   started with a plain `docker run` on Docker's default bridge can get another address when it is
-  recreated: run `connect` again then.
+  recreated. Run `connect` again then.
 - MCP servers and app connections go to the firewall's gates directly (3940 and 3900, the
-  firewall's default ports): host and remote capture let OpenClaw's user reach them on the proxy's
-  address, docker capture relays them in its gate container (to a firewall whose gates are on an
-  address it reaches: not `standalone/docker/compose.yaml`'s, which does not publish them). Not in proxy mode (everything goes
-  through the proxy there, which never connects to the firewall itself), and app connections not for
-  an OpenClaw in a container yet.
-- The emergency stop cannot start again an OpenClaw that was started by hand (not systemd, Docker
-  or pm2): start it yourself after the release.
+  firewall's default ports). Host and remote capture let OpenClaw's user reach them on the proxy's
+  address. Docker capture relays them in its gate container, to a firewall whose gates are on an
+  address it reaches (not `standalone/docker/compose.yaml`'s, which does not publish them). They don't
+  work in proxy mode, where everything goes through the proxy, which never connects to the firewall
+  itself. App connections don't work yet for an OpenClaw in a container.
+- The emergency stop can't start again an OpenClaw that was started by hand (not by systemd, Docker
+  or pm2). Start it yourself after the release.
 - `allow_from` is the firewall's address as `connect` dialled it. When the firewall reaches this
-  machine from another address (a NAT, a port forward, a second network), every call is closed:
-  the vm-agent logs `closed a connection from <ip>`. Set `firewall.allow_from` in the config by hand.
-- OpenClaw can still ask the proxy for the vm-agent's address; it then arrives from the firewall's.
-  An egress rule decides, as for any address, and the vm-agent still wants the firewall's signed
-  token.
+  machine from another address (a NAT, a port forward, a second network), the vm-agent closes every
+  call and logs `closed a connection from <ip>`. Set `firewall.allow_from` in the config by hand.
+- OpenClaw can still ask the proxy for the vm-agent's address. The request then arrives from the
+  firewall's address. An egress rule decides, as for any address, and the vm-agent still wants the
+  firewall's signed token.
 
 How the code is safe on plain HTTP:
 - The code is never sent. The request carries an HMAC made with it. The firewall's answer carries an
@@ -110,9 +139,9 @@ How the code is safe on plain HTTP:
   `connect` takes the firewall's key and CA only from such an answer. Someone in the middle sees two
   HMACs, and 60 bits cannot be tried offline within the code's lifetime.
 - Guessing online is limited to ten wrong codes a minute from one address; after that the endpoint
-  answers 429 for the rest of the minute. There is no limit over all addresses, which anyone could
-  use to block every pairing: even a million guesses a minute for 10 minutes find a 60-bit code with
-  odds of about 1 in 10^11.
+  answers 429 for the rest of the minute. There is no limit over all addresses, because anyone could
+  use such a limit to block every pairing. Even a million guesses a minute for 10 minutes find a
+  60-bit code with odds of about 1 in 10^11.
 - Once a code has matched, any refusal spends it (make a new one) and counts as a wrong try, so a
   refusal never tells a guesser that a code was right.
 - The firewall keeps the plain code until it is used or expires, in its database, which only its
@@ -123,12 +152,12 @@ How the code is safe on plain HTTP:
   the code (`--address`). The CLI pairs over the IPv4 address it measured its own address toward
   (for `http://`), so the two match.
 - The agent cannot choose its address, and cannot take another agent's place unless the code says
-  `--replace`. OpenClaw on that machine (in host mode it still has the internet until the capture
-  is in) could read a code from a command line and pair first; it would get the same address and
-  nothing more, and the real `connect` would then fail. That is why the code is never taken from
-  the command line.
+  `--replace`. In host mode OpenClaw still has the internet until the capture is in. OpenClaw on
+  that machine could read a code from a command line and pair first. It would get the same address
+  and nothing more, and the real `connect` would then fail. That is why `connect` never takes the
+  code from the command line.
 - Two machines behind one NAT look like one to the proxy. Give each its own address the proxy sees
-  (WireGuard remote mode will do that).
+  (WireGuard remote mode does that).
 - The address must be one the proxy can see an agent at: not loopback, unspecified, multicast,
   broadcast or the firewall's own.
 - As root, `connect` writes nothing into a folder a user owns (OpenClaw's home: the vm-agent's
@@ -150,7 +179,7 @@ be reached, they say so; remove the agent there by hand (`PUT /api/agents`).
 | `proxy` | OpenClaw's own proxy setting. | Lets you see OpenClaw's own requests and block them. Shell commands and other programs go around it. |
 | `remote` | WireGuard to the firewall, then host mode's rules through the tunnel. | Like host mode on the machine (root or sudo can remove the rules), from any network, with the tunnel address as its identity. |
 
-### docker (needs root, Docker 28 and Compose 2.24.4 or newer)
+### docker (needs Docker 28 and Compose 2.24.4 or newer; root, or a user in the docker group)
 
 For an OpenClaw started with Docker Compose, for example OpenClaw's own `docker-compose.yml`.
 `connect` stops in these cases:
@@ -168,10 +197,9 @@ For an OpenClaw started with Docker Compose, for example OpenClaw's own `docker-
 - It writes an override, `/etc/controlclaw/docker/compose.controlclaw.yml`, and runs
   `docker compose ... up -d` for the gateway service only. Your compose files are not changed.
 - The gateway container goes onto a new network, `<project>_controlclaw`, with `internal: true`.
-  Its bridge gives this machine no address (`gateway_mode_ipv4: isolated`, Docker 28): an internal
-  network otherwise still lets its containers reach every service of the host that listens on
-  `0.0.0.0` (sshd, a resolver, a dev server). `status` checks it.
-  It has no route out.
+  It has no route out. Its bridge gives this machine no address (`gateway_mode_ipv4: isolated`,
+  Docker 28). Without that, an internal network still lets its containers reach every service of the
+  host that listens on `0.0.0.0` (sshd, a resolver, a dev server). `status` checks it.
 - A small `controlclaw-gate` container (socat) sits on that network and on the normal one. It sends
   port 8080 to the firewall's proxy and port 53 to the firewall's DNS. It also publishes the ports
   the gateway published before, such as the Control UI on 18789. Docker publishes no ports for a
@@ -209,10 +237,10 @@ systemd user unit.
     from 127.x sent on to another machine would be dropped as martian;
   - IPv6, ICMP and other UDP are refused;
   - on the machine itself (127.0.0.0/8, ::1) only these TCP ports are allowed:
-    - redsocks and the vm-agent (3100);
+    - redsocks and the vm-agent (3102);
     - OpenClaw's own, derived from the gateway port as OpenClaw 2026.10 does: the gateway, browser
       control (+2), the extension relays (+3 to +10) and the default browser profile's CDP (+11),
-      so 18789–18800 by default;
+      so 18789 to 18800 by default;
     - the CDP port each other browser profile has in OpenClaw's config. If that config is not
       plain JSON (JSON5), its profiles cannot be read, so the whole range OpenClaw uses (to +110)
       stays open.
@@ -309,70 +337,238 @@ For any OpenClaw on the machine, also on a machine without root.
   requests fail; they do not go out directly.
 - `status` runs `openclaw proxy validate`.
 
-## up --local: the firewall and OpenClaw on one machine
+## up
 
 ```bash
-sudo controlclaw up --local --firewall-image controlclaw-firewall:dev-amd64 --vm-agent ./vm-agent
+sudo npx controlclaw up            # the menu
+sudo npx controlclaw up --all      # the firewall and a new OpenClaw here (install, openclaw install, connect)
+sudo npx controlclaw up --here     # the firewall next to the OpenClaw here (install, then connect)
 ```
 
-Two containers in a Compose project, `controlclaw-local`, in `/opt/controlclaw-local` (`--dir`):
+The menu has five choices:
 
-- **OpenClaw** (`ghcr.io/openclaw/openclaw:2026.10.9`, `--openclaw-image`) is only on an internal
-  network, `agents` (`172.31.251.0/24`, OpenClaw at `.10`), whose one other member is the firewall
-  (`.2`). Its proxy and DNS are the firewall's, with the CA in Node and in the system store (as in
-  docker mode). It has no other way out: the network's bridge gives this machine no address either
-  (`gateway_mode_ipv4: isolated`, so Docker 28 or newer), so this machine's own services are out of
-  its reach.
-- **The firewall** (the image from `standalone/docker/build.sh`; none is published yet) is also on
+| Choice | What it runs |
+| --- | --- |
+| Firewall + new OpenClaw here | `up --all` |
+| Protect the OpenClaw here | `up --here` |
+| Firewall only | `install`, after asking for the address other machines reach this one at (empty: this machine only) |
+| New OpenClaw only | `openclaw install --firewall`, after asking for the firewall's pairing address |
+| Connect this OpenClaw | `connect --firewall`, after asking for the firewall's pairing address |
+
+Choose with the arrow keys. When stdin is not a terminal (`curl … | sh`), the menu asks for a number on
+the terminal instead. With no terminal at all, it stops and asks you to pass `--all` or `--here`.
+
+`up --all` is what `up --local` was, and `up --local` still works
+([details below](#up---all-up---local-the-firewall-and-openclaw-on-one-machine)).
+
+## install
+
+```bash
+sudo npx controlclaw install                          # this machine only
+sudo npx controlclaw install --listen 10.0.1.5        # also for OpenClaw on other machines of your network
+sudo npx controlclaw install --host                   # install.sh's systemd units instead of a container
+```
+
+- `--docker` (the default) runs the image of this CLI's release,
+  `ghcr.io/madarco/controlclaw-firewall:<version>`, and pulls it when missing (`--firewall-image`
+  picks another). It makes a Compose project, `controlclaw-firewall`, in `/etc/controlclaw/firewall/`
+  (`~/.config/controlclaw/firewall/` without sudo). The container gets two networks with fixed
+  addresses, so `allow_from` stays right when the container is recreated:
+  - `outside` (`172.31.252.0/24`), with the firewall at `.2` and this machine at `.1`;
+  - the internal `agents` (`172.31.251.0/24`), with the firewall at `.2` and no address for this
+    machine.
+
+  Its panel (8800), pairing (8801) and pages (8790) are published on this machine's loopback only.
+  `install` stops when something already listens there, or when Docker is rootless. Rootless Docker's
+  networks are in a namespace of their own, where this machine has no address for the vm-agent.
+- `--listen <ip>` also publishes the proxy (8080), DNS (53), pairing (8801) and the gates (3900, 3940)
+  on that address, and pairing tells agents to use it. It must be a private address, because on a
+  public one the proxy and DNS would answer the whole internet. Allow only your agents there (with
+  `ufw` or your cloud's firewall). Docker's published ports go around `ufw`.
+- `--host` downloads this release's `controlclaw-install-<version>.tar.gz`, checks it against the
+  signed SHA256SUMS, and runs its `install.sh --version <version> [--listen <ip>]`. It needs root.
+  `connect` with no `--firewall` can't pair with this firewall by itself. Make a code in its panel.
+- At the end, `install` runs `open`, then says how to connect OpenClaw. On this machine, run `connect`,
+  which pairs by itself (container firewall only). On another machine, run `connect --firewall
+  http://<listen>:8801` with the pairing code `install` prints, which works once, within 10 minutes.
+- Run again, `install` starts the firewall if it is not running and opens the panel.
+- `uninstall` removes the firewall. Its data (the volume, or `/opt/controlclaw` for `--host`) goes only
+  with `--purge`.
+
+## openclaw install
+
+```bash
+sudo npx controlclaw openclaw install                                     # in Docker, connected to the firewall here
+sudo npx controlclaw openclaw install --firewall http://10.0.1.5:8801     # asks for the code
+sudo npx controlclaw openclaw install --host
+```
+
+- `--docker` (the default) makes a Compose project like OpenClaw's own `docker-compose.yml` (one
+  service, `openclaw-gateway`) in `/opt/openclaw` (`~/openclaw` without sudo, `--dir` for another
+  folder), with `ghcr.io/openclaw/openclaw:2026.10.9` (`--openclaw-image` for another). Its Control UI
+  is published on this machine's loopback only. `openclaw install` prints its address with the gateway
+  token.
+- `--host` runs OpenClaw's own installer (`https://openclaw.ai/install.sh --no-onboard --no-prompt`) as
+  root. The installer installs Node 24 and build tools, and puts `openclaw` on every user's PATH. Then
+  `openclaw install` sets OpenClaw up as its own user (`openclaw`, or `--user`, made when missing, never
+  root), with its gateway as that user's systemd service. Lingering is on, so the gateway runs without
+  a login. Needs root.
+- Then it connects the new OpenClaw:
+  - with `--firewall`, to that firewall, asking for the code;
+  - without it, to the firewall `install` runs here as a container, with no code;
+  - with neither (no `--firewall`, and no container firewall here), it says what to run next.
+- It stops when OpenClaw is already on the machine. Use `connect` then.
+- There is no Ansible way yet, because the role needs the control plane.
+
+## connect, to the firewall on this machine
+
+```bash
+sudo npx controlclaw connect                      # npx controlclaw connect works too for docker mode
+```
+
+Without `--firewall`, `connect` pairs with the firewall that `install` runs here as a container, with
+no code to type. It makes a code inside the firewall's container, with the address the proxy will see
+OpenClaw at (docker mode: `172.31.251.10`; host mode: this machine on `outside`, `172.31.252.1`).
+
+- `--mode auto` (the default) picks **docker** for an OpenClaw in a container and **host** for one
+  installed on the machine. It stops when there is no OpenClaw, or when the mode's checks fail (the
+  same checks as with `--firewall`). Proxy and remote mode need `--firewall`.
+- **docker:** like `--mode docker` with a firewall elsewhere, but OpenClaw's gateway joins the
+  firewall's `agents` network instead of a network of its own with a gate container. The firewall's
+  container is its proxy, its DNS and its only way out. The firewall's container also publishes the
+  ports the gateway published (its Control UI), on the same host addresses (`CC_FORWARD`), so
+  `connect` restarts the firewall once to take them. MCP servers and app connections don't work yet,
+  as with docker mode against a firewall elsewhere.
+- **host:** host mode, with the firewall's proxy, DNS and gates at `172.31.252.2`.
+- The vm-agent listens on `172.31.252.1:3102`, for the firewall's container alone (`allow_from`).
+- `status` adds a check for the firewall's container. In docker mode it checks the firewall from
+  inside OpenClaw's container, because this machine is not on that network.
+- Run again, `connect` checks what is there and never pairs twice. A `connect` that fails undoes
+  itself (and unpairs), so the next one starts over.
+- `disconnect` puts OpenClaw back and leaves the firewall running. `uninstall` removes both.
+
+**Without sudo (docker mode).** A user who can use Docker (in the `docker` group) can run `install`,
+`connect` and `openclaw install --docker` without sudo. This saves a password prompt, not a risk,
+because the `docker` group can do what root does.
+
+- The records, the override and the CA are in `~/.config/controlclaw/`. The vm-agent is in
+  `~/.local/bin/` and runs as a systemd user service. `connect` turns on lingering (`loginctl
+  enable-linger`) so the vm-agent keeps running after you log out and starts at boot. `disconnect`
+  turns it off again if `connect` turned it on. If `connect` can't turn it on, it says so: run
+  `sudo loginctl enable-linger <you>`.
+- Docker mode stops before pairing when your Compose can't read the project's files (a root
+  project's `.env` is 0600). Run it with sudo, or as the project's owner.
+- `status` and `disconnect` find the record either way. With sudo, on a machine set up without it,
+  they run as the user who set it up (`$SUDO_USER`), or say how to.
+- Host mode needs root (nftables).
+
+**`--capture-only`.** No vm-agent. OpenClaw's traffic goes through the firewall, but the panel can't
+set OpenClaw's models, bots or MCP servers, or stop it. Nothing writes to OpenClaw's config.
+
+## What connect changes, and what disconnect puts back
+
+| Mode | connect changes | disconnect puts back |
+| --- | --- | --- |
+| docker | OpenClaw's gateway: an override file next to your compose files, named in the project's `.env` (`COMPOSE_FILE`); the gateway moved to the internal network; the CA bundle; the gate container (firewall elsewhere) or the firewall's port relays (firewall here) | the gateway on its own networks with its ports, the `.env` line removed, the override, bundle and gate removed |
+| host | nftables rules for OpenClaw's user, redsocks, resolved pointed at the firewall, the CA in the system store, Chrome and a drop-in on OpenClaw's unit; OpenClaw restarted | all of them removed, resolved as it was, OpenClaw restarted |
+| proxy | OpenClaw's `proxy` setting, the CA drop-in | the setting removed |
+| remote | as host, plus the WireGuard tunnel | as host, the tunnel removed |
+| every mode | the vm-agent (its binary, config and unit); what the panel sets through it goes into OpenClaw's config (a model, a bot, MCP servers, secrets) | the vm-agent removed. OpenClaw's config keeps what the panel set, unless `--restore-config` |
+
+Before the vm-agent first writes to OpenClaw's config, `connect` keeps a copy of it (0600, in the
+state folder: `/etc/controlclaw/openclaw.json.before-controlclaw`). `disconnect --restore-config` puts
+the copy back (as the file's owner, never through a link) and restarts OpenClaw. `disconnect` alone
+removes the copy and keeps what the panel set. `up --all` keeps no copy, because it made that OpenClaw
+itself.
+
+## open
+
+`open` opens the panel of the firewall on this machine, which is always at `http://127.0.0.1:8800`.
+Before there is an admin, the link carries the newest setup token in its fragment
+(`http://127.0.0.1:8800/#setup=<token>`), never in the query or a log. The browser does not send the
+fragment, and the panel fills the token in and removes it from the address bar. `open` reads the
+token from the firewall's log: `docker compose logs` for `install`, `up --here` and `up --all`,
+`journalctl` for `install.sh`, which needs sudo.
+
+With a desktop (`$DISPLAY` or `$WAYLAND_DISPLAY`), it runs `xdg-open` as the user who ran the command,
+not root (`$SUDO_USER` under sudo). The token never goes on a command line: `open` writes a short page
+only that user can read, opens that, and removes it after a few seconds. With no desktop, it prints
+the link and `ssh -L 8800:127.0.0.1:8800 <machine>`. `install`, `up --here` and `up --all` run it at
+the end.
+
+## up --all (up --local): the firewall and OpenClaw on one machine
+
+```bash
+sudo npx controlclaw up --all
+```
+
+It runs two containers in a Compose project, `controlclaw-local`, in `/opt/controlclaw-local`
+(`--dir` for another folder):
+
+- **OpenClaw** (`ghcr.io/openclaw/openclaw:2026.10.9`, `--openclaw-image` for another) is only on an
+  internal network, `agents` (`172.31.251.0/24`, OpenClaw at `.10`), whose one other member is the
+  firewall (`.2`). Its proxy and DNS are the firewall's, with the CA in Node and in the system store
+  (as in docker mode). It has no other way out. The network's bridge gives this machine no address
+  either (`gateway_mode_ipv4: isolated`, so Docker 28 or newer), which keeps this machine's own
+  services out of OpenClaw's reach.
+- **The firewall** (`ghcr.io/madarco/controlclaw-firewall:<the CLI's version>`, pulled when missing;
+  `--firewall-image` for another, such as one from `standalone/docker/build.sh`) is also on
   `outside` (`172.31.252.0/24`). Its panel (8800) and pairing (8801) listen there only, so OpenClaw
-  cannot reach them. It publishes, on this machine's loopback only, OpenClaw's gateway (18789,
-  `CC_FORWARD`: Docker publishes nothing from an internal network), its panel, pairing and pages.
-- It pairs itself:
-  - a code from the firewall with OpenClaw's address on it;
-  - pairing over the loopback;
-  - the vm-agent on this machine, as root, for the container, with the firewall's key and the
-    agent's id. It listens on this machine's side of `outside` (`172.31.252.1:3100`, after Docker
-    starts), where the firewall calls it, and takes connections from the firewall's container only.
-    OpenClaw, on `agents` only, has no route there of its own.
-- OpenClaw is set up with a gateway token (in `.env`, 0600) on first run. Its Control UI's allowed
-  origins are set to `http://127.0.0.1:18789` and `http://localhost:18789` at each run: OpenClaw sees
-  the browser through the firewall's relay and accepts the page only from an origin it is told.
-- It prints OpenClaw's address with its token, the panel's address, and the panel's first-run setup
-  token. From another machine: `ssh -L 8800:127.0.0.1:8800 -L 18789:127.0.0.1:18789 <machine>`.
-- The firewall starts with every request blocked: allow your model provider in the panel first.
+  can't reach them. On this machine's loopback only, it publishes OpenClaw's gateway (18789, through
+  `CC_FORWARD`, because Docker publishes nothing from an internal network), its panel, pairing and
+  pages.
+- It pairs by itself:
+  - it makes a code on the firewall with OpenClaw's address on it;
+  - it pairs over the loopback;
+  - it installs the vm-agent on this machine, as root, for the container, with the firewall's key and
+    the agent's id. The vm-agent listens on this machine's side of `outside` (`172.31.252.1:3102`,
+    after Docker starts), where the firewall calls it, and takes connections from the firewall's
+    container only. OpenClaw, on `agents` only, has no route there of its own.
+- On the first run, OpenClaw is set up with a gateway token (in `.env`, 0600). At each run, its
+  Control UI's allowed origins are set to `http://127.0.0.1:18789` and `http://localhost:18789`.
+  OpenClaw sees the browser through the firewall's relay and accepts the page only from an origin it
+  is told.
+- It prints OpenClaw's address with its token, then runs `open` (the panel's address, with the
+  first-run setup token in the link). From another machine: `ssh -L 8800:127.0.0.1:8800 -L
+  18789:127.0.0.1:18789 <machine>`.
+- A new firewall allows every site and logs it. To lock it down, set **Every other site** to
+  **Block** under **Internet access**.
 - `disconnect` stops the containers (`compose down`), unpairs, and removes the vm-agent and the files
-  it wrote. OpenClaw's data (`openclaw/`, `openclaw-secrets/`) and the firewall's volume stay; `up
-  --local` again picks them up.
+  it wrote. OpenClaw's data (`openclaw/`, `openclaw-secrets/`) and the firewall's volume stay, and
+  `up --all` picks them up again.
 - It needs root, Docker 28 and Compose 2.24.4 or newer. The two networks' subnets must be free.
 
 ## What disconnect does
 
-`connect` writes each step to `/etc/controlclaw/connect.json` (`~/.config/controlclaw/` without
-root). After a `connect` with sudo, run `disconnect` and `status` with sudo too; without it they say
-so. `disconnect` undoes the steps in reverse:
+`connect` and `up` write each step to `/etc/controlclaw/connect.json` (`~/.config/controlclaw/` without
+root). After a `connect` with sudo, run `disconnect` and `status` with sudo too; without sudo they
+tell you so. `disconnect` undoes the steps in reverse:
 
 - it puts back each file it changed, and removes the files and folders it created;
 - it stops and removes the units;
 - it restores OpenClaw's settings;
 - it restarts OpenClaw last.
 
-If `connect` fails halfway, it undoes itself the same way. When a step fails, it stays in
-`connect.json` and the rest still run, so you can run `disconnect` again once the cause is fixed. A
-step that can never work again (its file is gone) is given up with `disconnect --force`, which then
-lists what to check by hand.
+If `connect` fails halfway, it undoes itself the same way. A step that fails stays in `connect.json`
+and the rest still run, so you can run `disconnect` again once you fix the cause. For a step that can
+never work again (its file is gone), `disconnect --force` gives it up and lists what to check by
+hand.
 
 A file `connect` changed (a project's `.env`) gets its content, mode and owner back. If the vm-agent
-binary was already at `/usr/local/bin/controlclaw-vm-agent`, it is used where it is and left there.
-Someone else's binary there is set aside as `.before-controlclaw` and put back; if such a file is
-there already (from a connect whose record was lost), `connect` stops rather than overwrite it.
+binary was already at `/usr/local/bin/controlclaw-vm-agent`, `connect` uses it where it is and leaves
+it there. Someone else's binary there is set aside as `.before-controlclaw` and put back. If such a
+file is already there (from a connect whose record was lost), `connect` stops rather than overwrite
+it.
 
 ## Gotchas
 
-- **The CA needs a restart.** Node reads `NODE_EXTRA_CA_CERTS` only when it starts. `connect` restarts
-  OpenClaw. If OpenClaw runs with pm2 or as a plain process, add the variable to how you start it.
+- **The CA needs a restart.** Node reads `NODE_EXTRA_CA_CERTS` only when it starts, so `connect`
+  restarts OpenClaw. If OpenClaw runs with pm2 or as a plain process, add the variable to how you start
+  it.
 - **sudo.** If OpenClaw's user can use sudo, then in host mode OpenClaw, or its agent, can remove the
   rules. `doctor` warns about it.
-- **The vm-agent runs as OpenClaw's user** in host and proxy mode, and as root for Docker. See
+- **The vm-agent runs as OpenClaw's user** in host and proxy mode, and as root for Docker (as your
+  own user after `up --here` without sudo). See
   [`rust/bins/vm-agent/UNMANAGED.md`](../../rust/bins/vm-agent/UNMANAGED.md).
 - **The firewall must serve DNS** on port 53 for host and docker mode. Without it, `connect` still
   runs, but `status` shows the DNS check failing.

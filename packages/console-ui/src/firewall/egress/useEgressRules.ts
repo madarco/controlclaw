@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { z } from "zod";
 import {
@@ -24,7 +24,18 @@ export interface EgressRuleSource {
   update(input: z.input<typeof updateEgressRuleInputSchema>): Promise<EgressRuleListItem>;
   remove(input: { id: string }): Promise<unknown>;
   cycle(input: { id: string }): Promise<EgressRuleListItem>;
+  /**
+   * "Every other site", where a person can choose it (the firewall's own panel). Without it, every
+   * other site is allowed and logged, and blocking them is a `*` rule of one's own.
+   */
+  everyOtherSite?: {
+    get(): Promise<EveryOtherSite>;
+    set(effect: EveryOtherSite): Promise<EveryOtherSite>;
+  };
 }
+
+/** What happens to a site no rule names. */
+export type EveryOtherSite = "allow" | "block";
 
 /**
  * Effect when the quick-cycle chip is clicked. `tunnel` is never reached by cycling; clicking a
@@ -54,7 +65,39 @@ export function useEgressRules(
   const [items, setItems] = useState(initial);
   const [busy, setBusy] = useState(false);
   const brainIds = useMemo(() => new Set(vmOptions.filter((v) => v.kind === "brain").map((v) => v.id)), [vmOptions]);
-  const isManaged = useCallback((rule: EgressRuleListItem) => isBrainManagedRule(rule, brainIds), [brainIds]);
+  /** One of the brain's own rules: listed only when the brain is picked. */
+  const isBrain = useCallback((rule: EgressRuleListItem) => isBrainManagedRule(rule, brainIds), [brainIds]);
+  /** Kept by ControlClaw (the brain's, or one added for a provider or a channel): shown, never changed. */
+  const isManaged = useCallback((rule: EgressRuleListItem) => !!rule.managed || isBrain(rule), [isBrain]);
+
+  // Unknown until the firewall says: a page that guessed Allow could hide a firewall that blocks.
+  const [otherSites, setOtherSitesState] = useState<EveryOtherSite | "unknown">("unknown");
+  const otherSitesSource = source.everyOtherSite;
+  useEffect(() => {
+    if (demo || !otherSitesSource) return;
+    let live = true;
+    otherSitesSource.get().then(
+      (e) => live && setOtherSitesState(e),
+      () => live && toast.error("Couldn’t read what happens to every other site. Reload to try again."),
+    );
+    return () => {
+      live = false;
+    };
+  }, [otherSitesSource, demo]);
+  const setOtherSites = useCallback(
+    async (effect: EveryOtherSite) => {
+      if (demo || !canManage || !otherSitesSource || otherSites === "unknown") return;
+      const before = otherSites;
+      setOtherSitesState(effect);
+      try {
+        setOtherSitesState(await otherSitesSource.set(effect));
+      } catch {
+        setOtherSitesState(before);
+        toast.error("Couldn’t change what happens to every other site. Try again.");
+      }
+    },
+    [demo, canManage, otherSitesSource, otherSites],
+  );
 
   const cycle = useCallback(
     async (rule: EgressRuleListItem) => {
@@ -157,5 +200,17 @@ export function useEgressRules(
     }
   }, [source, demo]);
 
-  return { items, busy, isManaged, cycle, toggle, remove, submit };
+  return {
+    items,
+    busy,
+    isManaged,
+    isBrain,
+    cycle,
+    toggle,
+    remove,
+    submit,
+    /** Null where it is not a choice: every other site is allowed and logged. `unknown` until the firewall answers. */
+    otherSites: otherSitesSource ? otherSites : null,
+    setOtherSites,
+  };
 }

@@ -1,4 +1,5 @@
 import type { Facts } from "../doctor.js";
+import type { FirewallNet } from "./docker.js";
 import type { Install } from "../openclaw.js";
 import type { Check } from "../probe.js";
 import type { ConnectRecord, Firewall, Recorder } from "../state.js";
@@ -18,6 +19,8 @@ export interface Ctx {
   log: (line: string) => void;
   /** Remote mode: the tunnel pairing gave, and this machine's WireGuard private key. */
   tunnel?: Tunnel;
+  /** `controlclaw up`, docker mode: the gateway joins the firewall container's own network. */
+  firewallNet?: FirewallNet;
 }
 
 export interface Tunnel {

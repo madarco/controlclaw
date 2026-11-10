@@ -117,7 +117,7 @@ test("connect --code: pairs, then installs the agent with the firewall's key, it
   assert.equal(agent.firewall.public_key, KEY.trim());
   // The firewall is on another machine: no call to the vm-agent in clear across the network.
   assert.equal(fw.seen[0]!.request.agent_listen, null);
-  assert.equal(agent.listen, "127.0.0.1:3100");
+  assert.equal(agent.listen, "127.0.0.1:3102");
   assert.equal(agent.firewall.allow_from, undefined);
   assert.match(text, /The firewall is on another machine: .* Use --mode remote/);
   const state = "/home/claw/.local/state/controlclaw";
@@ -156,8 +156,8 @@ test("connect --code: with the firewall on this machine, the vm-agent listens on
   const net = { ...fw.net, source: async () => "192.0.2.5", sameMachine: () => true };
   assert.equal(await connect(sys, o, { mode: "host", firewall: "http://fw.example.com:8801", vmAgent: "/opt/vm-agent" }, net), 0, o.lines.join("\n"));
   const agent = JSON.parse(sys.files.get("/etc/controlclaw/agent.json")!);
-  assert.equal(fw.seen[0]!.request.agent_listen, "192.0.2.5:3100");
-  assert.equal(agent.listen, "192.0.2.5:3100");
+  assert.equal(fw.seen[0]!.request.agent_listen, "192.0.2.5:3102");
+  assert.equal(agent.listen, "192.0.2.5:3102");
   assert.deepEqual(agent.firewall.allow_from, ["172.17.0.2"], "where the firewall says it calls from");
   // A calls_from that is not an IPv4 address is not written: the address connect dialled is.
   const s2 = fakeMachine("systemd-user");

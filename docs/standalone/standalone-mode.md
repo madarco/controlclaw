@@ -1,10 +1,9 @@
 # Standalone mode
 
-A firewall that runs with no ControlClaw console. It has its own control plane, `cc-local`, built into
-the agent and kept in a SQLite file. It opens its own pages with links it signs itself, and it keeps
-the console's modules off. These are steps 2 and 3 of the standalone firewall plan
-([`standalone-firewall.md`](../plans/standalone-firewall.md) §10). The panel (step 13) will use the
-API below.
+A standalone firewall runs with no ControlClaw console. Its own control plane, `cc-local`, is built
+into the firewall agent and keeps its state in a SQLite file. The firewall opens its own pages with
+links it signs itself, and keeps the console's modules off. The [panel](panel.md) uses the API on this
+page.
 
 ## Turning it on
 
@@ -33,18 +32,33 @@ In standalone mode:
   | `CA_URL` | The CA the firewall publishes is kept for the agents. |
 
   - The database is `STATE_DIR/local.db` (default `/opt/controlclaw/state`).
-  - A new database starts with one rule, "Block everything until you add rules" (`*`, block,
-    priority 100000), so nothing goes out until you add rules. The log says so at each start while
-    it is the only rule. It is added only when the database is made: delete it and it does not come
-    back, and a database from an earlier version is left as it is. `PUT /api/egress-rules` replaces
-    the whole list, so send it with the rule to keep everything else blocked.
+  - A new database has no rule: every site is let through and logged. **Every other site: Block**
+    (`PUT /api/egress/default`) is one rule, `block-all` (`*`, block, priority 100000), after every
+    other; Allow removes it. A database from before November 2026 started with that rule and keeps
+    it (one the admin changed since becomes an ordinary rule of theirs). The log says so at each
+    start while it is the only rule. `PUT /api/egress-rules` replaces the whole list, so send it with
+    that rule to keep every other site blocked.
+  - The firewall adds rules of its own (`managed`, priority -5, before any of yours) for each model
+    key it holds (its host, for every agent), and for each bot, AgentMail inbox and Gmail grant that
+    has an agent (their hosts, for that agent), so they keep working when every other site is
+    blocked. They are not rows: `/egress-rules` makes them from the keys and from the firewall's own
+    lists (`channels.read`, `agentmail.read`, `google.read`, read at start, when a page shows them and
+    after each change), and they go with them. The hosts are in
+    `rust/crates/cc-contracts/managed-egress.json`. Because they come first, a rule of yours for one
+    of those hosts (ask, block, AI review) is not reached: remove the key or the bot instead.
+  - The proxy writes `managed` on each request such a rule let through. The AI log review skips
+    those that carry the organization's own key or token, which the firewall put in (the model
+    calls carry the agent's whole conversation; the bot's polling is the same request every few
+    seconds). It still reads one sent with a key the firewall did not put in (someone else's bot or
+    account on the same host), anything refused there, and your own rules for the same host.
   - The store stays a file (`file:<STATE_DIR>/store.json`): it is the console's backup and is not
     needed.
   - A variable set to a `file:` path still wins, as before the local control plane. For example,
     `RULES_URL=file:/etc/fw/rules.json` reads `{"rules": [...]}` or a bare list from that file on
-    each sync. An empty list allows every host. A rules file that is missing, is not JSON or holds
-    no list of rules (`{}`, `{"rules": null}`, a misspelled key) fails the sync with the reason in
-    the log: the proxy keeps the last rules it had, and with none it refuses every request.
+    each sync. An empty list allows every host. The sync fails, with the reason in the log, when the
+    rules file is missing, is not JSON or holds no list of rules (`{}`, `{"rules": null}`, a
+    misspelled key). The proxy then keeps the last rules it had, and with none it refuses every
+    request.
   - `STATE_DIR` moves only the database and the store. Each module's own store (`access.enc`,
     `channels.enc`, …) stays under `/opt/controlclaw/state` unless its own variable names another
     path.
@@ -89,9 +103,9 @@ In standalone mode:
 - **Ports.** The agent's port 3100 listens on `MITM_AGENT_LISTEN`: loopback (`127.0.0.1`) in
   standalone mode, every address on a console firewall (where the cloud firewall closes it). On
   3100 a console firewall serves the archive its agents download at setup and the backup recovery
-  routes; a standalone firewall uses neither, so loopback costs nothing until pairing (step 8) needs
-  the agents to reach it. Close
-  8080 to everything but the agents (a cloud firewall or `ufw`). The ingress (8790) is on loopback.
+  routes. A standalone firewall uses neither, so 3100 stays on loopback; agents pair on 8801
+  instead. Close 8080 to everything but the agents (a cloud firewall or `ufw`). The ingress (8790) is
+  on loopback.
 
 ## The admin and the API
 
@@ -140,12 +154,12 @@ Reach it in one of these ways:
 
 The panel's own calls (rules one by one, AI review, model keys, activity and the overview) are in
 [`panel-api.md`](panel-api.md), and the panel itself, served on the same address, in
-[`panel.md`](panel.md). Not yet: the OAuth callback page.
+[`panel.md`](panel.md).
 
 ## Pairing an agent
 
-An agent's machine joins with a one-time code (plan step 8). The CLI side is in
-[`packages/cli/README.md`](../../packages/cli/README.md#pairing), with the reasoning.
+An agent's machine joins with a one-time code. The CLI's side, and why the code is safe on plain
+HTTP, are in [`packages/cli/README.md`](../../packages/cli/README.md#pairing).
 
 - **The address.** The panel's pairing command names `PAIR_PROXY_ADDR`'s host and `PAIR_BIND`'s
   port, and `WG_ENDPOINT`'s host for machines on another network (`GET /api/pairing/address`).
@@ -186,9 +200,9 @@ An agent's machine joins with a one-time code (plan step 8). The CLI side is in
     address only (`firewall.allow_from`). So it is only for a path nobody else is on:
     - over WireGuard (remote mode): the agent's tunnel address and 3100, always; `agent_listen` is
       refused with `wg_public_key`;
-    - on the firewall's own machine (`up --local`, docker, host with the firewall in a container
+    - on the firewall's own machine (`up --all`, docker mode, host with the firewall in a container
       here): `agent_listen` must be the request's `source`, or, when the code names the agent's
-      address, that address (for an `up --local` container, named on `172.31.251.0/24`: the host's
+      address, that address (for an `up --all` container, named on `172.31.251.0/24`: the host's
       side of `outside`, `172.31.252.1`);
     - never loopback, link-local (the clouds' metadata service) or one of the firewall's own
       addresses (`/proc/net/fib_trie`).
@@ -215,8 +229,8 @@ An agent's machine joins with a one-time code (plan step 8). The CLI side is in
 
 ## WireGuard for remote agents
 
-An agent on another machine (another cloud, a home server) reaches the firewall over WireGuard
-(plan §4). Its tunnel address is its identity at the proxy.
+An agent on another network (another cloud, a home server) reaches the firewall over WireGuard. Its
+tunnel address is its identity at the proxy.
 
 - **On the firewall.** `install.sh --wireguard [--wg-endpoint host[:port]] [--wg-address 10.77.0.1/24]`,
   or the image with `CC_WIREGUARD=1`, `WG_ENDPOINT` and `cap_add: NET_ADMIN` (the host needs the
@@ -243,12 +257,12 @@ An agent on another machine (another cloud, a home server) reaches the firewall 
   it differs, and a replayed request would register a key only the real machine has. A firewall
   without WireGuard refuses them (the code is spent).
 - **Peers.** The firewall agent writes the peers to `WG_PEERS_PATH` (default `STATE_DIR/wg-peers.conf`)
-  within seconds of a change (pairing, unpairing, `PUT /api/agents`). Root applies them
-  (`controlclaw-wg-sync.path`, or a loop in the image) with `wg syncconf`, and lets through only
-  a `[Peer]` with one `PublicKey` and one `/32` `AllowedIPs` from `.2` to `.254` of the tunnel network
-  (no leading zeros)
-  (never the firewall's own), each key and each address once; it reads only a regular file, not a
-  link or a FIFO, at most 1 MiB, within 30 seconds and 64 MB.
+  within seconds of a change (pairing, unpairing, `PUT /api/agents`). Root applies them with
+  `wg syncconf` (`controlclaw-wg-sync.path`, or a loop in the image), with these limits:
+  - only a `[Peer]` with one `PublicKey` and one `/32` `AllowedIPs` from `.2` to `.254` of the tunnel
+    network (no leading zeros, never the firewall's own);
+  - each key and each address once;
+  - only a regular file, not a link or a FIFO, at most 1 MiB, read within 30 seconds and 64 MB.
 - **One key, one agent.** A WireGuard key pairs once (409 for a key the firewall has; a unique index
   in migration 5), and the peers file lists each key once.
 
@@ -269,7 +283,7 @@ enforces nothing. Off when unset, and never on in SaaS mode.
   counts before that. A connect the relay cannot read is logged as such once the gateway accepts it.
   Every logged field is capped. Other frames over 64 KiB are passed on without being read.
 
-Setup: [`desktop-app.md`](desktop-app.md); why: [`node-rules.md`](../plans/node-rules.md).
+How to set it up: [`desktop-app.md`](desktop-app.md).
 
 ## Opening a page
 
@@ -307,7 +321,7 @@ intents for a signed-in admin.
 
 ## Checked on real servers
 
-On 2026-10-30, before the local control plane (step 2, with the policy in files), two Hetzner cx23
+On 2026-10-30, before the local control plane existed (the policy was in files), two Hetzner cx23
 servers on one private network ran a test:
 
 - **The firewall** ran `mitm-agent` (standalone) and `cc-proxy` from `build-box.sh`, as systemd units,

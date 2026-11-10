@@ -72,6 +72,22 @@ impl StopMark {
         }
     }
 
+    /// This agent's own short stop ([`OWN_STOP_MS`]); what [`Self::clear_own`] takes.
+    pub fn note_own(&self) -> Option<f64> {
+        self.note("stop", Some(OWN_STOP_MS));
+        self.read().and_then(|m| m.until)
+    }
+
+    /// Clear the mark [`Self::note_own`] set, unless another was noted since (a Stop asked for
+    /// meanwhile, which must stand). Whether it was cleared.
+    pub fn clear_own(&self, own: Option<f64>) -> bool {
+        if own.is_some() && self.read().and_then(|m| m.until) == own {
+            self.note("start", None);
+            return true;
+        }
+        false
+    }
+
     /// The mark on disk; the one in memory when there is no file. An unreadable file is a stop all the same.
     fn read(&self) -> Option<Mark> {
         let raw = match std::fs::read(&self.path) {
@@ -140,6 +156,20 @@ mod tests {
     fn mark() -> (StopMark, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("tempdir");
         (StopMark::new(dir.path().join("openclaw-stopped")), dir)
+    }
+
+    #[test]
+    fn an_own_stop_is_cleared_only_while_it_is_still_the_mark() {
+        let (m, _d) = mark();
+        let own = m.note_own();
+        assert!(m.stopped_on_purpose(now_ms()));
+        assert!(m.clear_own(own));
+        assert!(!m.stopped_on_purpose(now_ms()));
+        // The owner's Stop, noted while the writes ran, stands.
+        let own = m.note_own();
+        m.note("stop", None);
+        assert!(!m.clear_own(own));
+        assert!(m.stopped_on_purpose(now_ms() + OWN_STOP_MS + 1));
     }
 
     #[test]

@@ -110,7 +110,42 @@ pub struct Deps {
     /// Whether OpenClaw's service is down, for [`Self::gateway_or_restarting`]. None: ask the
     /// managed box's `openclaw` unit.
     pub unit_down: Option<Arc<dyn Fn() -> cc_http::BoxFuture<bool> + Send + Sync>>,
+    /// Run CLI writes with OpenClaw's gateway stopped, then start it again: see [`OfflineRun`].
+    pub offline: OfflineRun,
 }
+
+/// One write through OpenClaw's CLI: its arguments, what goes on stdin, how long it may take.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CliWrite {
+    pub args: Vec<String>,
+    pub stdin: Option<String>,
+    pub timeout: Duration,
+}
+
+/// What an [`OfflineRun`] did: each write's result, in order, and whether OpenClaw started again.
+#[derive(Debug)]
+pub struct Offline {
+    pub results: Vec<Result<String, String>>,
+    pub started: Result<(), String>,
+}
+
+/// From OpenClaw 2026.11, a running gateway owns the credential store: `models auth paste-token`,
+/// `models auth logout` and `paste-api-key --profile-id` are refused while it runs ("stop the
+/// Gateway through its service owner"). This stops it the way it runs, makes the writes with the
+/// CLI given, and starts it again, as one unit action. An error when the gateway was not stopped
+/// (nothing was written).
+pub type OfflineRun =
+    Arc<dyn Fn(Deps, String, Vec<CliWrite>) -> cc_http::BoxFuture<Result<Offline, String>> + Send + Sync>;
+
+/// An [`OfflineRun`] that stops nothing, for tests that make no credential writes.
+#[cfg(test)]
+pub fn no_offline() -> OfflineRun {
+    Arc::new(|_, _, _| Box::pin(async { Err("not in this test".to_string()) }))
+}
+
+/// The CLI's refusal of a write while the gateway runs ([`OfflineRun`]).
+pub static NEEDS_GATEWAY_STOPPED: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"(?i)stop the gateway through its service owner").expect("regex"));
 
 impl Deps {
     /// The agent's own: the `openclaw` slot, the app's runner, `systemctl restart openclaw`.
@@ -132,6 +167,13 @@ impl Deps {
             log: Arc::new(|l| tracing::info!("{l}")),
             bin: OPENCLAW_BIN.to_string(),
             unit_down: None,
+            offline: {
+                let service = app.config.service.clone();
+                Arc::new(move |deps, bin, writes| {
+                    let service = service.clone();
+                    Box::pin(async move { super::openclaw::offline_writes(&deps, &service, &bin, writes).await })
+                })
+            },
         }
     }
 
@@ -168,6 +210,18 @@ impl Deps {
                     crate::unmanaged::is_down(&app, &um).await
                 })
             })),
+            offline: {
+                let (a, u) = (Arc::downgrade(app), Arc::downgrade(um));
+                Arc::new(move |deps, bin, writes| {
+                    let (a, u) = (a.clone(), u.clone());
+                    Box::pin(async move {
+                        let (Some(app), Some(um)) = (a.upgrade(), u.upgrade()) else {
+                            return Err(NOT_RUNNING.to_string());
+                        };
+                        crate::unmanaged::offline_writes(&app, &um, &deps, &bin, writes).await
+                    })
+                })
+            },
         }
     }
 

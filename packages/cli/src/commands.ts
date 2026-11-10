@@ -1,18 +1,20 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { join } from "node:path";
-import { AGENT_PORT, agentPaths, installAgent, UNIT } from "./agent.js";
+import { AGENT_PORT, agentPaths, installAgent, keepAfterLogout, REMOTE_AGENT_PORT, UNIT } from "./agent.js";
 import { checkPem } from "./ca.js";
-import { CONTAINER_CA, GATE_IP } from "./capture/docker.js";
+import { GATE_IP } from "./capture/docker.js";
 import type { Ctx } from "./capture/mode.js";
-import { doctorJson, gatherFacts, MODES, renderDoctor } from "./doctor.js";
+import { doctorJson, gatherFacts, MODES, renderDoctor, runsText } from "./doctor.js";
+import { backupConfig, backupText, restoreConfig } from "./openclaw-config.js";
 import { cliArgv, restartArgv, restartUser } from "./openclaw.js";
 import { WG_UNIT } from "./capture/remote.js";
 import { agentKeypair, wgKeypair, caFingerprint, httpPost, normalizeCode, onThisMachine, type Paired, type Post, pair, pairUrl, sourceToward, unpair } from "./pair.js";
 import { type Check, dnsAnswers, ipv4Of, proxyAnswers, splitHostPort } from "./probe.js";
 import { vmAgentOrRelease } from "./release.js";
-import { type ConnectRecord, loadRecord, type Mode, Recorder, ROOT_RECORD, recordPath, stateDir, undoAll } from "./state.js";
+import { type ConnectRecord, loadFirewall, loadRecord, type Mode, Recorder, ROOT_RECORD, recordPath, stateDir, sudoUserRecord, undoAll } from "./state.js";
 import { type Sys, type User, userByUid } from "./sys.js";
+import { firewallCheck, upChecks } from "./up.js";
 
 export interface Io {
   out: (line: string) => void;
@@ -35,6 +37,8 @@ export interface ConnectOpts {
   /** A file holding the pairing code. */
   codeFile?: string;
   name?: string;
+  /** The capture alone: no vm-agent. */
+  captureOnly?: boolean;
 }
 
 export async function doctor(sys: Sys, io: Io, opts: { json?: boolean; user?: string; vmAgent?: string }): Promise<number> {
@@ -103,9 +107,11 @@ export async function connect(sys: Sys, io: Io, o: ConnectOpts, net: PairNet = r
 }
 
 async function connectWith(sys: Sys, io: Io, o: ConnectOpts, net: PairNet, tmp: { dir: string | null }): Promise<number> {
-  const mode = MODES.find((m) => m.name === o.mode);
-  if (!mode) {
-    io.err("--mode must be docker, host, proxy or remote.");
+  // auto (the default): docker for an OpenClaw in a container, else host; decided once it is found.
+  const auto = o.mode === undefined || o.mode === "auto";
+  let mode = auto ? undefined : MODES.find((m) => m.name === o.mode && m.name !== "local");
+  if (!auto && !mode) {
+    io.err("--mode must be auto, docker, host, proxy or remote.");
     return 2;
   }
   if (!o.firewall) {
@@ -113,11 +119,11 @@ async function connectWith(sys: Sys, io: Io, o: ConnectOpts, net: PairNet, tmp: 
     return 2;
   }
   const pairing = !o.ca;
-  if (mode.name === "remote" && !pairing) {
+  if (mode?.name === "remote" && !pairing) {
     io.err("Remote mode pairs with a code (the firewall gives this machine its tunnel): leave out --ca and --firewall-key.");
     return 2;
   }
-  if (mode.name === "remote" && (o.proxy || o.dns)) {
+  if (mode?.name === "remote" && (o.proxy || o.dns)) {
     // They would point the capture at an address outside the tunnel, in clear.
     io.err("Remote mode uses the firewall's proxy and DNS inside the tunnel: leave out --proxy and --dns.");
     return 2;
@@ -183,6 +189,15 @@ async function connectWith(sys: Sys, io: Io, o: ConnectOpts, net: PairNet, tmp: 
     io.err(`The vm-agent could not look at this OpenClaw (vm-agent discover: ${facts.openclaw.discoverError}).`);
     return 1;
   }
+  if (!mode) {
+    const runs = facts.openclaw.install.runs.kind;
+    if (runs === "not-found") {
+      io.err("No OpenClaw on this machine. Install one first: controlclaw openclaw install.");
+      return 1;
+    }
+    mode = MODES.find((m) => m.name === (runs === "docker" ? "docker" : "host"))!;
+    io.out(`  OpenClaw ${facts.openclaw.install.version ?? ""}: ${runsText(facts.openclaw.install.runs, facts.openclaw.user?.name ?? null)}. Mode: ${mode.name} (--mode overrides it).`);
+  }
   const blockers = mode.blockers(facts);
   if (blockers.length) {
     io.err(`This machine cannot do ${mode.name} mode:`);
@@ -213,6 +228,7 @@ async function connectWith(sys: Sys, io: Io, o: ConnectOpts, net: PairNet, tmp: 
     keypair = agentKeypair();
     // Remote: this machine's WireGuard key, made here so a failed pairing leaves nothing behind.
     wgKeys = mode.name === "remote" ? wgKeypair() : undefined;
+    const withAgent = !o.captureOnly;
     try {
       // The firewall checks that the request comes from the address it says: so both are the IPv4
       // address measured here (plain HTTP goes to it directly, not over IPv6 or another record).
@@ -225,10 +241,10 @@ async function connectWith(sys: Sys, io: Io, o: ConnectOpts, net: PairNet, tmp: 
       // address, the firewall's default there), or on this machine (the firewall on it: the route
       // to it is local, so the source is its address). Never across a network in clear.
       sameHost = (net.sameMachine ?? onThisMachine)(ip, source);
-      const agentListen = !wgKeys && sameHost ? `${source}:${AGENT_PORT}` : undefined;
+      const agentListen = withAgent && !wgKeys && sameHost ? `${source}:${AGENT_PORT}` : undefined;
       paired = await pair(base.toString(), code, { publicKey: keypair.publicPem, name: o.name ?? hostname(), source, unpairSecret, wgPublicKey: wgKeys?.publicKey, agentListen }, net.post);
       reach = paired.wg
-        ? { listen: `${paired.wg.address}:${AGENT_PORT}`, allowFrom: [paired.wg.firewallAddress] }
+        ? { listen: `${paired.wg.address}:${REMOTE_AGENT_PORT}`, allowFrom: [paired.wg.firewallAddress] }
         : agentListen ? { listen: agentListen, allowFrom: [paired.callsFrom ?? ip] } : undefined;
     } catch (e) {
       io.err(`Pairing failed: ${(e as Error).message}`);
@@ -271,12 +287,15 @@ async function connectWith(sys: Sys, io: Io, o: ConnectOpts, net: PairNet, tmp: 
     firewall: { url: url.toString(), proxy: proxyAddr, dns, ...(paired ? { agentId: paired.agentId, unpair: unpairSecret } : {}) },
     container,
     cli: cliArgv(install, []),
-    ca: mode.name === "docker" ? CONTAINER_CA : join(stateDir(sys), "ca.crt"),
+    // On this machine; in docker mode the override mounts it into the gateway.
+    ca: join(stateDir(sys), "ca.crt"),
+    ...(o.captureOnly ? { captureOnly: true } : {}),
     steps: [],
   };
   const rec = new Recorder(sys, record);
   rec.start();
   const log = (l: string) => io.out(`  ${l}`);
+  let lingerNote: string | null = null;
   try {
     // Recorded first, so disconnect restarts OpenClaw last, after its settings are back.
     const restart = restartArgv(install);
@@ -294,25 +313,37 @@ async function connectWith(sys: Sys, io: Io, o: ConnectOpts, net: PairNet, tmp: 
       io.out(`Preparing ${mode.name} mode`);
       await mode.prepare(ctx);
     }
-    io.out("Installing the vm-agent");
-    const paths = await installAgent(sys, rec, { binary, user: agentUser, firewallUrl: url.toString(), firewallKey: key, container, agentId: paired?.agentId, keypair,
-      ...(reach ?? {}),
-      // Where OpenClaw reaches the firewall's gates: the gate container in docker mode, else the
-      // proxy's address (the tunnel's in remote mode). Not in proxy mode: everything OpenClaw sends
-      // goes through the proxy there, which never connects to the firewall itself.
-      ...(mode.name === "proxy" ? {} : { gate: mode.name === "docker" ? GATE_IP : await ipv4Of(splitHostPort(proxyAddr, 8080).host) }),
-      // Remote: once the tunnel is up.
-      ...(paired?.wg ? { after: WG_UNIT } : {}) });
-    log(`${paths.bin}, config ${paths.config}`);
-    if (!key) log("No --firewall-key: the agent answers nothing until it has the firewall's key (pair with --code).");
+    if (o.captureOnly) {
+      log("No vm-agent (--capture-only): the firewall cannot set OpenClaw's models, bots or MCP servers here, or stop it.");
+    } else {
+      // Before the vm-agent's first write to OpenClaw's config.
+      const kept = await backupConfig(sys, rec, record, install, user);
+      if (kept) log(`OpenClaw's config as it was: ${kept} (controlclaw disconnect --restore-config puts it back)`);
+      io.out("Installing the vm-agent");
+      const paths = await installAgent(sys, rec, { binary, user: agentUser, firewallUrl: url.toString(), firewallKey: key, container, agentId: paired?.agentId, keypair,
+        ...(reach ?? {}),
+        // Where OpenClaw reaches the firewall's gates: the gate container in docker mode, else the
+        // proxy's address (the tunnel's in remote mode). Not in proxy mode: everything OpenClaw sends
+        // goes through the proxy there, which never connects to the firewall itself.
+        ...(mode.name === "proxy" ? {} : { gate: mode.name === "docker" ? GATE_IP : await ipv4Of(splitHostPort(proxyAddr, 8080).host) }),
+        // Remote: once the tunnel is up.
+        ...(paired?.wg ? { after: WG_UNIT } : {}) });
+      log(`${paths.bin}, config ${paths.config}`);
+      if (!key) log("No --firewall-key: the agent answers nothing until it has the firewall's key (pair with --code).");
+      if (!paths.system) {
+        const linger = await keepAfterLogout(sys, rec, agentUser);
+        if (linger) lingerNote = linger;
+      }
+    }
 
     io.out(`Setting up ${mode.name} mode`);
     const notes = await mode.install(ctx);
+    if (lingerNote) notes.push(lingerNote);
 
     io.out("");
     for (const c of [...(await mode.status(sys, record)), await proxyAnswers(proxyAddr)]) io.out(`${c.ok ? "✓" : "✗"} ${c.name}: ${c.detail}`);
     for (const n of notes) io.out(`! ${n}`);
-    if (paired && !paired.wg && !sameHost) {
+    if (paired && !paired.wg && !sameHost && !o.captureOnly) {
       io.out("! The firewall is on another machine: it does not call this agent's vm-agent (that would be plain HTTP across the network), so it cannot set bots, models or MCP servers here or stop OpenClaw. Use --mode remote for those.");
     }
     io.out("");
@@ -331,6 +362,27 @@ async function connectWith(sys: Sys, io: Io, o: ConnectOpts, net: PairNet, tmp: 
   }
 }
 
+/**
+ * With sudo, on a machine set up without it (`up` by a user who can use Docker): the record and the
+ * vm-agent's user service are that user's, so the command runs as that user.
+ */
+async function asSetupUser(sys: Sys, io: Io, argv: string[]): Promise<number | null> {
+  const theirs = await sudoUserRecord(sys);
+  if (!theirs) return null;
+  const u = theirs.user;
+  // `sudo npx` runs a copy in root's cache, which the user may not read: then they run it themselves.
+  const script = process.argv[1] ?? "";
+  if (!script || (await sys.run(["test", "-r", script], { user: u })).code !== 0) {
+    io.err(`This machine was set up by ${u.name} without sudo. Run, as ${u.name}: controlclaw ${argv.join(" ")}`);
+    return 1;
+  }
+  io.out(`Set up by ${u.name} without sudo: running as ${u.name}.`);
+  const r = await sys.run([process.execPath, script, ...argv], { user: u, timeoutMs: 900_000 });
+  if (r.stdout.trim()) io.out(r.stdout.trimEnd());
+  if (r.stderr.trim()) io.err(r.stderr.trimEnd());
+  return r.code;
+}
+
 /** Without root, a connect made with sudo is not this user's to see: say so instead of "Not connected". */
 function needsSudo(sys: Sys, io: Io, what: string): boolean {
   if (sys.euid === 0 || !sys.exists(ROOT_RECORD)) return false;
@@ -346,18 +398,33 @@ async function unpairFrom(fw: ConnectRecord["firewall"], io: Io, post: Post): Pr
   else io.out(`  ! The firewall still lists this machine as ${fw.agentId} (${r}); remove it there if it is not coming back.`);
 }
 
-export async function disconnect(sys: Sys, io: Io, opts: { force?: boolean } = {}, post: Post = httpPost): Promise<number> {
+export async function disconnect(sys: Sys, io: Io, opts: { force?: boolean; restoreConfig?: boolean } = {}, post: Post = httpPost): Promise<number> {
   const record = loadRecord(sys);
   if (!record && needsSudo(sys, io, "disconnect")) return 1;
+  if (!record) {
+    const code = await asSetupUser(sys, io, ["disconnect", ...(opts.force ? ["--force"] : []), ...(opts.restoreConfig ? ["--restore-config"] : [])]);
+    if (code !== null) return code;
+  }
   if (!record) {
     io.out("Not connected.");
     return 0;
   }
-  io.out(`Removing ${record.mode} mode, the CA and the vm-agent`);
+  // Read before the undo removes it.
+  const before = opts.restoreConfig ? backupText(sys, record) : null;
+  if (opts.restoreConfig && before === null) io.err("  No copy of OpenClaw's config was kept (connect made none): it stays as it is.");
+  io.out(`Removing ${record.mode} mode, the CA${record.captureOnly ? "" : " and the vm-agent"}${record.mode === "local" ? ", and stopping the containers (their data stays)" : ""}`);
   await unpairFrom(record.firewall, io, post);
   const failed = await undoAll(sys, record, io.err);
+  // Only once the vm-agent is gone: one still running could write its settings back over it.
+  if (before !== null && record.configBackup && !failed) await restoreConfig(sys, io, record.configBackup, before);
+  else if (before !== null && failed && record.configBackup) {
+    // The undo may have removed the copy already: kept for the next disconnect --restore-config.
+    sys.write(record.configBackup.copy, before, { mode: 0o600 });
+    io.err(`  OpenClaw's config is not put back while steps failed: the copy stays in ${record.configBackup.copy}. Run disconnect --restore-config again once fixed.`);
+  }
+  else if (record.configBackup && !failed) io.out("  OpenClaw keeps what the panel set in its config (disconnect --restore-config puts back the copy from before connect).");
   if (!failed) {
-    io.out("Done. This machine is as it was before connect.");
+    io.out(`Done. This machine is as it was before connect${record.up && record.mode !== "local" ? "; the firewall here still runs (controlclaw uninstall removes it)" : ""}.`);
     return 0;
   }
   if (opts.force) {
@@ -375,19 +442,29 @@ export async function status(sys: Sys, io: Io, opts: { json?: boolean }): Promis
   const record = loadRecord(sys);
   if (!record && needsSudo(sys, io, "status")) return 1;
   if (!record) {
-    io.out(opts.json ? JSON.stringify({ connected: false }) : "Not connected.");
-    return 0;
+    const code = await asSetupUser(sys, io, ["status", ...(opts.json ? ["--json"] : [])]);
+    if (code !== null) return code;
+  }
+  const fw = loadFirewall(sys);
+  if (!record) {
+    const c = fw ? await firewallCheck(sys, fw.project, fw.kind) : null;
+    if (opts.json) io.out(JSON.stringify({ connected: false, ...(c ? { firewall: { kind: fw!.kind, ...c } } : {}) }));
+    else io.out(`Not connected.${c ? `\n  ${c.ok ? "✓" : "✗"} ${c.name} (installed here): ${c.detail}` : ""}`);
+    return c && !c.ok ? 1 : 0;
   }
   const mode = MODES.find((m) => m.name === record.mode)!;
-  const checks: Check[] = await mode.status(sys, record);
+  const checks: Check[] = record.up && record.mode !== "local" ? await upChecks(sys, record) : await mode.status(sys, record);
+  // A firewall installed here that this machine is not paired with (it pairs elsewhere): shown too.
+  if (fw && !record.up) checks.unshift(await firewallCheck(sys, fw.project, fw.kind));
   const agentUser = record.user ?? userByUid(sys, sys.euid);
-  if (agentUser) {
+  if (agentUser && !record.captureOnly) {
     const p = agentPaths(sys, agentUser);
     const r = await sys.run([...(p.system ? ["systemctl"] : ["systemctl", "--user"]), "is-active", UNIT]);
     checks.push({ name: "vm-agent", ok: r.stdout.trim() === "active", detail: r.stdout.trim() || "unknown" });
   }
-  // up --local's firewall is on a network the host does not use: its own check runs from inside OpenClaw.
-  if (record.mode !== "local") {
+  // The firewall of up --local, and of up in docker mode, is on a network this machine is not on:
+  // their own check runs from inside OpenClaw.
+  if (record.mode !== "local" && !record.up?.network) {
     checks.push(await proxyAnswers(record.firewall.proxy));
     if (record.firewall.dns && !checks.some((c) => c.name === "firewall DNS")) checks.push(await dnsAnswers(record.firewall.dns));
   }

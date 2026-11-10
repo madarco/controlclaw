@@ -94,6 +94,44 @@ fn sources_for(role: &str) -> &'static [&'static str] {
 
 pub use crate::db::{BLOCK_ALL_ID, BLOCK_ALL_NAME, BLOCK_ALL_PRIORITY};
 
+/// The rules this firewall adds by itself (`cc_contracts::managed`): one per host of each model key
+/// it holds, for every agent, and of each bot, inbox and Gmail grant that has an agent, for that agent. Not rows: they
+/// come and go with the key or the bot, and nobody can change them.
+pub fn managed_rules(c: &rusqlite::Connection) -> rusqlite::Result<Vec<Value>> {
+    use cc_contracts::managed;
+    let mut out = Vec::new();
+    // Every key held, until it is removed: one the firewall refused on a replace still has the old one.
+    let mut q = c.prepare("SELECT provider FROM llm_keys ORDER BY created_at, id")?;
+    let providers: Vec<String> = q.query_map([], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+    for p in providers {
+        if let Some(s) = managed::source(&p) {
+            out.extend(managed::rules(s, None));
+        }
+    }
+    // The bots, inboxes and Google grants on an agent, as the firewall last listed them (`api::managed`).
+    let mut q = c.prepare("SELECT value FROM settings WHERE key LIKE ?1 ORDER BY key")?;
+    let parts: Vec<String> = q
+        .query_map([format!("{}%", crate::api::managed::SEEN_PREFIX)], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    let seen: Vec<Value> = parts
+        .iter()
+        .filter_map(|v| serde_json::from_str::<Vec<Value>>(v).ok())
+        .flatten()
+        .collect();
+    for ch in &seen {
+        let (Some(kind), Some(vm)) = (
+            ch.get("type").and_then(Value::as_str),
+            ch.get("vmId").and_then(Value::as_str),
+        ) else {
+            continue;
+        };
+        if let Some(s) = managed::source(kind) {
+            out.extend(managed::rules(s, Some(vm)));
+        }
+    }
+    Ok(out)
+}
+
 const EGRESS_EFFECTS: &[&str] = &["allow", "block", "require_permission", "tunnel", "drop", "residential"];
 
 pub struct LocalControlPlane {
@@ -115,7 +153,8 @@ impl LocalControlPlane {
         Ok(())
     }
 
-    /// The enabled rules are only the one a new database starts with: everything is blocked.
+    /// The enabled rules are only "Every other site: Block": nothing gets out but what the managed
+    /// rules let through.
     pub fn only_block_all(&self) -> rusqlite::Result<bool> {
         let ids: Vec<String> = {
             let c = self.db.lock();
@@ -226,6 +265,8 @@ impl LocalControlPlane {
                 Ok(Value::Object(m))
             })?
             .collect::<rusqlite::Result<_>>()?;
+        let mut rules = rules;
+        rules.extend(managed_rules(&c)?);
         let ai: Value = c
             .query_row("SELECT settings FROM ai_settings WHERE id = 1", [], |r| {
                 r.get::<_, String>(0)
@@ -560,9 +601,10 @@ impl LocalControlPlane {
                 ("mitm", _) => named.or_else(|| Some(caller.to_string())),
                 _ => Some(caller.to_string()),
             };
+            let routine = source == "egress" && cc_contracts::managed::is_routine(r);
             let n = tx.execute(
-                "INSERT INTO activity_raw (vm_id, source, status, dedupe_key, occurred_at, summary, record, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) ON CONFLICT (dedupe_key) DO NOTHING",
+                "INSERT INTO activity_raw (vm_id, source, status, dedupe_key, occurred_at, summary, record, created_at, routine)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) ON CONFLICT (dedupe_key) DO NOTHING",
                 params![
                     vm,
                     source,
@@ -571,7 +613,8 @@ impl LocalControlPlane {
                     row.at,
                     row.summary,
                     r.to_string(),
-                    now_s()
+                    now_s(),
+                    routine
                 ],
             )?;
             if n == 0 {

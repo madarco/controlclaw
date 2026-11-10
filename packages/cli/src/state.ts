@@ -1,5 +1,5 @@
 import { dirname, join } from "node:path";
-import { type Owner, type Sys, type User, userByUid } from "./sys.js";
+import { type Owner, type Sys, type User, userByName, userByUid } from "./sys.js";
 
 /**
  * What `connect` did, step by step, in `connect.json`, so `disconnect` can undo exactly that and
@@ -54,7 +54,36 @@ export interface ConnectRecord {
   cli: string[];
   /** Where the CA was put for OpenClaw to read. */
   ca: string;
+  /** Paired with the firewall `controlclaw install` runs on this machine (no code typed). */
+  up?: UpFirewall;
+  /** `--capture-only`: no vm-agent. */
+  captureOnly?: boolean;
+  /** OpenClaw's config as it was before connect, for `disconnect --restore-config`. */
+  configBackup?: ConfigBackup;
   steps: Step[];
+}
+
+/** A copy of OpenClaw's config file, made before the vm-agent first writes to it. */
+export interface ConfigBackup {
+  /** OpenClaw's config file. */
+  config: string;
+  /** The copy (0600, in the state folder). */
+  copy: string;
+  /** How OpenClaw is restarted once the file is back, and as whom. */
+  restart: string[] | null;
+  restartAs?: User;
+}
+
+/** The firewall on this machine that connect paired with: its Compose project, and the gateway's network (docker mode). */
+export interface UpFirewall {
+  /** The folder of its compose.yaml. */
+  dir: string;
+  project: string;
+  image?: string;
+  /** Docker mode: the firewall's internal network, the gateway's only one. */
+  network?: string;
+  /** Set once connect finished: connect run again then checks it, and never pairs again. */
+  done?: boolean;
 }
 
 /** Root keeps it in /etc; a user without root (proxy mode) in its own config folder. */
@@ -68,8 +97,44 @@ export function recordPath(sys: Sys): string {
   return join(stateDir(sys), "connect.json");
 }
 
+/** What `controlclaw install` did: the firewall on this machine. Its own record, next to connect's. */
+export function firewallRecordPath(sys: Sys): string {
+  return join(stateDir(sys), "firewall.json");
+}
+
+/** The firewall `controlclaw install` put on this machine, and how to take it away. */
+export interface FirewallRecord {
+  version: 1;
+  /** A container (`--docker`), or `install.sh`'s systemd units (`--host`). */
+  kind: "docker" | "host";
+  at: string;
+  /** Its image (`--docker`), or the release install.sh installed (`--host`). */
+  image: string;
+  /** `--docker`: the folder of its compose.yaml, and its Compose project. */
+  dir?: string;
+  project?: string;
+  /** The address other machines reach it at (`--listen`). */
+  listen?: string;
+  /** `--host`: install.sh, kept for `uninstall`. */
+  installer?: string;
+  steps: Step[];
+}
+
+export function loadFirewall(sys: Sys): FirewallRecord | null {
+  const raw = sys.read(firewallRecordPath(sys));
+  if (!raw) return null;
+  try {
+    const r = JSON.parse(raw) as FirewallRecord;
+    return r.version === 1 ? r : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The record root keeps, when this user has none: then disconnect and status need sudo. */
 export const ROOT_RECORD = "/etc/controlclaw/connect.json";
+/** The firewall root installed. */
+export const ROOT_FIREWALL = "/etc/controlclaw/firewall.json";
 
 export function loadRecord(sys: Sys): ConnectRecord | null {
   const raw = sys.read(recordPath(sys));
@@ -77,6 +142,28 @@ export function loadRecord(sys: Sys): ConnectRecord | null {
   try {
     const r = JSON.parse(raw) as ConnectRecord;
     return r.version === 1 ? r : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * As root under sudo, with no record of root's own: the record of the user who ran sudo, when that
+ * user set this machine up without it (`up` by a user who can use Docker). Read as that user.
+ */
+export async function sudoUserRecord(sys: Sys): Promise<{ user: User; record: ConnectRecord } | null> {
+  if (sys.euid !== 0 || sys.exists(ROOT_RECORD) || !sys.env.SUDO_USER) return null;
+  const user = userByName(sys, sys.env.SUDO_USER);
+  if (!user || user.uid === 0) return null;
+  let raw: string | null = null;
+  try {
+    raw = await sys.readAs(user, join(user.home, ".config/controlclaw/connect.json"));
+  } catch {
+    return null;
+  }
+  try {
+    const record = raw ? (JSON.parse(raw) as ConnectRecord) : null;
+    return record?.version === 1 ? { user, record } : null;
   } catch {
     return null;
   }
@@ -114,14 +201,16 @@ export class SharedFolder extends Error {
 }
 
 /** Writes and records. Every change `connect` makes goes through one of these two methods. */
-export class Recorder {
+export class Recorder<R extends { steps: Step[] } = ConnectRecord> {
   constructor(
     private sys: Sys,
-    readonly record: ConnectRecord,
+    readonly record: R,
+    /** Where the record is kept: connect.json, or firewall.json for `install`. */
+    private path: string = recordPath(sys),
   ) {}
 
   private save(): void {
-    this.sys.write(recordPath(this.sys), `${JSON.stringify(this.record, null, 2)}\n`, { mode: 0o600 });
+    this.sys.write(this.path, `${JSON.stringify(this.record, null, 2)}\n`, { mode: 0o600 });
   }
 
   /**
@@ -163,6 +252,7 @@ export class Recorder {
     this.save();
   }
 
+  /** Saves the record as it is (also after a field of it changed). */
   start(): void {
     this.save();
   }
@@ -172,7 +262,7 @@ export class Recorder {
  * Undo every step, newest first. A failed step is reported and the rest still run. The failed ones
  * stay in the record, so `disconnect` can be run again; the record goes only when all went well.
  */
-export async function undoAll(sys: Sys, record: ConnectRecord, log: (line: string) => void): Promise<number> {
+export async function undoAll(sys: Sys, record: { steps: Step[] }, log: (line: string) => void, path: string = recordPath(sys)): Promise<number> {
   const left: Step[] = [];
   for (const step of [...record.steps].reverse()) {
     if (step.kind === "file") {
@@ -202,9 +292,9 @@ export async function undoAll(sys: Sys, record: ConnectRecord, log: (line: strin
     if (failedArgv.length) left.unshift({ ...step, argv: failedArgv });
   }
   if (left.length) {
-    sys.write(recordPath(sys), `${JSON.stringify({ ...record, steps: left }, null, 2)}\n`, { mode: 0o600 });
+    sys.write(path, `${JSON.stringify({ ...record, steps: left }, null, 2)}\n`, { mode: 0o600 });
   } else {
-    sys.remove(recordPath(sys));
+    sys.remove(path);
     sys.removeEmptyDir(stateDir(sys));
   }
   return left.length;

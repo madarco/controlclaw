@@ -40,8 +40,8 @@ test("host: the rules catch only the uid, send DNS to the firewall and refuse th
   assert.match(nft, /ip daddr \{ 127.0.0.53, 127.0.0.54 \} meta l4proto \{ tcp, udp \} th dport 53 accept\n    meta l4proto tcp reject/);
   assert.match(nft, /meta l4proto tcp reject with tcp reset\n    reject\n/);
   // Loopback by address (a redirected packet still shows oif eth0), and only these ports.
-  assert.match(nft, /ip daddr 127.0.0.0\/8 tcp dport \{ 12346, 3100, 3111, 18789-18800 \} accept/);
-  assert.match(nft, /ip6 daddr ::1 tcp dport \{ 12346, 3100, 3111, 18789-18800 \} accept/);
+  assert.match(nft, /ip daddr 127.0.0.0\/8 tcp dport \{ 12346, 3102, 3111, 18789-18800 \} accept/);
+  assert.match(nft, /ip6 daddr ::1 tcp dport \{ 12346, 3102, 3111, 18789-18800 \} accept/);
   assert.doesNotMatch(nft, /ip daddr 127.0.0.0\/8 accept/);
   // resolved may ask only the firewall, and its rules come before the "other uids" accept.
   assert.match(nft, /meta skuid 991 meta l4proto \{ tcp, udp \} th dport \{ 53, 853 \} ip daddr != 10.0.0.2 reject/);
@@ -51,14 +51,14 @@ test("host: the rules catch only the uid, send DNS to the firewall and refuse th
   const noResolved = captureNft({ uid: 1001, dns: "10.0.0.2", loopbackPorts: ["1"], resolveUid: null });
   assert.doesNotMatch(noResolved, /skuid 991/);
   assert.doesNotMatch(noResolved, /127.0.0.53/, "no stub to allow without resolved");
-  assert.deepEqual(loopbackPorts(65530), ["12346", "3100", "3111", "65530-65535"], "never past 65535");
+  assert.deepEqual(loopbackPorts(65530), ["12346", "3102", "3111", "65530-65535"], "never past 65535");
   // A profile's own CDP port, from the config; one inside the range is not listed twice.
   const cfg = JSON.stringify({ browser: { profiles: { work: { cdpPort: 18802 }, x: { cdpPort: 18795 }, remote: { cdpUrl: "http://127.0.0.1:9333" }, far: { cdpUrl: "http://10.0.0.9:9222" } } } });
   assert.deepEqual(profilePorts(cfg), [18802, 18795, 9333]);
-  assert.deepEqual(loopbackPorts(18789, profilePorts(cfg)), ["12346", "3100", "3111", "18789-18800", "9333", "18802"]);
+  assert.deepEqual(loopbackPorts(18789, profilePorts(cfg)), ["12346", "3102", "3111", "18789-18800", "9333", "18802"]);
   assert.equal(profilePorts("{ json5: true, }"), null, "not plain JSON: its profiles cannot be read");
-  assert.deepEqual(loopbackPorts(18789, null), ["12346", "3100", "3111", "18789-18899"], "so OpenClaw's whole range stays open");
-  assert.deepEqual(loopbackPorts(65535), ["12346", "3100", "3111", "65535"]);
+  assert.deepEqual(loopbackPorts(18789, null), ["12346", "3102", "3111", "18789-18899"], "so OpenClaw's whole range stays open");
+  assert.deepEqual(loopbackPorts(65535), ["12346", "3102", "3111", "65535"]);
   // redsocks refuses a `#` comment.
   assert.ok(redsocksConf("10.0.0.2", 8080).startsWith("// "));
 });
@@ -242,7 +242,7 @@ test("docker: the override goes into the project's COMPOSE_FILE, and comes out a
   sys.modes.set("/root/openclaw/.env", { mode: 0o600, uid: 1000, gid: 1000 });
   const o = io();
   assert.equal(await run(["connect", "--mode", "docker", "--firewall", "http://192.0.2.9:3940", "--ca", "/tmp/ca.pem", "--vm-agent", "/opt/vm-agent"], o, sys), 0, o.lines.join("\n"));
-  assert.match(sys.files.get("/root/openclaw/.env")!, /^OPENCLAW_IMAGE=.*\n# Added by controlclaw connect.*\nCOMPOSE_FILE=docker-compose.yml:\/etc\/controlclaw\/docker\/compose.controlclaw.yml\n$/);
+  assert.match(sys.files.get("/root/openclaw/.env")!, /^OPENCLAW_IMAGE=.*\n# Added by controlclaw;.*\nCOMPOSE_FILE=docker-compose.yml:\/etc\/controlclaw\/docker\/compose.controlclaw.yml\n$/);
   assert.deepEqual(sys.stat("/root/openclaw/.env"), { mode: 0o600, uid: 1000, gid: 1000 }, "their mode and owner are kept");
   assert.match(o.lines.join("\n"), /keeps the capture/);
   assert.equal(await run(["disconnect"], io(), sys), 0);

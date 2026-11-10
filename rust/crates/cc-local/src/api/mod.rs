@@ -30,6 +30,7 @@ pub mod controls;
 pub mod egress;
 pub mod integrations;
 pub mod llm;
+pub mod managed;
 pub mod openapi;
 pub mod pairing;
 pub mod panel;

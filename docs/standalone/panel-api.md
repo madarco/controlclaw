@@ -1,7 +1,7 @@
 # The local panel's API
 
 A standalone firewall serves its panel's API on `LOCAL_PANEL_BIND` (default `127.0.0.1:8800`), next
-to the admin login described in [`standalone-mode.md`](standalone-mode.md#the-admin-api). The local
+to the admin login described in [`standalone-mode.md`](standalone-mode.md#the-admin-and-the-api). The local
 panel (`packages/console-ui`) calls it through `@controlclaw/fw-api`.
 
 - **Where it is defined.** One route table in Rust (`rust/crates/cc-local/src/api/`), one file per
@@ -51,7 +51,7 @@ The full list, with every field, is in `openapi.json`.
 | Content rules | `GET /api/content-rules` (the rules, the always-on ones, held messages, the AI's state, and `aiOn`); `POST /api/content-rules/change {change}` with `{op: put, rule}`, `{op: delete, id}` or `{op: ai}`; `POST /api/content-rules/try {text, direction, channel, draft?}`. They run on a standalone firewall too, now that its control plane is its own. |
 | App rules | `GET /api/app-rules`; `POST /api/app-rules/change {change}` with `{op: put, rule, at?}`, `{op: delete, id}` or `{op: move, id, to}`; `GET /api/app-rules/mcp` (the MCP servers a rule can name). |
 | Email rules | `GET /api/email-rules`; `POST /api/email-rules/change {change}`: `add_sender`, `remove_sender`, `add_recipient`, `remove_recipient` (`{entry: {value, mailbox?}}`), `set_inbound_auth`, `set_outbound`, `set_mailbox_mode`. |
-| Emergency stop | `GET /api/kill`; `POST /api/kill/engage {vmId?, confirm: "STOP"}`; `POST /api/kill/release {vmId?}`. |
+| Emergency stop | `GET /api/kill`; `POST /api/kill/engage {vmId?, confirm: "STOP"}`; `POST /api/kill/release {vmId?}`: with no `vmId`, every stop is released (the org-wide one, then each agent stopped on its own). |
 | Web search | `GET /api/search`; `PUT /api/search/key {provider: tavily\|brave, key}`; `DELETE /api/search/key`. |
 | Exit proxy | `GET /api/exit`; `PUT /api/exit` (your own account with a proxy provider: scheme, host, port, user name, password and the templates); `PATCH /api/exit {sticky?, capBytes?, country?}`; `DELETE /api/exit`; `POST /api/exit/check`. A rule sends a site through it with `exit: residential`. |
 | Telegram and Slack | `GET /api/channels` (the bots, and who gets codes for agents' requests); `POST /api/channels {type, botToken, appToken?, label?, vmId?}` (Slack needs its app-level token too); `PUT /api/channels/{id}/token`; `POST /api/channels/{id}/assign {vmId}`, `POST /api/channels/{id}/unassign`; `POST /api/channels/{id}/pairing {code, senderId, label?}`; `DELETE /api/channels/{id}` (`?force=true` removes a bot whose agent cannot be told: an agent that is gone keeps a stand-in that no longer works). The list is the firewall's own (`channels.read`); the token stays there and only its last four characters are shown. |
@@ -61,7 +61,7 @@ The full list, with every field, is in `openapi.json`.
 | AgentMail | `GET /api/agentmail`; `POST /api/agentmail/{action}` for `signup`, `claim`, `check`, `create`, `import`, `attach`, `senders`, `forget`, `delete`, `push`, with the action's body. An agent named by `vmId` needs its address (pairing gives it). AgentMail never asked for codes. |
 | Website logins | `GET /api/logins` (never a password); `POST /api/logins/change {action: update\|delete, id, name?, sites?, vmIds?, mode?: swap\|type}`; `POST /api/logins/1password/sync`, `/disconnect`. A new login and its password are typed on the firewall's own Logins page: `POST /api/open {page: logins}`. |
 | OAuth sign-ins | `POST /api/oauth/callback {state, code?, error?}`: what the provider sent to the panel's `/oauth/callback` page. The connectors, then the MCP servers, then Google take it: the one that started that sign-in finishes it. |
-| Other | `GET`/`PUT /api/egress-rules` (the whole list at once), `GET`/`PUT /api/agents`, `GET /api/permissions`, `POST /api/permissions/answer`, `GET /api/activity/recent`, `POST /api/open`, `POST /api/commands`: see [`standalone-mode.md`](standalone-mode.md#the-admin-api). |
+| Other | `GET`/`PUT /api/egress-rules` (the whole list at once), `GET`/`PUT /api/agents`, `GET /api/permissions`, `POST /api/permissions/answer`, `GET /api/activity/recent`, `POST /api/open`, `POST /api/commands`: see [`standalone-mode.md`](standalone-mode.md#the-admin-and-the-api). |
 
 ## Good to know
 
@@ -82,5 +82,9 @@ The full list, with every field, is in `openapi.json`.
 - **Not through `/api/commands`.** Model keys, the search key and the bots have routes of their own,
   which keep the panel's record of them; `/api/commands` refuses their actions. `kill.engage` there
   needs `confirm: "STOP"`, as on its route.
-- **A new firewall** starts with the rule "Block everything until you add rules". Add an allow rule
-  before it (a lower priority number), or delete it to allow everything.
+- **Every other site.** A new firewall allows every site and logs it. `PUT /api/egress/default`
+  `{"effect": "block"}` blocks every site no rule names; `{"effect": "allow"}` lets them through
+  again. The rule it writes (`block-all`) is not in `/api/egress/rules` and is changed only there.
+- **Rules the firewall adds.** `/api/egress/rules` also lists the rules for the model keys and bots
+  (`managed` names the key's provider or the bot's type, and the ids start with `managed:`). Changing
+  or deleting one is refused (403); remove the key or the bot.

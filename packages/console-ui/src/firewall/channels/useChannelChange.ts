@@ -9,7 +9,7 @@ import { useFirewallChange } from "../change/useFirewallChange";
  * providers (`useFirewallChange`); this only binds the channel RPC and the shape of a provisional
  * row, and is used by both the organization page and an agent's Channels page.
  */
-export function useChannelChange(opts: { live: boolean; initial: AgentChannelChangeView | null; onSettled: () => void | Promise<unknown>; onDone?: () => void }) {
+export function useChannelChange(opts: { live: boolean; initial: AgentChannelChangeView | null; onSettled: () => void | Promise<unknown>; onDone?: (change: AgentChannelChangeView) => void }) {
   const api = useApi();
   return useFirewallChange<AgentChannelChangeView>({
     live: opts.live,

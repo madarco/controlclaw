@@ -118,13 +118,26 @@ fn is_builtin(r: &Value) -> bool {
         && r.get("rule_id").is_none_or(Value::is_null)
 }
 
-/// Traffic worth reviewing: not the boxes' own calls to ControlClaw or their backups, not the
-/// firewall's notes.
+/// Routine traffic (`cc_contracts::managed::is_routine`): the agent's own model calls and its bot's
+/// polling, through the rules the control plane added for them, with the organization's own key or
+/// token. The model calls carry the agent's whole conversation; the polling is the same request every
+/// few seconds. The rule is known by what it is, never by its name or host: an owner's rule for the
+/// same host is still reviewed, and so is anything refused, failed or sent with a key the firewall did
+/// not put in (someone else's bot or account). Activity leaves out exactly these.
+fn is_managed(r: &Value) -> bool {
+    cc_contracts::managed::is_routine(r)
+}
+
+/// Traffic worth reviewing: not the boxes' own calls to ControlClaw or their backups, not what the
+/// managed rules let through, not the firewall's notes.
 fn reviewable(raw: Vec<Value>, ignore_hosts: &[String]) -> Vec<Value> {
     raw.into_iter()
         .filter(|r| r.is_object() && r.get("host").is_some_and(Value::is_string))
         .filter(|r| {
-            !is_logins_note(r) && !is_builtin(r) && !ignore_hosts.iter().any(|h| Some(h.as_str()) == s(r, "host"))
+            !is_logins_note(r)
+                && !is_builtin(r)
+                && !is_managed(r)
+                && !ignore_hosts.iter().any(|h| Some(h.as_str()) == s(r, "host"))
         })
         .collect()
 }

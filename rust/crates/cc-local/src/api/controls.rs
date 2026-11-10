@@ -43,13 +43,35 @@ pub fn routes() -> Vec<Route> {
             TAG,
             "Let every agent, or one, go again",
             |c, b| async move {
-                let p = checked("kill.release", kill_payload(&c, b.vm_id.as_deref(), false)?)?;
-                let mut with = Map::new();
-                with.insert("scope".into(), p["scope"].clone());
-                if let Some(v) = &b.vm_id {
-                    with.insert("vmId".into(), json!(v));
+                if b.vm_id.is_some() {
+                    return Ok(release(&c, b.vm_id.as_deref()).await?.reply());
                 }
-                Ok(c.apply_as("kill.release", "kill.confirm", p, with).await?.reply())
+                // Every stop: the firewall's org-wide release leaves an agent stopped on its own
+                // stopped (the SaaS lifts those one by one), so each of them is released here too,
+                // after the org stop, under which an agent's release starts nothing.
+                let kill = (c.hooks.status)().remove("kill").unwrap_or(Value::Null);
+                let own: Vec<String> = kill["agents"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|a| a["vmId"].as_str().map(str::to_string))
+                    .collect();
+                // Each one tried; the answer is the first that was not applied, else the last.
+                let mut scopes: Vec<Option<String>> = Vec::new();
+                if !kill["org"].is_null() || own.is_empty() {
+                    scopes.push(None);
+                }
+                scopes.extend(own.into_iter().map(Some));
+                let mut answers = Vec::new();
+                for vm in &scopes {
+                    answers.push(release(&c, vm.as_deref()).await?);
+                }
+                let first_not_applied = answers.iter().position(|a| a.status != "applied");
+                let answer = match first_not_applied {
+                    Some(i) => answers.swap_remove(i),
+                    None => answers.pop().expect("one release at least"),
+                };
+                Ok(answer.reply())
             },
         ),
         Route::get::<(), SearchView, _, _>(
@@ -140,6 +162,17 @@ pub struct Engage {
 pub struct Release {
     #[serde(default)]
     pub vm_id: Option<String>,
+}
+
+/// `kill.release` for one agent, or the org-wide stop, confirmed at once.
+async fn release(c: &Ctx, vm: Option<&str>) -> Result<CommandAnswer> {
+    let p = checked("kill.release", kill_payload(c, vm, false)?)?;
+    let mut with = Map::new();
+    with.insert("scope".into(), p["scope"].clone());
+    if let Some(v) = vm {
+        with.insert("vmId".into(), json!(v));
+    }
+    c.apply_as("kill.release", "kill.confirm", p, with).await
 }
 
 /// `known`: the agent must be in the list now (a stop); a release also takes one removed since.

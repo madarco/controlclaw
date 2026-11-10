@@ -169,6 +169,17 @@ pub fn http_record(ctx: &Ctx, flow: &Flow, effect: &str) -> TrafficRecord {
         && r.get(1).unwrap_or(&Value::Null) == &rule
     {
         rec.rule_id = Maybe::Value(id.to_owned());
+        // A rule the control plane added for a provider or a channel says so; the AI log review
+        // and the Activity log read it (`cc_contracts::managed`).
+        if let Some(m) = flow
+            .meta
+            .get("rule_view")
+            .and_then(|v| v.get(cc_contracts::managed::FIELD))
+            .and_then(Value::as_str)
+            .filter(|m| !m.is_empty())
+        {
+            rec.extra.insert(cc_contracts::managed::FIELD.into(), m.into());
+        }
     }
     rec.rule = match rule {
         Value::String(s) => Maybe::Value(s),

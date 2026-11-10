@@ -170,7 +170,7 @@ async fn list(c: &Ctx) -> Result<Vec<Channel>> {
         .filter_map(|a| Some((a["vmId"].as_str()?.to_string(), a["name"].as_str()?.to_string())))
         .collect();
     let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).map(str::to_string);
-    Ok(data
+    let list: Vec<Channel> = data
         .get("connections")
         .and_then(Value::as_array)
         .into_iter()
@@ -187,7 +187,25 @@ async fn list(c: &Ctx) -> Result<Vec<Channel>> {
                 approved_senders: x.get("approvedSenders").and_then(Value::as_i64).unwrap_or(0),
             }
         })
-        .collect())
+        .collect();
+    seen(c, &list)?;
+    Ok(list)
+}
+
+/// Read the bots and keep their agents for the channel rules.
+pub async fn refresh(c: &Ctx) -> Result<()> {
+    list(c).await.map(|_| ())
+}
+
+/// Keep the bots that have an agent, for their rules (`api::managed`).
+fn seen(c: &Ctx, list: &[Channel]) -> Result<()> {
+    super::managed::store(
+        c,
+        "channels",
+        list.iter()
+            .filter_map(|x| Some(json!({"type": x.r#type, "vmId": x.vm_id.as_deref()?})))
+            .collect(),
+    )
 }
 
 async fn view(c: &Ctx) -> Result<ChannelsView> {

@@ -8,8 +8,14 @@ import type { Sys, User } from "./sys.js";
  * user without root, a user unit.
  */
 export const UNIT = "controlclaw-agent.service";
-/** Where the vm-agent listens for the firewall's calls. */
-export const AGENT_PORT = 3100;
+/**
+ * Where the vm-agent listens for the firewall's calls. Not 3100, the firewall agent's own port (an
+ * `up` firewall shares the machine), nor 3101 (the firewall's AI judge on loopback, and the
+ * locked-disk listener on a secured box). Machines connected before keep the `listen` their config has.
+ */
+export const AGENT_PORT = 3102;
+/** Remote mode's: the firewall calls a tunnel address on 3100, and pairing there takes no `agent_listen`. */
+export const REMOTE_AGENT_PORT = 3100;
 
 export interface AgentOpts {
   binary: string;
@@ -141,4 +147,19 @@ export async function installAgent(sys: Sys, rec: Recorder, o: AgentOpts): Promi
   const up = await sys.run([...ctl, "enable", "--now", UNIT]);
   if (up.code !== 0) throw new Error(`could not start the vm-agent: ${up.stderr.trim()}`);
   return p;
+}
+
+/**
+ * A user service stops at logout unless the user lingers. Turned on when it was off (and off again
+ * by disconnect); a note when it cannot be.
+ */
+export async function keepAfterLogout(sys: Sys, rec: Recorder, user: User): Promise<string | null> {
+  const show = await sys.run(["loginctl", "show-user", user.name, "-p", "Linger", "--value"]);
+  if (show.stdout.trim() === "yes") return null;
+  const r = await sys.run(["loginctl", "enable-linger", user.name]);
+  if (r.code !== 0) {
+    return `Could not keep the vm-agent running after you log out (loginctl enable-linger: ${(r.stderr || r.stdout).trim() || `exit ${r.code}`}). Run: sudo loginctl enable-linger ${user.name}`;
+  }
+  rec.onUndo("stop keeping the user's services after logout", [["loginctl", "disable-linger", user.name]]);
+  return null;
 }

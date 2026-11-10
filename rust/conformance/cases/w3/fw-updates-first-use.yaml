@@ -28,8 +28,6 @@ steps:
       - {path: /update, method: POST, json_subset: {claims: {purpose: update}, body: {}}}
     files:
       run/identities.json: {json: [{vm_id: vm_1, name: atlas, hostname: "127.0.0.2", tailscale: false, update_until: $number}]}
-  - name: this firewall has no first use
-    command: {id: f1, action: firewall-update.propose, payload: {changeId: c2}, result: {command_id: f1, ok: false, status: failed, data: {changeId: c2, summary: Update the software on your firewall}}}
   - name: a batch of agents alone applies on first use and writes a grant
     command: {id: b1, action: update-all.propose, payload: {changeId: c3, boxes: [{vmId: vm_1, name: atlas, hostname: "127.0.0.2"}]}, result: {command_id: b1, ok: true, status: applied, data: {changeId: c3, summary: Update the software on atlas, boxes: [vm_1], tofu: true}}}
   - name: each box once

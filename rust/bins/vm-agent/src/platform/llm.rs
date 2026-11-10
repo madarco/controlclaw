@@ -25,8 +25,8 @@ use serde_json::{Map, Value, json};
 
 use super::common::js_slice;
 use super::common::{
-    BODY_LIMIT, CONFIG_PATCH, CONFIG_PATCH_RESTART, Caller, Deps, GATEWAY_READ, Snapshot, at, caller, fail, not_found,
-    patch_restarts_gateway, text,
+    BODY_LIMIT, CONFIG_PATCH, CONFIG_PATCH_RESTART, Caller, CliWrite, Deps, GATEWAY_READ, NEEDS_GATEWAY_STOPPED,
+    Offline, Snapshot, at, caller, fail, not_found, patch_restarts_gateway, text,
 };
 use crate::app::App;
 use crate::stages;
@@ -39,6 +39,14 @@ const APPLY_BUDGET: Duration = Duration::from_secs(80);
 const MEMORY_CORE_PLUGIN: &str = "memory-core";
 /// A retired spelling older agents wrote; cleared on apply.
 const RETIRED_CODEX_PROVIDER_ID: &str = "openai-codex";
+
+fn cli(args: &[&str], stdin: Option<String>) -> CliWrite {
+    CliWrite {
+        args: args.iter().map(|a| a.to_string()).collect(),
+        stdin,
+        timeout: CLI_TIMEOUT,
+    }
+}
 
 fn re(p: &str) -> Regex {
     Regex::new(p).expect("regex")
@@ -432,6 +440,9 @@ impl LlmService {
     }
 
     /// A CLI command that writes OpenClaw's config file, in the queue (`withConfigFileWrite`).
+    /// From OpenClaw 2026.11 a credential write is refused while the gateway runs; [`Self::apply`]
+    /// makes those again with it stopped ([`super::common::OfflineRun`]). Earlier versions write
+    /// with it running, so they never stop it.
     async fn cli_write(
         &self,
         args: &[&str],
@@ -458,16 +469,18 @@ impl LlmService {
         let mut applied: Vec<String> = Vec::new();
         let mut failed: Vec<(String, String)> = Vec::new();
         let mut provider_patch = Map::new();
+        // Writes OpenClaw refused while its gateway runs (2026.11 on), made together with it
+        // stopped: what goes in `applied`, what in `failed`, the write.
+        let mut held: Vec<(String, String, CliWrite)> = Vec::new();
 
         for r in &input.remove {
             let profile = r.profile_id.contains(':');
             if r.provider_block || !profile {
                 provider_patch.insert(r.provider.clone(), Value::Null);
             }
+            let logout = ["models", "auth", "logout", &r.profile_id, "--yes"];
             let result = if profile {
-                self.cli_write(&["models", "auth", "logout", &r.profile_id, "--yes"], None, cli_wait())
-                    .await
-                    .map(|_| ())
+                self.cli_write(&logout, None, cli_wait()).await.map(|_| ())
             } else {
                 Ok(())
             };
@@ -475,6 +488,11 @@ impl LlmService {
                 Ok(()) => applied.push(format!("remove:{}", r.provider)),
                 // Already gone is fine: the goal is that it is not there.
                 Err(line) if GONE_RE.is_match(&line) => applied.push(format!("remove:{}", r.provider)),
+                Err(line) if NEEDS_GATEWAY_STOPPED.is_match(&line) => held.push((
+                    format!("remove:{}", r.provider),
+                    format!("remove {}", r.provider),
+                    cli(&logout, None),
+                )),
                 Err(line) => failed.push((format!("remove {}", r.provider), line)),
             }
         }
@@ -506,8 +524,12 @@ impl LlmService {
             if c.kind != "api_key" {
                 args.extend(["--expires-in", "365d"]);
             }
-            match self.cli_write(&args, Some(format!("{}\n", c.value)), cli_wait()).await {
+            let stdin = Some(format!("{}\n", c.value));
+            match self.cli_write(&args, stdin.clone(), cli_wait()).await {
                 Ok(_) => applied.push(c.provider.clone()),
+                Err(line) if NEEDS_GATEWAY_STOPPED.is_match(&line) => {
+                    held.push((c.provider.clone(), c.provider.clone(), cli(&args, stdin)))
+                }
                 Err(line) => failed.push((c.provider.clone(), line)),
             }
         }
@@ -562,6 +584,41 @@ impl LlmService {
             }
             Err(e) => failed.push(("model".into(), e)),
         }
+        // The refused writes last, once for all of them: the model order above is written while
+        // the gateway runs, and it reads both as it starts again.
+        let mut restarted = false;
+        if !held.is_empty() {
+            let writes: Vec<CliWrite> = held.iter().map(|h| h.2.clone()).collect();
+            let run = || (self.deps.offline)(self.deps.clone(), self.bin.clone(), writes);
+            let q = QueueOptions {
+                max_queue_wait: Some(cli_wait()),
+                ..QueueOptions::default()
+            };
+            let outcome = match self.deps.client() {
+                Some(w) => w.file_write(run, q).await,
+                None => run().await,
+            };
+            match outcome {
+                Ok(Offline { results, started }) => {
+                    let mut results = results.into_iter();
+                    for (ok, name, _) in held {
+                        match results.next() {
+                            Some(Ok(_)) => applied.push(ok),
+                            Some(Err(line)) if ok.starts_with("remove:") && GONE_RE.is_match(&line) => applied.push(ok),
+                            Some(Err(line)) => failed.push((name, line)),
+                            None => failed.push((name, "not written".into())),
+                        }
+                    }
+                    match started {
+                        Ok(()) => restarted = true,
+                        Err(e) => failed.push(("restart".into(), e)),
+                    }
+                    self.deps
+                        .log("[llm] credentials written with OpenClaw's gateway stopped");
+                }
+                Err(e) => failed.extend(held.into_iter().map(|(_, name, _)| (name, e.clone()))),
+            }
+        }
         super::common::lock(&self.models_cache).clear();
         let changed = input.credentials.iter().any(|c| applied.contains(&c.provider))
             || input
@@ -570,7 +627,10 @@ impl LlmService {
                 .any(|r| applied.contains(&format!("remove:{}", r.provider)));
         if changed {
             let ids: Vec<&str> = input.credentials.iter().map(|c| c.profile_id.as_str()).collect();
-            if self.restart_if_auth_stale(&ids).await {
+            // Started again after the writes, it read them as it started; one that did not start
+            // is not restarted either (failed above).
+            let stopped = !restarted && failed.iter().any(|f| f.0 == "restart");
+            if restarted || (!stopped && self.restart_if_auth_stale(&ids).await) {
                 applied.push("restart".into());
             }
         }
@@ -965,6 +1025,8 @@ pub(crate) mod tests {
     pub struct Rig {
         pub runner: RecordingRunner,
         pub restarts: Arc<AtomicUsize>,
+        /// The writes made with the gateway stopped, one entry a stop.
+        pub offline: Arc<Mutex<Vec<Vec<CliWrite>>>>,
         pub fail: Arc<Mutex<Option<String>>>,
         pub deps: Deps,
         pub dir: tempfile::TempDir,
@@ -989,6 +1051,8 @@ pub(crate) mod tests {
         let restarts = Arc::new(AtomicUsize::new(0));
         let r = restarts.clone();
         let dir = tempfile::tempdir().expect("dir");
+        let offline: Arc<Mutex<Vec<Vec<CliWrite>>>> = Arc::default();
+        let o = offline.clone();
         let deps = Deps {
             writer: Arc::new(move || Some(writer.clone())),
             runner: Arc::new(runner.clone()),
@@ -1000,10 +1064,21 @@ pub(crate) mod tests {
             log: Arc::new(|_| {}),
             bin: crate::platform::common::OPENCLAW_BIN.to_string(),
             unit_down: None,
+            offline: Arc::new(move |_, _, writes: Vec<CliWrite>| {
+                let n = writes.len();
+                super::super::common::lock(&o).push(writes);
+                Box::pin(async move {
+                    Ok(Offline {
+                        results: vec![Ok("Auth profile: x".to_string()); n],
+                        started: Ok(()),
+                    })
+                })
+            }),
         };
         Rig {
             runner,
             restarts,
+            offline,
             fail,
             deps,
             dir,
@@ -1116,6 +1191,79 @@ pub(crate) mod tests {
         );
         // anthropic is not in the auth status: restarted once.
         assert_eq!(r.restarts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn writes_refused_while_the_gateway_runs_are_made_with_it_stopped_once() {
+        let gw = Fake::new();
+        let r = rig(gw.clone());
+        let s = service(&r);
+        // OpenClaw 2026.11.3's refusals, word for word.
+        *r.fail.lock().expect("lock") = Some("--profile-id is not supported by models.authSetApiKey. Omit --profile-id to use the Gateway's API-key profile, or stop the Gateway through its service owner and rerun this command.".into());
+        let mut body = apply_body();
+        body["remove"] = json!([{ "provider": "google", "profileId": "google:controlclaw" }]);
+        let out = s.apply(&input(body)).await.expect("ok");
+        assert_eq!(
+            out["applied"],
+            json!(["model", "remove:google", "openai", "anthropic", "restart"]),
+            "{out}"
+        );
+        let stops = r.offline.lock().expect("lock").clone();
+        assert_eq!(stops.len(), 1, "one stop for every write");
+        let args: Vec<Vec<String>> = stops[0].iter().map(|w| w.args.clone()).collect();
+        assert_eq!(args[0], ["models", "auth", "logout", "google:controlclaw", "--yes"]);
+        assert_eq!(args[1][..3], ["models", "auth", "paste-api-key"]);
+        assert_eq!(args[2][..3], ["models", "auth", "paste-token"]);
+        assert_eq!(stops[0][1].stdin.as_deref(), Some("sk-cc-openai-abc123456\n"));
+        assert_eq!(
+            r.restarts.load(Ordering::SeqCst),
+            0,
+            "started again by the stop, not restarted"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_gateway_that_does_not_stop_fails_each_held_write_by_name() {
+        let gw = Fake::new();
+        let mut r = rig(gw.clone());
+        r.deps.offline =
+            Arc::new(|_, _, _| Box::pin(async { Err("OpenClaw did not stop to save it: timed out".to_string()) }));
+        let s = service(&r);
+        *r.fail.lock().expect("lock") = Some("Cannot admit models.auth … To run offline, stop the Gateway through its service owner, wait for ownership to release, then rerun this exact command.".into());
+        let e = s.apply(&input(apply_body())).await.expect_err("failed");
+        assert!(e.message.contains("openai: OpenClaw did not stop"), "{}", e.message);
+        assert!(e.message.contains("anthropic: OpenClaw did not stop"), "{}", e.message);
+        assert_eq!(e.applied, Some(vec!["model".to_string()]));
+    }
+
+    #[tokio::test]
+    async fn a_gateway_that_does_not_start_again_is_a_failure_not_a_restart() {
+        let gw = Fake::new();
+        let mut r = rig(gw.clone());
+        r.deps.offline = Arc::new(|_, _, writes: Vec<CliWrite>| {
+            let n = writes.len() - 1;
+            Box::pin(async move {
+                Ok(Offline {
+                    results: vec![Ok(String::new()); n],
+                    started: Err("Job for openclaw.service failed".into()),
+                })
+            })
+        });
+        let s = service(&r);
+        *r.fail.lock().expect("lock") = Some("… stop the Gateway through its service owner …".into());
+        let e = s.apply(&input(apply_body())).await.expect_err("failed");
+        assert!(
+            e.message.contains("anthropic: not written"),
+            "a write with no result: {}",
+            e.message
+        );
+        assert!(
+            e.message.contains("restart: Job for openclaw.service failed"),
+            "{}",
+            e.message
+        );
+        assert_eq!(e.applied, Some(vec!["model".to_string(), "openai".to_string()]));
+        assert_eq!(r.restarts.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]

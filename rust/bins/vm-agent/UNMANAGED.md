@@ -17,7 +17,7 @@ The agent reads `CC_AGENT_CONFIG` (default `/etc/controlclaw/agent.json`).
 ```json
 {
   "mode": "unmanaged",
-  "listen": "127.0.0.1:3100",
+  "listen": "127.0.0.1:3102",
   "state_dir": "/home/claw/.local/state/controlclaw",
   "agent_id": "vm_1",
   "firewall": {
@@ -43,7 +43,7 @@ Only `mode` is required.
 
 | Field | What it does |
 | --- | --- |
-| `listen` | Where the agent listens. Default `127.0.0.1:3100`. An address that is not on the machine yet (a tunnel or a Docker bridge that comes up later) is tried again every 2 s. |
+| `listen` | Where the agent listens. Default `127.0.0.1:3102` (3100 is the firewall agent's, 3101 its AI judge: a firewall in a container may share the machine). A file written before keeps the port it names; remote mode keeps 3100, where the firewall calls a tunnel address. An address that is not on the machine yet (a tunnel or a Docker bridge that comes up later) is tried again every 2 s. |
 | `state_dir` | The agent's own files: session secret, keypair, channel state. Default `~/.local/state/controlclaw`. |
 | `agent_id` | The id the firewall gave this agent. Once set, tokens must name it. |
 | `firewall.public_key` | The firewall's Ed25519 public key (PEM). It opens every route (see below). |
@@ -116,6 +116,7 @@ changes, and one look that finds no CLI does not replace a script that points at
 | Write config | `openclaw config patch --stdin`: the same merge patch the managed agent sends the gateway. The gateway reloads the file itself and restarts itself when a setting needs it. |
 | Read from the gateway | `openclaw gateway call <method> --json`. The CLI signs in with OpenClaw's own settings, so the agent holds no gateway token. |
 | Models | `models auth paste-api-key` and the other model commands, through the same CLI. |
+| Model keys on OpenClaw 2026.11 and later | It refuses `paste-api-key --profile-id`, `paste-token` and `logout` while its gateway runs ("stop the Gateway through its service owner"). On that refusal the agent stops the gateway the way it runs, makes every refused write, and starts it again, as one action. In Docker the stopped container cannot take `docker exec`, so each write runs in a one-off container: the same image, `--volumes-from`, user, work dir and environment (through a 0600 file), no network. A container whose OpenClaw state is not on a volume is refused before it is stopped: a write from another container would be lost. A gateway started by hand is not stopped, since nothing could start it again; the write fails with that reason. Earlier versions take the writes while the gateway runs, so nothing is stopped. |
 | Restart (systemd user unit, plain process) | `openclaw gateway restart` |
 | Start and stop (systemd user unit) | `systemctl --user start\|stop <unit>`: `openclaw gateway stop` refuses with no terminal, and `gateway start` waits longer than the firewall's call |
 | Restart (systemd system unit) | `sudo -n systemctl restart <unit>`: the owner allows this one command in sudoers, or the refusal is shown |

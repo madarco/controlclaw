@@ -49,18 +49,16 @@ export interface ReleaseOpts {
 }
 
 /**
- * Downloads the vm-agent of this CLI's own release into a new temp folder, after checking
- * SHA256SUMS against the release key and the binary against SHA256SUMS. Null when this build has
- * no release to download from (a dev build); throws when the download or a check fails.
- * CONTROLCLAW_RELEASE_URL moves where the files come from, never the key.
+ * Downloads one asset of this CLI's own release, after checking SHA256SUMS against the release key
+ * and the asset against SHA256SUMS. Null when this build has no release to download from (a dev
+ * build); throws when the download or a check fails. CONTROLCLAW_RELEASE_URL moves where the files
+ * come from, never the key.
  */
-export async function releaseVmAgent(o: ReleaseOpts = {}): Promise<string | null> {
+export async function releaseAsset(asset: string, o: ReleaseOpts = {}): Promise<Buffer | null> {
   const version = o.version ?? (typeof __CC_CLI_VERSION__ === "string" ? __CC_CLI_VERSION__ : "0.0.0-dev");
   const pubkey = o.pubkey ?? RELEASE_PUBKEY;
   const pattern = o.url ?? process.env.CONTROLCLAW_RELEASE_URL ?? RELEASE_URL;
   if (!pubkey || !pattern) return null;
-  const arch = { x64: "x86_64", arm64: "aarch64" }[o.arch ?? process.arch];
-  if (!arch) throw new Error(`The release has no vm-agent for ${o.arch ?? process.arch}.`);
   const base = pattern.replaceAll("{version}", version).replace(/\/$/, "");
   const get = async (name: string): Promise<Buffer> => {
     const url = `${base}/${name}`;
@@ -82,7 +80,6 @@ export async function releaseVmAgent(o: ReleaseOpts = {}): Promise<string | null
   }
   // Signed for this version (standalone/release/release.sh), not an older release served under its name.
   if (comment !== `controlclaw ${version}`) throw new Error(`The release's signature is for another version (${comment}).`);
-  const asset = `vm-agent-${arch}-linux-musl`;
   const want = sums
     .toString()
     .split("\n")
@@ -91,10 +88,29 @@ export async function releaseVmAgent(o: ReleaseOpts = {}): Promise<string | null
   if (!want) throw new Error(`The release's SHA256SUMS has no ${asset}.`);
   const bin = await get(asset);
   if (createHash("sha256").update(bin).digest("hex") !== want) throw new Error(`${asset} does not match the release's SHA256SUMS.`);
-  const path = join(mkdtempSync(join(tmpdir(), "controlclaw-vm-agent-")), "vm-agent");
+  return bin;
+}
+
+/** The release's file into a new temp folder: its path. Null in a dev build (no release). */
+export async function releaseFile(asset: string, o: ReleaseOpts = {}, mode = 0o644): Promise<string | null> {
+  const bin = await releaseAsset(asset, o);
+  if (!bin) return null;
+  const path = join(mkdtempSync(join(tmpdir(), "controlclaw-release-")), asset);
   writeFileSync(path, bin);
-  chmodSync(path, 0o755);
+  chmodSync(path, mode);
   return path;
+}
+
+/** The vm-agent of this CLI's own release, downloaded and checked (`releaseAsset`). */
+export async function releaseVmAgent(o: ReleaseOpts = {}): Promise<string | null> {
+  const arch = { x64: "x86_64", arm64: "aarch64" }[o.arch ?? process.arch];
+  if (!arch) throw new Error(`The release has no vm-agent for ${o.arch ?? process.arch}.`);
+  return releaseFile(`vm-agent-${arch}-linux-musl`, o, 0o755);
+}
+
+/** This CLI's version: the release it downloads from, and the firewall image it runs. */
+export function cliVersion(): string {
+  return typeof __CC_CLI_VERSION__ === "string" ? __CC_CLI_VERSION__ : "0.0.0-dev";
 }
 
 /**

@@ -35,6 +35,8 @@ import { RECOVERY_SENT_VIA } from "../../lib/recovery-confirm-schema";
 import { RecoveryKeyConfirm, type LoadRecoveryChallenge } from "../change/RecoveryKeyConfirm";
 import { useOptionalApi } from "../../lib/api";
 import type { CodeTapView } from "../../lib/code-tap-schema";
+import { lookupSlackApp, lookupTelegramBot, slackAppIdOf, type StartChat, type TokenLookup } from "../../lib/pairing-step";
+import { PairingStep, type PairingStepProps } from "./PairingStep";
 
 /** Where the dialog reads a change's Telegram buttons from; the demo pages pass fixtures. */
 export type LoadCodeTap = (changeId: string) => Promise<CodeTapView | null>;
@@ -48,6 +50,17 @@ const CODE_TAP_FIRST_READS = 3;
  */
 
 type Busy = { busy: boolean; error: string | null; note: string | null };
+
+/**
+ * The agent picker's value. It starts on `defaultAgent` (the organization's only agent) when that
+ * agent is in the list, so a new channel goes straight to it and on to pairing; otherwise on "".
+ */
+function useAgentChoice(open: boolean, agents: AgentRefView[], defaultAgent: string | undefined) {
+  const initial = defaultAgent && agents.some((a) => a.vmId === defaultAgent) ? defaultAgent : "";
+  const [vmId, setVmId] = useState(initial);
+  useEffect(() => setVmId(open ? initial : ""), [open, initial]);
+  return [vmId, setVmId] as const;
+}
 
 /** Optional "enable it here straight away" picker. Absent when the caller already knows the agent. */
 function AgentPicker({ agents, value, onChange }: { agents: AgentRefView[]; value: string; onChange: (v: string) => void }) {
@@ -78,6 +91,8 @@ export function TelegramDialog({
   replace,
   state,
   agents = [],
+  defaultAgent,
+  pairing,
   onClose,
   onSubmit,
 }: {
@@ -86,22 +101,52 @@ export function TelegramDialog({
   state: Busy;
   /** Agents that could take the connection right away; empty hides the picker. */
   agents?: AgentRefView[];
+  /** The organization's only agent: the picker starts on it instead of "Not yet". */
+  defaultAgent?: string;
+  /** Set once the bot is connected on an agent: the dialog walks the person through pairing. */
+  pairing?: PairingStepProps | null;
   onClose: () => void;
-  onSubmit: (input: { botToken: string; label?: string; vmId?: string }) => void;
+  /** `start` is how to reach the bot, from Telegram itself; the panel keeps it for the pairing step. */
+  onSubmit: (input: { botToken: string; label?: string; vmId?: string; start: StartChat }) => void;
 }) {
   const [token, setToken] = useState("");
   const [label, setLabel] = useState("");
-  const [vmId, setVmId] = useState("");
+  const [vmId, setVmId] = useAgentChoice(open, agents, defaultAgent);
+  const lookup = useTokenLookup(open);
   useEffect(() => {
     if (!open) {
       setToken("");
       setLabel("");
-      setVmId("");
     }
   }, [open]);
   const valid = /^\d{6,}:[A-Za-z0-9_-]{20,}$/.test(token.trim());
+  const busy = state.busy || lookup.checking;
+  const submit = async () => {
+    const botToken = token.trim();
+    // Ask Telegram who the bot is, from this browser: a wrong token stops here, and the bot's
+    // username gives the pairing step its t.me link (and the connection a name, when none was typed).
+    const r = await lookup.run(() => lookupTelegramBot(botToken), "Telegram doesn’t accept this token. Copy it again from @BotFather.");
+    if (!r) return;
+    const username = r.kind === "ok" ? r.value.username : null;
+    const typed = label.trim();
+    onSubmit({
+      botToken,
+      label: typed || (!replace && username ? `@${username}` : undefined),
+      vmId: vmId || undefined,
+      start: { type: "telegram", username },
+    });
+  };
+  if (pairing && open) {
+    return (
+      <Dialog open onOpenChange={(o) => !o && !pairing.approving && pairing.onClose()}>
+        <DialogContent className="sm:max-w-[520px]" data-testid="channel-dialog-telegram" data-step="pairing">
+          <PairingStep {...pairing} />
+        </DialogContent>
+      </Dialog>
+    );
+  }
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && !state.busy && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && !busy && onClose()}>
       <DialogContent className="sm:max-w-[520px]" data-testid="channel-dialog-telegram">
         <DialogHeader>
           <DialogTitle>{replace ? "Replace the Telegram token" : "Connect Telegram"}</DialogTitle>
@@ -142,17 +187,13 @@ export function TelegramDialog({
           {!replace && <AgentPicker agents={agents} value={vmId} onChange={setVmId} />}
         </div>
         <TokenNote />
-        <StatusLine state={state} />
+        <StatusLine state={lookup.merge(state)} />
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={state.busy}>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button
-            onClick={() => onSubmit({ botToken: token.trim(), label: label.trim() || undefined, vmId: vmId || undefined })}
-            disabled={!valid || state.busy}
-            data-testid="channel-telegram-submit"
-          >
-            {state.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          <Button onClick={() => void submit()} disabled={!valid || busy} data-testid="channel-telegram-submit">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             {replace ? "Replace token" : "Connect Telegram"}
           </Button>
         </DialogFooter>
@@ -166,6 +207,8 @@ export function SlackDialog({
   replace,
   state,
   agents = [],
+  defaultAgent,
+  pairing,
   onClose,
   onSubmit,
 }: {
@@ -174,26 +217,58 @@ export function SlackDialog({
   state: Busy;
   /** Agents that could take the connection right away; empty hides the picker. */
   agents?: AgentRefView[];
+  /** The organization's only agent: the picker starts on it instead of "Not yet". */
+  defaultAgent?: string;
+  /** Set once the app is connected on an agent: the dialog walks the person through pairing. */
+  pairing?: PairingStepProps | null;
   onClose: () => void;
-  onSubmit: (input: { botToken: string; appToken: string; label?: string; vmId?: string }) => void;
+  /** `start` is how to open the app in Slack, from Slack itself; the panel keeps it for the pairing step. */
+  onSubmit: (input: { botToken: string; appToken: string; label?: string; vmId?: string; start: StartChat }) => void;
 }) {
   const [bot, setBot] = useState("");
   const [app, setApp] = useState("");
   const [label, setLabel] = useState("");
-  const [vmId, setVmId] = useState("");
+  const [vmId, setVmId] = useAgentChoice(open, agents, defaultAgent);
   useEffect(() => {
     if (!open) {
       setBot("");
       setApp("");
       setLabel("");
-      setVmId("");
     }
   }, [open]);
+  const lookup = useTokenLookup(open);
   const botProblem = slackTokenProblem("bot", bot);
   const appProblem = slackTokenProblem("app", app);
   const valid = bot.trim().startsWith("xoxb-") && app.trim().startsWith("xapp-");
+  const busy = state.busy || lookup.checking;
+  const submit = async () => {
+    const botToken = bot.trim();
+    const appToken = app.trim();
+    // Ask Slack which workspace and app this is, from this browser: a wrong token stops here, and
+    // the answer gives the pairing step a link that opens the app's messages.
+    const r = await lookup.run(() => lookupSlackApp(botToken), "Slack doesn’t accept this bot token. Copy the Bot User OAuth Token again.");
+    if (!r) return;
+    const found = r.kind === "ok" ? r.value : null;
+    const typed = label.trim();
+    onSubmit({
+      botToken,
+      appToken,
+      label: typed || (!replace && found?.team ? found.team : undefined),
+      vmId: vmId || undefined,
+      start: { type: "slack", appId: slackAppIdOf(appToken), teamId: found?.teamId ?? null, appName: found?.appName ?? null },
+    });
+  };
+  if (pairing && open) {
+    return (
+      <Dialog open onOpenChange={(o) => !o && !pairing.approving && pairing.onClose()}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[560px]" data-testid="channel-dialog-slack" data-step="pairing">
+          <PairingStep {...pairing} />
+        </DialogContent>
+      </Dialog>
+    );
+  }
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && !state.busy && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && !busy && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[560px]" data-testid="channel-dialog-slack">
         <DialogHeader>
           <DialogTitle>{replace ? "Replace the Slack tokens" : "Connect Slack"}</DialogTitle>
@@ -222,17 +297,13 @@ export function SlackDialog({
           {!replace && <AgentPicker agents={agents} value={vmId} onChange={setVmId} />}
         </div>
         <TokenNote />
-        <StatusLine state={state} />
+        <StatusLine state={lookup.merge(state)} />
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={state.busy}>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button
-            onClick={() => onSubmit({ botToken: bot.trim(), appToken: app.trim(), label: label.trim() || undefined, vmId: vmId || undefined })}
-            disabled={!valid || state.busy}
-            data-testid="channel-slack-submit"
-          >
-            {state.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          <Button onClick={() => void submit()} disabled={!valid || busy} data-testid="channel-slack-submit">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             {replace ? "Replace tokens" : "Connect Slack"}
           </Button>
         </DialogFooter>
@@ -310,12 +381,19 @@ export function WhatsappDialog({
   state,
   login,
   agents = [],
+  defaultAgent,
+  pairing,
   onShowCode,
   onClose,
   onStart,
 }: {
   open: boolean;
   state: Busy;
+  /**
+   * A new dedicated number on an agent: once it is linked, the dialog walks the person through
+   * pairing. Not shown for "my own number", where nobody else can message the agent.
+   */
+  pairing?: PairingStepProps | null;
   /** The live QR state from the box once the login started. */
   login: { state: WhatsappLoginState; qrDataUrl: string | null; message: string | null; onBox?: boolean } | null;
   /**
@@ -325,16 +403,24 @@ export function WhatsappDialog({
   onShowCode?: () => void;
   /** Which agent to link the number on. Empty when the caller already knows (the agent page). */
   agents?: AgentRefView[];
+  /** The organization's only agent: the picker starts on it instead of "Choose an agent…". */
+  defaultAgent?: string;
   onClose: () => void;
   onStart: (personal: boolean, vmId?: string) => void;
 }) {
   const [personal, setPersonal] = useState(false);
-  const [vmId, setVmId] = useState("");
-  useEffect(() => {
-    if (!open) setVmId("");
-  }, [open]);
+  const [vmId, setVmId] = useAgentChoice(open, agents, defaultAgent);
   const needsAgent = agents.length > 0 && !vmId;
   const started = login && login.state !== "idle";
+  if (open && pairing && login?.state === "connected" && !personal) {
+    return (
+      <Dialog open onOpenChange={(o) => !o && !pairing.approving && pairing.onClose()}>
+        <DialogContent className="sm:max-w-[520px]" data-testid="channel-dialog-whatsapp" data-step="pairing">
+          <PairingStep {...pairing} />
+        </DialogContent>
+      </Dialog>
+    );
+  }
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !state.busy && onClose()}>
       <DialogContent className="sm:max-w-[520px]" data-testid="channel-dialog-whatsapp">
@@ -708,6 +794,36 @@ export function ConfirmCodeDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * The token check a connect dialog runs before it hands the token on. `run` resolves to the lookup,
+ * or to null when the service refused the token (the error then shows in the dialog).
+ */
+function useTokenLookup(open: boolean) {
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) setError(null);
+  }, [open]);
+  const run = async <T,>(look: () => Promise<TokenLookup<T>>, refused: string): Promise<TokenLookup<T> | null> => {
+    setError(null);
+    setChecking(true);
+    try {
+      const r = await look();
+      if (r.kind === "invalid") {
+        setError(refused);
+        return null;
+      }
+      return r;
+    } finally {
+      setChecking(false);
+    }
+  };
+  /** The dialog's status line: the panel's state, or this check's. */
+  const merge = (state: Busy): Busy =>
+    checking ? { busy: true, error: null, note: "Checking the token…" } : error && !state.error && !state.busy ? { ...state, error } : state;
+  return { checking, run, merge };
 }
 
 function TokenNote() {

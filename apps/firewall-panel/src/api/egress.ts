@@ -15,6 +15,7 @@ export function toRule(r: Schemas["EgressRule"]): EgressRuleListItem {
     exitCountry: r.exitCountry ?? null,
     vmId: r.vmId ?? null,
     aiPolicy: r.aiPolicy ?? null,
+    managed: r.managed ?? null,
   };
 }
 
@@ -31,6 +32,11 @@ export const egressRules: ConsoleApi["egressRules"] = {
   update: async ({ id, ...patch }) => toRule(await fw.patch("/api/egress/rules/{id}", { path: { id }, body: patch as Schemas["EgressRulePatch"] })),
   remove: ({ id }) => fw.delete("/api/egress/rules/{id}", { path: { id }, body: {} }),
   cycle: async ({ id }) => toRule(await fw.post("/api/egress/rules/{id}/cycle", { path: { id }, body: {} })),
+  // A firewall of one's own chooses it; a new one allows and logs every site, as the cloud does.
+  everyOtherSite: {
+    get: async () => (await fw.get("/api/egress/default")).effect,
+    set: async (effect) => (await fw.put("/api/egress/default", { body: { effect } })).effect,
+  },
 };
 
 /**

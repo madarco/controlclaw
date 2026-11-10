@@ -14,6 +14,7 @@ fn staged(runner: RecordingRunner, dir: &std::path::Path) -> BrainStaged {
         log: Arc::new(|_| {}),
         bin: crate::platform::common::OPENCLAW_BIN.to_string(),
         unit_down: None,
+        offline: crate::platform::common::no_offline(),
     };
     BrainStaged::new(deps, Arc::new(BrainGate::new(&dir.join("gate.json"), runner)))
 }

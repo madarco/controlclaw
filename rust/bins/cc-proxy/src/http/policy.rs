@@ -684,11 +684,33 @@ mod tests {
         assert_eq!(flow.meta.get("rule_ref"), Some(&json!(["r1", "no"])));
     }
 
-    /// The rule a new standalone database starts with (`cc_local::plane::BLOCK_ALL_*`).
+    /// A rule the control plane added for a provider or a channel puts `managed` on the record;
+    /// an owner's rule with the same name and host does not.
     #[tokio::test]
-    async fn a_fresh_standalone_firewalls_rule_refuses_every_host() {
+    async fn a_managed_rule_marks_its_records() {
         let (p, _dir) = policy(Some(
-            r#"[{"id": "block-all", "name": "Block everything until you add rules", "match_domain": "*", "effect": "block", "priority": 100000}]"#,
+            r#"[{"id": "managed:telegram:api.telegram.org", "name": "Channel: Telegram", "effect": "allow",
+                 "match_domain": "api.telegram.org", "priority": -5, "managed": "telegram"}]"#,
+        ));
+        let mut flow = request_flow("GET", "https://api.telegram.org/bot1/getUpdates", b"");
+        MatchRule(p.clone()).run(Hook::Request, &mut flow).await;
+        let rec = record::allow_record(&p.ctx, &flow);
+        assert_eq!(rec.extra.get("managed"), Some(&json!("telegram")));
+        assert_eq!(rec.rule_id, Maybe::Value("managed:telegram:api.telegram.org".into()));
+
+        let (p, _dir) = policy(Some(
+            r#"[{"id": "r1", "name": "Channel: Telegram", "effect": "allow", "match_domain": "api.telegram.org"}]"#,
+        ));
+        let mut flow = request_flow("GET", "https://api.telegram.org/bot1/getUpdates", b"");
+        MatchRule(p.clone()).run(Hook::Request, &mut flow).await;
+        assert!(record::allow_record(&p.ctx, &flow).extra.get("managed").is_none());
+    }
+
+    /// "Every other site: Block" on a standalone firewall (`cc_local::plane::BLOCK_ALL_*`).
+    #[tokio::test]
+    async fn every_other_site_blocked_refuses_every_host() {
+        let (p, _dir) = policy(Some(
+            r#"[{"id": "block-all", "name": "Every other site", "match_domain": "*", "effect": "block", "priority": 100000}]"#,
         ));
         for url in [
             "https://example.com/x",
@@ -708,6 +730,19 @@ mod tests {
                 "{url}"
             );
         }
+        // An owner's block on everything, ahead of it, still lets the managed rules' hosts through.
+        let (p, _dir) = policy(Some(
+            r#"[{"id": "r1", "name": "no", "match_domain": "*", "effect": "block", "priority": 0},
+                {"id": "block-all", "name": "Every other site", "match_domain": "*", "effect": "block", "priority": 100000},
+                {"id": "managed:anthropic:api.anthropic.com", "name": "Model provider: Anthropic", "match_domain": "api.anthropic.com",
+                 "effect": "allow", "priority": -5, "managed": "anthropic"}]"#,
+        ));
+        let mut flow = request_flow("POST", "https://api.anthropic.com/v1/messages", b"");
+        MatchRule(p.clone()).run(Hook::Request, &mut flow).await;
+        assert_eq!(flow.meta.get("effect"), Some(&json!("allow")));
+        let mut flow = request_flow("GET", "https://anthropic.com/", b"");
+        MatchRule(p.clone()).run(Hook::Request, &mut flow).await;
+        assert_eq!(flow.meta.get("effect"), Some(&json!("block")), "only the exact host");
     }
 
     #[tokio::test]

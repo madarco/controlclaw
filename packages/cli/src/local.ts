@@ -1,13 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { AGENT_PORT, installAgent } from "./agent.js";
-import { composeAtLeast, dockerTooOld, gatewayIsolated, ISOLATED_GATEWAY, PROBE, proxyEnv, q, subnetTaken } from "./capture/docker.js";
+import { composeAtLeast, gatewayIsolated, ISOLATED_GATEWAY, PROBE, proxyEnv, q, subnetTaken } from "./capture/docker.js";
 import { GATE_PORTS } from "./capture/host.js";
 import type { CaptureMode } from "./capture/mode.js";
 import { type Io, type PairNet, realNet } from "./commands.js";
+import { composeIn, containerHealthy, dockerProblem, ensureImage, pairHere, releaseImage, waitFirewall, waitFor } from "./fwcontainer.js";
+import { open as openPanel, type OpenNet, realOpenNet } from "./open.js";
 import { findVmAgent } from "./openclaw.js";
 import { vmAgentOrRelease } from "./release.js";
-import { agentKeypair, caFingerprint, pair, unpair } from "./pair.js";
+import { caFingerprint, unpair } from "./pair.js";
 import type { Check } from "./probe.js";
 import { type ConnectRecord, loadRecord, Recorder, undoAll } from "./state.js";
 import { type Sys, userByUid } from "./sys.js";
@@ -42,7 +44,7 @@ export const GATEWAY_PORT = 18789;
 const AGENT_LISTEN = `${HOST_OUTSIDE_IP}:${AGENT_PORT}`;
 export const OPENCLAW_CONTAINER = `${PROJECT}-openclaw-1`;
 /** OpenClaw's user in its image: its state folders are given to it. */
-const NODE_UID = 1000;
+export const NODE_UID = 1000;
 
 export interface UpOpts {
   firewallImage?: string;
@@ -91,6 +93,76 @@ export function gateRelayScript(): string {
   ].join("\n");
 }
 
+/**
+ * The firewall's service, for `up --local` and `up`: on `outside` (and `agents` when an OpenClaw
+ * container is behind it), at fixed addresses; its panel, pairing and pages published on this
+ * machine's loopback only. `fw` is where agents reach its proxy, DNS and gates.
+ */
+export function firewallService(o: {
+  image: string;
+  agents: boolean;
+  /** Where its gates listen, and the address agents are given for them. */
+  gate: string;
+  /** The proxy's and DNS's address pairing tells agents. */
+  pairAt: string;
+  /** Ports it relays to OpenClaw's container (CC_FORWARD): its port → that address:port. */
+  forwards?: { port: number; to: string }[];
+  /** More ports it publishes on this machine: `spec` as Compose takes it, and what it is. */
+  publish?: { spec: string; what: string }[];
+}): string[] {
+  const fw = o.agents ? FW_AGENTS_IP : FW_OUTSIDE_IP;
+  const env = (k: string, v: string) => `      ${k}: ${q(v)}`;
+
+  const forwards = o.forwards ?? [];
+  return [
+    "  firewall:",
+    `    image: ${q(o.image)}`,
+    "    restart: unless-stopped",
+    "    environment:",
+    // A private address: the firewall starts its DNS (on its container's addresses).
+    env("CC_LISTEN", fw),
+    // The panel and pairing on the outside network only: OpenClaw (on the agents network, or captured
+    // on this machine) cannot reach them. Published on this machine's loopback (below).
+    env("LOCAL_PANEL_BIND", `${FW_OUTSIDE_IP}:8800`),
+    env("LOCAL_PANEL_INSECURE", "1"),
+    env("PAIR_BIND", `${FW_OUTSIDE_IP}:8801`),
+    env("PAIR_PROXY_ADDR", `${o.pairAt}:8080`),
+    env("PAIR_DNS_ADDR", o.pairAt),
+    ...(forwards.length ? [env("CC_FORWARD", forwards.map((f) => `${f.port}=${f.to}`).join(","))] : []),
+    // The relay, the pages and webhooks on the outside network too; the connector gates where
+    // OpenClaw dials them.
+    env("CC_FORWARD_BIND", FW_OUTSIDE_IP),
+    env("INGRESS_BIND", FW_OUTSIDE_IP),
+    env("CONNECTOR_GATE_BIND", o.gate),
+    "    volumes:",
+    "      - firewall:/opt/controlclaw",
+    "    tmpfs:",
+    "      - /run/mitm/config:uid=10001,gid=10001,mode=0700,size=16m",
+    "    networks:",
+    ...(o.agents ? ["      agents:", `        ipv4_address: ${FW_AGENTS_IP}`] : []),
+    "      outside:",
+    `        ipv4_address: ${FW_OUTSIDE_IP}`,
+    "    ports:",
+    `      - ${q("127.0.0.1:8800:8800")} # the firewall's panel`,
+    `      - ${q("127.0.0.1:8801:8801")} # pairing`,
+    `      - ${q("127.0.0.1:8790:8790")} # the firewall's pages and webhooks`,
+    ...(o.publish ?? []).map((p) => `      - ${q(p.spec)} # ${p.what}`),
+  ];
+}
+
+/** The firewall's networks: `outside`, and the internal `agents` with no address for this machine. */
+export function firewallNetworks(agents: boolean): string[] {
+  return [
+    "networks:",
+    ...(agents ? ["  agents:", "    internal: true", ...ISOLATED_GATEWAY, "    ipam:", `      config: [{ subnet: ${q(AGENTS_SUBNET)} }]`] : []),
+    "  outside:",
+    "    ipam:",
+    `      config: [{ subnet: ${q(OUTSIDE_SUBNET)} }]`,
+    "volumes:",
+    "  firewall:",
+  ];
+}
+
 /** The Compose file: what `up --local` runs. */
 export function localCompose(o: { firewallImage: string; openclawImage: string; dir: string }): string {
   const proxy = `http://${FW_AGENTS_IP}:8080`;
@@ -99,39 +171,14 @@ export function localCompose(o: { firewallImage: string; openclawImage: string; 
     "# Written by controlclaw up --local; removed by controlclaw disconnect (the data stays).",
     `name: ${PROJECT}`,
     "services:",
-    "  firewall:",
-    `    image: ${q(o.firewallImage)}`,
-    "    restart: unless-stopped",
-    "    environment:",
-    // A private address: the firewall starts its DNS for the agents.
-    oc("CC_LISTEN", FW_AGENTS_IP),
-    // The panel and pairing on the outside network only: OpenClaw, on the agents network, cannot
-    // reach them. Published on this machine's loopback (below).
-    oc("LOCAL_PANEL_BIND", `${FW_OUTSIDE_IP}:8800`),
-    oc("LOCAL_PANEL_INSECURE", "1"),
-    oc("PAIR_BIND", `${FW_OUTSIDE_IP}:8801`),
-    oc("PAIR_PROXY_ADDR", `${FW_AGENTS_IP}:8080`),
-    oc("PAIR_DNS_ADDR", FW_AGENTS_IP),
-    oc("CC_FORWARD", `${GATEWAY_PORT}=${OPENCLAW_IP}:${GATEWAY_PORT}`),
-    // The relay, the pages and webhooks on the outside network too; the connector gates on the
-    // agents network, where OpenClaw dials them.
-    oc("CC_FORWARD_BIND", FW_OUTSIDE_IP),
-    oc("INGRESS_BIND", FW_OUTSIDE_IP),
-    oc("CONNECTOR_GATE_BIND", FW_AGENTS_IP),
-    "    volumes:",
-    "      - firewall:/opt/controlclaw",
-    "    tmpfs:",
-    "      - /run/mitm/config:uid=10001,gid=10001,mode=0700,size=16m",
-    "    networks:",
-    "      agents:",
-    `        ipv4_address: ${FW_AGENTS_IP}`,
-    "      outside:",
-    `        ipv4_address: ${FW_OUTSIDE_IP}`,
-    "    ports:",
-    `      - ${q(`127.0.0.1:${GATEWAY_PORT}:${GATEWAY_PORT}`)} # OpenClaw's gateway and Control UI`,
-    `      - ${q("127.0.0.1:8800:8800")} # the firewall's panel`,
-    `      - ${q("127.0.0.1:8801:8801")} # pairing`,
-    `      - ${q("127.0.0.1:8790:8790")} # the firewall's pages and webhooks`,
+    ...firewallService({
+      image: o.firewallImage,
+      agents: true,
+      gate: FW_AGENTS_IP,
+      pairAt: FW_AGENTS_IP,
+      forwards: [{ port: GATEWAY_PORT, to: `${OPENCLAW_IP}:${GATEWAY_PORT}` }],
+      publish: [{ spec: `127.0.0.1:${GATEWAY_PORT}:${GATEWAY_PORT}`, what: "OpenClaw's gateway and Control UI" }],
+    }),
     "  openclaw:",
     `    image: ${q(o.openclawImage)}`,
     "    restart: unless-stopped",
@@ -141,13 +188,7 @@ export function localCompose(o: { firewallImage: string; openclawImage: string; 
     `    command: ["sh", "-c", ${q(`node ${GATE_RELAY} & exec node dist/index.js gateway --bind lan --port ${GATEWAY_PORT}`)}]`,
     "    env_file: [.env]",
     "    environment:",
-    oc("HOME", "/home/node"),
-    oc("OPENCLAW_HOME", "/home/node"),
-    oc("OPENCLAW_STATE_DIR", "/home/node/.openclaw"),
-    oc("OPENCLAW_CONFIG_PATH", "/home/node/.openclaw/openclaw.json"),
-    oc("OPENCLAW_CONFIG_DIR", "/home/node/.openclaw"),
-    oc("OPENCLAW_WORKSPACE_DIR", "/home/node/.openclaw/workspace"),
-    oc("OPENCLAW_GATEWAY_PORT", String(GATEWAY_PORT)),
+    ...OPENCLAW_ENV.map(([k, v]) => oc(k, v)),
     ...proxyEnv(proxy, FW_AGENTS_IP).map(([k, v]) => oc(k, v)),
     "    volumes:",
     `      - ${q(`${join(o.dir, "openclaw")}:/home/node/.openclaw`)}`,
@@ -165,52 +206,31 @@ export function localCompose(o: { firewallImage: string; openclawImage: string; 
     "      test: [\"CMD\", \"node\", \"dist/docker-healthcheck.js\"]",
     "      interval: 15s",
     "      start_period: 60s",
-    "networks:",
-    "  agents:",
-    "    internal: true",
-    ...ISOLATED_GATEWAY,
-    "    ipam:",
-    `      config: [{ subnet: ${q(AGENTS_SUBNET)} }]`,
-    "  outside:",
-    "    ipam:",
-    `      config: [{ subnet: ${q(OUTSIDE_SUBNET)} }]`,
-    "volumes:",
-    "  firewall:",
+    ...firewallNetworks(true),
     "",
   ].join("\n");
 }
 
-const compose = (dir: string, ...args: string[]) => ["docker", "compose", "-p", PROJECT, "--project-directory", dir, "-f", join(dir, "compose.yaml"), ...args];
+const compose = (dir: string, ...args: string[]) => composeIn(PROJECT, dir)(...args);
 
-async function hasImage(sys: Sys, image: string): Promise<boolean> {
-  return (await sys.run(["docker", "image", "inspect", "--format", "{{.Id}}", image])).code === 0;
-}
-
-async function waitFor(sys: Sys, what: string, tries: number, test: () => Promise<boolean>): Promise<void> {
-  for (let i = 0; i < tries; i++) {
-    if (await test()) return;
-    await sys.run(["sleep", "2"]);
-  }
-  throw new Error(`${what} did not come up`);
-}
-
-export async function up(sys: Sys, io: Io, o: UpOpts, net: PairNet = realNet): Promise<number> {
+export async function up(sys: Sys, io: Io, o: UpOpts, net: PairNet = realNet, openNet: OpenNet = realOpenNet): Promise<number> {
   const tmp: { dir: string | null } = { dir: null };
   try {
-    return await upWith(sys, io, o, net, tmp);
+    return await upWith(sys, io, o, net, openNet, tmp);
   } finally {
     // A downloaded vm-agent is installed by now, or not needed: its folder goes either way.
     if (tmp.dir) sys.remove(tmp.dir);
   }
 }
 
-async function upWith(sys: Sys, io: Io, o: UpOpts, net: PairNet, tmp: { dir: string | null }): Promise<number> {
+async function upWith(sys: Sys, io: Io, o: UpOpts, net: PairNet, openNet: OpenNet, tmp: { dir: string | null }): Promise<number> {
   if (sys.euid !== 0) {
     io.err("up --local needs root (sudo): it runs Docker and installs the vm-agent for the container.");
     return 1;
   }
-  if (!o.firewallImage) {
-    io.err("up --local needs --firewall-image <image>: there is no published image yet. Build one with standalone/docker/build.sh (controlclaw-firewall:dev-amd64), or docker load its tar.");
+  const firewallImage = o.firewallImage ?? releaseImage();
+  if (!firewallImage) {
+    io.err("This is a dev build of controlclaw, with no release image: pass --firewall-image <image> (standalone/docker/build.sh builds one).");
     return 2;
   }
   const existing = loadRecord(sys);
@@ -220,23 +240,9 @@ async function upWith(sys: Sys, io: Io, o: UpOpts, net: PairNet, tmp: { dir: str
   }
   const dir = o.dir ?? DEFAULT_DIR;
   const ocImage = o.openclawImage ?? DEFAULT_OPENCLAW_IMAGE;
-  const v = await sys.run(["docker", "compose", "version", "--short"]);
-  if (v.code !== 0 || !composeAtLeast(v.stdout.trim(), 2, 24, 4)) {
-    io.err(`up --local needs Docker with Compose 2.24.4 or newer (found: ${v.stdout.trim() || "none"}).`);
-    return 1;
-  }
-  const server = await sys.run(["docker", "version", "--format", "{{.Server.Version}}"]);
-  if (server.code !== 0) {
-    io.err(`Docker does not answer: ${server.stderr.trim()}`);
-    return 1;
-  }
-  const old = dockerTooOld(server.stdout.trim());
-  if (old) {
-    io.err(`up --local ${old}.`);
-    return 1;
-  }
-  if (!(await hasImage(sys, o.firewallImage))) {
-    io.err(`No image ${o.firewallImage} here: build it (standalone/docker/build.sh) or docker load it first.`);
+  const problem = await dockerProblem(sys, "up --local");
+  if (problem) {
+    io.err(problem);
     return 1;
   }
   for (const [net_, subnet] of [[`${PROJECT}_agents`, AGENTS_SUBNET], [`${PROJECT}_outside`, OUTSIDE_SUBNET]] as const) {
@@ -262,6 +268,7 @@ async function upWith(sys: Sys, io: Io, o: UpOpts, net: PairNet, tmp: { dir: str
     container: OPENCLAW_CONTAINER,
     cli: ["docker", "exec", "-i", OPENCLAW_CONTAINER, "node", "dist/index.js"],
     ca: join(dir, "ca.crt"),
+    up: { dir, project: PROJECT, image: firewallImage },
     steps: [],
   };
   const rec = new Recorder(sys, record);
@@ -269,14 +276,11 @@ async function upWith(sys: Sys, io: Io, o: UpOpts, net: PairNet, tmp: { dir: str
   const log = (l: string) => io.out(`  ${l}`);
   let paired = false;
   try {
-    if (!(await hasImage(sys, ocImage))) {
-      io.out(`Pulling ${ocImage}`);
-      const p = await sys.run(["docker", "pull", "-q", ocImage], { timeoutMs: 900_000 });
-      if (p.code !== 0) throw new Error(`docker pull ${ocImage}: ${p.stderr.trim()}`);
-    }
+    await ensureImage(sys, io, firewallImage);
+    await ensureImage(sys, io, ocImage);
     io.out(`Writing ${dir}`);
     const token = randomBytes(24).toString("hex");
-    await rec.file(join(dir, "compose.yaml"), localCompose({ firewallImage: o.firewallImage, openclawImage: ocImage, dir }));
+    await rec.file(join(dir, "compose.yaml"), localCompose({ firewallImage, openclawImage: ocImage, dir }));
     await rec.file(join(dir, ".env"), `# Written by controlclaw up --local.\nOPENCLAW_GATEWAY_TOKEN=${token}\n`, { mode: 0o600 });
     // OpenClaw's state: its user's, kept by disconnect (as is the firewall's volume).
     for (const d of ["openclaw", "openclaw/workspace", "openclaw-secrets"]) {
@@ -288,29 +292,12 @@ async function upWith(sys: Sys, io: Io, o: UpOpts, net: PairNet, tmp: { dir: str
     rec.onUndo("stop the containers (their data stays)", [compose(dir, "down")]);
     const fw = await sys.run(compose(dir, "up", "-d", "firewall"), { timeoutMs: 300_000 });
     if (fw.code !== 0) throw new Error(`docker compose up firewall: ${fw.stderr.trim()}`);
-    await waitFor(sys, "the firewall", 45, async () => {
-      const r = await sys.run(compose(dir, "exec", "-T", "-u", "controlclaw", "firewall", "sh", "-c", "test -s /opt/controlclaw/state/local.db && test -s /opt/controlclaw/keys/vm_public_key.pem"));
-      return r.code === 0;
-    });
+    await waitFirewall(sys, (...a) => compose(dir, ...a));
 
     io.out("Pairing OpenClaw with it");
     const name = o.name ?? "openclaw";
-    // --replace: a machine set up again keeps OpenClaw at the same address.
-    const made = await sys.run(compose(dir, "exec", "-T", "-u", "controlclaw", "firewall", "mitm-agent", "pair-code", "--name", name, "--address", OPENCLAW_IP, "--replace"));
-    const code = made.stdout.trim().split("\n")[0] ?? "";
-    if (made.code !== 0 || !code) throw new Error(`mitm-agent pair-code: ${made.stderr.trim() || "no code"}`);
-    const keypair = agentKeypair();
-    const unpairSecret = randomBytes(32).toString("hex");
-    // The pairing listener comes up a moment after the database: tried again while it cannot be reached.
-    let p: Awaited<ReturnType<typeof pair>> | null = null;
-    for (let i = 0; !p; i++) {
-      try {
-        p = await pair(record.firewall.url, code, { publicKey: keypair.publicPem, name, source: "127.0.0.1", unpairSecret, agentListen: AGENT_LISTEN }, net.post);
-      } catch (e) {
-        if (i >= 15 || !(e as Error).message.startsWith("could not reach")) throw e;
-        await sys.run(["sleep", "2"]);
-      }
-    }
+    const here = await pairHere(sys, (...a) => compose(dir, ...a), { name, address: OPENCLAW_IP, listen: AGENT_LISTEN, url: record.firewall.url }, net);
+    const { paired: p, keypair, unpairSecret } = here;
     paired = true;
     record.firewall.agentId = p.agentId;
     record.firewall.unpair = unpairSecret;
@@ -324,32 +311,14 @@ async function upWith(sys: Sys, io: Io, o: UpOpts, net: PairNet, tmp: { dir: str
     await rec.file(join(dir, "gate-relay.mjs"), gateRelayScript());
     await rec.file(join(dir, "ca-bundle.crt"), `${bundle.stdout.trimEnd()}\n${p.caPem.trim()}\n`);
 
-    if (!sys.exists(join(dir, "openclaw/openclaw.json"))) {
-      io.out("Setting up OpenClaw");
-      const onboard = await sys.run(
-        compose(dir, "run", "--rm", "--no-deps", "-T", "--entrypoint", "node", "openclaw", "dist/index.js", "onboard", "--non-interactive", "--accept-risk",
-          "--skip-health", "--mode", "local", "--auth-choice", "skip", "--gateway-auth", "token", "--gateway-token-ref-env", "OPENCLAW_GATEWAY_TOKEN",
-          "--skip-channels", "--no-install-daemon"),
-        { timeoutMs: 300_000 },
-      );
-      if (onboard.code !== 0) throw new Error(`openclaw onboard: ${(onboard.stderr || onboard.stdout).trim().split("\n").pop()}`);
-    }
-    // The Control UI is opened at this machine's loopback (or an SSH tunnel to it), and OpenClaw sees
-    // it through the firewall's relay: it accepts the page only from an origin it is told.
-    const origins = { gateway: { controlUi: { allowedOrigins: [`http://127.0.0.1:${GATEWAY_PORT}`, `http://localhost:${GATEWAY_PORT}`] } } };
-    const patched = await sys.run(compose(dir, "run", "--rm", "--no-deps", "-T", "--entrypoint", "node", "openclaw", "dist/index.js", "config", "patch", "--stdin"), {
-      input: JSON.stringify(origins),
-      timeoutMs: 300_000,
-    });
-    if (patched.code !== 0) throw new Error(`openclaw config patch: ${(patched.stderr || patched.stdout).trim().split("\n").pop()}`);
+    const first = !sys.exists(join(dir, "openclaw/openclaw.json"));
+    if (first) io.out("Setting up OpenClaw");
+    await setUpOpenClaw(sys, (...a) => compose(dir, ...a), "openclaw", first);
     io.out("Starting OpenClaw");
     const oc = await sys.run(compose(dir, "up", "-d", "openclaw"), { timeoutMs: 300_000 });
     if (oc.code !== 0) throw new Error(`docker compose up openclaw: ${oc.stderr.trim()}`);
     // A first start sets up its plugins: up to about four minutes.
-    await waitFor(sys, "OpenClaw's gateway", 120, async () => {
-      const r = await sys.run(["docker", "inspect", "-f", "{{.State.Health.Status}}", OPENCLAW_CONTAINER]);
-      return r.stdout.trim() === "healthy";
-    });
+    await waitFor(sys, "OpenClaw's gateway", 120, () => containerHealthy(sys, OPENCLAW_CONTAINER));
 
     io.out("Installing the vm-agent");
     const paths = await installAgent(sys, rec, {
@@ -369,16 +338,16 @@ async function upWith(sys: Sys, io: Io, o: UpOpts, net: PairNet, tmp: { dir: str
     });
     log(`${paths.bin}, config ${paths.config}`);
 
+    record.up!.done = true;
+    rec.start();
+
     io.out("");
     for (const c of await local.status(sys, record)) io.out(`${c.ok ? "✓" : "✗"} ${c.name}: ${c.detail}`);
-    const logs = await sys.run(compose(dir, "logs", "--no-color", "firewall"));
-    const setup = /setup token \(POST \/api\/setup\): ([0-9a-f]+)/.exec(logs.stdout)?.[1];
     io.out("");
-    io.out(`OpenClaw:  http://127.0.0.1:${GATEWAY_PORT}/#token=${token}`);
-    io.out(`Firewall:  http://127.0.0.1:8800${setup ? `  (first sign-in: the setup token ${setup})` : ""}`);
-    io.out("           From another machine: ssh -L 8800:127.0.0.1:8800 -L 18789:127.0.0.1:18789 <this machine>");
-    // A new firewall: no admin yet, and every request blocked.
-    if (setup) io.out("! The firewall blocks everything until you add rules in its panel (Internet access): allow your model provider first.");
+    io.out(`OpenClaw: http://127.0.0.1:${GATEWAY_PORT}/#token=${token}`);
+    io.out(`  From another machine: ssh -L 18789:127.0.0.1:${GATEWAY_PORT} <this machine>`);
+    await openPanel(sys, io, openNet);
+    io.out("Next: open the panel and set it up.");
     io.out(`Undo it with: controlclaw disconnect (the data in ${dir} and the firewall's volume stay)`);
     return 0;
   } catch (e) {
@@ -390,6 +359,38 @@ async function upWith(sys: Sys, io: Io, o: UpOpts, net: PairNet, tmp: { dir: str
     return 1;
   }
 }
+
+/**
+ * OpenClaw in a container, set up once (`onboard`, with the gateway token from `.env`), and its
+ * Control UI's allowed origins at each run: the UI is opened at this machine's loopback (or an SSH
+ * tunnel to it), and OpenClaw sees the browser through a relay: it accepts the page only from an
+ * origin it is told.
+ */
+export async function setUpOpenClaw(sys: Sys, compose: (...a: string[]) => string[], service: string, first: boolean): Promise<void> {
+  const cli = (...a: string[]) => compose("run", "--rm", "--no-deps", "-T", "--entrypoint", "node", service, "dist/index.js", ...a);
+  if (first) {
+    const onboard = await sys.run(
+      cli("onboard", "--non-interactive", "--accept-risk", "--skip-health", "--mode", "local", "--auth-choice", "skip", "--gateway-auth", "token",
+        "--gateway-token-ref-env", "OPENCLAW_GATEWAY_TOKEN", "--skip-channels", "--no-install-daemon"),
+      { timeoutMs: 300_000 },
+    );
+    if (onboard.code !== 0) throw new Error(`openclaw onboard: ${(onboard.stderr || onboard.stdout).trim().split("\n").pop()}`);
+  }
+  const origins = { gateway: { controlUi: { allowedOrigins: [`http://127.0.0.1:${GATEWAY_PORT}`, `http://localhost:${GATEWAY_PORT}`] } } };
+  const patched = await sys.run(cli("config", "patch", "--stdin"), { input: JSON.stringify(origins), timeoutMs: 300_000 });
+  if (patched.code !== 0) throw new Error(`openclaw config patch: ${(patched.stderr || patched.stdout).trim().split("\n").pop()}`);
+}
+
+/** The environment OpenClaw's image wants, as OpenClaw's own compose file sets it. */
+export const OPENCLAW_ENV: [string, string][] = [
+  ["HOME", "/home/node"],
+  ["OPENCLAW_HOME", "/home/node"],
+  ["OPENCLAW_STATE_DIR", "/home/node/.openclaw"],
+  ["OPENCLAW_CONFIG_PATH", "/home/node/.openclaw/openclaw.json"],
+  ["OPENCLAW_CONFIG_DIR", "/home/node/.openclaw"],
+  ["OPENCLAW_WORKSPACE_DIR", "/home/node/.openclaw/workspace"],
+  ["OPENCLAW_GATEWAY_PORT", String(GATEWAY_PORT)],
+];
 
 /** For `status`, `disconnect` and doctor: the shape `up --local` makes, not a capture `connect` installs. */
 export const local: CaptureMode = {

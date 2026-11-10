@@ -20,6 +20,8 @@ import type { EgressBoxOption, EgressEffect, EgressRuleListItem } from "../../li
 import { countryLabel } from "../../lib/countries";
 import { draftOf, EgressRuleDialog, type RuleDraft } from "./EgressRuleDialog";
 import { useEgressRules, type EgressRuleSource } from "./useEgressRules";
+import { EveryOtherSiteSelect } from "./EveryOtherSiteSelect";
+import { managedEgressReason } from "../../lib/managed-egress";
 import { NotInspectedBadge } from "./NotInspected";
 
 const EFFECT_META: Record<EgressEffect, { label: string; icon: typeof Check; chip: string }> = {
@@ -80,7 +82,18 @@ export function EgressRulesList({
   creating,
   onCreatingChange,
 }: Props) {
-  const { items, busy, isManaged, cycle: handleCycle, toggle: handleToggle, remove: handleDelete, submit } = useEgressRules(source, initial, vmOptions, canManage, demo);
+  const {
+    items,
+    busy,
+    isManaged,
+    isBrain,
+    cycle: handleCycle,
+    toggle: handleToggle,
+    remove: handleDelete,
+    submit,
+    otherSites,
+    setOtherSites,
+  } = useEgressRules(source, initial, vmOptions, canManage, demo);
   const [editing, setEditing] = useState<EgressRuleListItem | null>(null);
   const [box, setBoxState] = useState("");
   const boxOption = vmOptions.find((v) => v.id === box) ?? null;
@@ -103,9 +116,10 @@ export function EgressRulesList({
   // Filtered: what the firewall reads for that box, in its order, the brain's own rules included.
   // Unfiltered: everything except the brain's own rules, which only show when the brain is picked.
   const main = useMemo(
-    () => (box ? items.filter((r) => r.vmId === null || r.vmId === box) : items.filter((r) => !isManaged(r))),
-    [box, items, isManaged],
+    () => (box ? items.filter((r) => r.vmId === null || r.vmId === box) : items.filter((r) => !isBrain(r))),
+    [box, items, isBrain],
   );
+  const blocked = otherSites === "block";
 
   const counts = useMemo(() => {
     const c = { allow: 0, require_permission: 0, block: 0, tunnel: 0, residential: 0 };
@@ -190,7 +204,8 @@ export function EgressRulesList({
       <Card data-testid="egress-rules">
         {main.length === 0 ? (
           <EmptyState icon={Globe}>
-            {box ? "No rules for this box · every site is allowed and logged" : "No rules yet · every site is allowed and logged"}
+            {box ? "No rules for this box" : "No rules yet"}
+            {otherSites === "unknown" ? "" : blocked ? " · every site is blocked" : " · every site is allowed and logged"}
           </EmptyState>
         ) : (
           main.map((rule) => (
@@ -208,6 +223,15 @@ export function EgressRulesList({
             />
           ))
         )}
+        {otherSites !== null ? (
+          <RuleRow
+            data-testid="egress-every-other-site"
+            name={<span className="text-[13px] font-medium">Every other site</span>}
+            cond={blocked ? "Blocked: only the rules above get through" : otherSites === "unknown" ? "Asking the firewall…" : "Allowed, and logged"}
+          >
+            <EveryOtherSiteSelect value={otherSites} disabled={!canManage} onChange={(e) => void setOtherSites(e)} />
+          </RuleRow>
+        ) : null}
       </Card>
 
       <EgressRuleDialog
@@ -260,7 +284,7 @@ function Row({
 }: {
   rule: EgressRuleListItem;
   canManage: boolean;
-  /** One of the brain's own rules: shown, never changed. */
+  /** Kept by ControlClaw (the brain's own, or added for a provider or a channel): shown, never changed. */
   managed: boolean;
   vmOptions: EgressBoxOption[];
   exitCountry: string | null;
@@ -309,6 +333,11 @@ function Row({
       cond={
         <>
           <span className="font-mono break-all">{match}</span> · {facts.join(" · ")}
+          {rule.managed ? (
+            <span className="mt-0.5 block" data-testid={`egress-rule-reason-${rule.id}`}>
+              {managedEgressReason(rule.managed)}. It goes when that is removed.
+            </span>
+          ) : null}
           {rule.aiReview && rule.aiPolicy ? (
             <span className="mt-0.5 block truncate text-brand-soft-fg" title={rule.aiPolicy} data-testid={`egress-rule-policy-${rule.id}`}>
               {rule.effect === "require_permission" ? "AI may approve" : "What the AI looks for"}: {rule.aiPolicy}
@@ -320,7 +349,7 @@ function Row({
       {managed ? (
         <span
           className="inline-flex items-center gap-1 text-[12px] text-ink-2"
-          title="Managed by ControlClaw"
+          title={rule.managed ? `${managedEgressReason(rule.managed)}. It goes when that is removed.` : "Managed by ControlClaw"}
           data-testid={`egress-rule-managed-${rule.id}`}
         >
           <Lock className="h-[12px] w-[12px]" />

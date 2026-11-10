@@ -1297,7 +1297,12 @@ mod tests {
             (1.0, INGRESS_MAX_PER_MINUTE)
         );
         assert_eq!(regs[0].target.path, "/");
-        assert!(!target_port_allowed(3100.0) && !target_port_allowed(8800.0) && target_port_allowed(8700.0));
+        assert!(
+            !target_port_allowed(3100.0)
+                && !target_port_allowed(3102.0)
+                && !target_port_allowed(8800.0)
+                && target_port_allowed(8700.0)
+        );
     }
 
     /// An ingress with one registration, a delivery that answers `reply`, and `screen`.

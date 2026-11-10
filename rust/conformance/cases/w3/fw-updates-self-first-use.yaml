@@ -1,0 +1,32 @@
+name: with nobody approved, this firewall's own update, a batch with it and the nightly grant apply on first use
+agent: mitm-agent
+skip: {ts: "intentional difference: the TS build has no first use for the firewall's own updates or the nightly grant; the Rust build applies them as it does an agent update (owner decision, 2026-11-09; the TS is not changed any more)"}
+shims:
+  - argv: [sudo, /usr/bin/systemd-run]
+    stdout: ""
+    code: 0
+env:
+  KILL_STORE_PATH: state/kill.enc
+  ACCESS_STORE_PATH: state/access.enc
+  TAILSCALE_STORE_PATH: state/tailscale.enc
+  BACKUP_STORE_PATH: state/backup.enc
+  SELF_UPDATE_CONF_PATH: state/update.conf
+  SELF_UPDATE_STATE_PATH: state/update.json
+  AUTO_UPDATE_STORE_PATH: state/auto-update.enc
+  UPDATE_ALL_STORE_PATH: state/update-all.enc
+  RECOVERY_NOTICES_PATH: state/recovery-notices.enc
+  DISK_RESEAL_PATH: state/disk-reseal.enc
+files:
+  state/update.conf: "ANSIBLE_REPO=https://example.invalid/ansible.git\n"
+console:
+  /api/vm-agent/store: [[404, {}]]
+  /api/vm-agent/identities: [[200, {identities: []}]]
+steps:
+  - name: the firewall's own update starts at once
+    command: {id: f1, action: firewall-update.propose, payload: {changeId: c1}, result: {command_id: f1, ok: true, status: applied, data: {changeId: c1, summary: Update the software on your firewall, phase: resolving, tofu: true}}}
+  - name: a batch with the firewall in it writes a grant on first use
+    command: {id: b1, action: update-all.propose, payload: {changeId: c2, boxes: [{vmId: fw_1, role: mitm, name: your firewall}]}, result: {command_id: b1, ok: true, status: applied, data: {changeId: c2, summary: Update the software on your firewall, boxes: [fw_1], tofu: true}}}
+  - name: the nightly grant is written on first use
+    command: {id: a1, action: auto-update.propose, payload: {changeId: c3}, result: {command_id: a1, ok: true, status: applied, data: {changeId: c3, summary: $string, confirmedAt: $string, tofu: true}}}
+  - name: turning it off needs no code
+    command: {id: a2, action: auto-update.disable, payload: {}, result: {command_id: a2, ok: true, status: applied, data: {confirmedAt: null}}}

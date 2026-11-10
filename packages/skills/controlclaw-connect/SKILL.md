@@ -75,9 +75,11 @@ Say these when they apply:
   them possible.
 - **DNS for the whole machine.** In host and remote mode every program on this machine looks names
   up through the firewall. If the firewall stops, DNS stops for all of them.
-- **A new firewall blocks everything.** Until the person allows sites in the firewall's panel
-  (**Internet access**), nothing gets out, including your own model provider. Connected without that,
-  you lose your model and cannot answer.
+- **Every other site may be blocked.** A new firewall allows every site and logs it, but the person
+  may have set **Every other site** to **Block** in the panel. Then only their rules get through,
+  and the rules the firewall adds for model keys and bots set up in the panel. A model key you hold
+  yourself, not set up in the panel, has no rule: connected that way, you lose your model and cannot
+  answer until its host is allowed.
 
 ## 3. Ask
 

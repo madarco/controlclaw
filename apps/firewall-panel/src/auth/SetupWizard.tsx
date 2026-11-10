@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@controlclaw/console-ui/ui/button";
 import { Input } from "@controlclaw/console-ui/ui/input";
 import { Field } from "@controlclaw/console-ui/kit/console-ui";
@@ -6,6 +6,7 @@ import { errorText, fw } from "../api/client";
 import { ModelKeyForm } from "../pages/ModelKeys";
 import { PairAgent } from "../pages/PairAgent";
 import { AuthFrame, FormError } from "./AuthFrame";
+import { onSetupToken, setupToken } from "../setup-token";
 import { MIN_PASSWORD, passwordLength } from "./password";
 import { useSession } from "./session";
 
@@ -23,7 +24,18 @@ export function SetupWizard() {
 
 function PasswordStep() {
   const session = useSession();
-  const [token, setToken] = useState("");
+  // From `controlclaw open`'s link (#setup=), when it carried one.
+  const [fromLink, setFromLink] = useState(setupToken());
+  const [token, setToken] = useState(fromLink);
+  // A link opened in this tab after the page loaded.
+  useEffect(
+    () =>
+      onSetupToken((t) => {
+        setFromLink(t);
+        setToken(t);
+      }),
+    [],
+  );
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
   const [error, setError] = useState("");
@@ -54,15 +66,20 @@ function PasswordStep() {
           label="Setup token"
           htmlFor="token"
           hint={
+            fromLink ? (
+              "Filled in from the link controlclaw open gave you."
+            ) : (
             <>
               The firewall prints it in its log at start, on the line that begins with{" "}
               <code className="font-mono">[cc-local] no admin yet</code>. Read it with{" "}
               <code className="font-mono">journalctl -u controlclaw-mitm-agent</code>, or{" "}
-              <code className="font-mono">docker compose logs firewall</code>. Only the newest one works.
+              <code className="font-mono">docker compose logs firewall</code>, or run{" "}
+              <code className="font-mono">controlclaw open</code> on the firewall&apos;s machine. Only the newest one works.
             </>
+            )
           }
         >
-          <Input id="token" autoComplete="off" spellCheck={false} autoFocus value={token} onChange={(e) => setToken(e.target.value)} className="font-mono" />
+          <Input id="token" autoComplete="off" spellCheck={false} autoFocus={!fromLink} value={token} onChange={(e) => setToken(e.target.value)} className="font-mono" />
         </Field>
         <Field label="Password" htmlFor="new-password" hint={tooShort ? `At least ${MIN_PASSWORD} characters.` : `${MIN_PASSWORD} characters or more.`}>
           <Input id="new-password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={tooShort} />

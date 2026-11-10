@@ -746,6 +746,76 @@
         }
       }
     },
+    "/api/egress/default": {
+      "get": {
+        "operationId": "getEgressDefault",
+        "tags": [
+          "egress"
+        ],
+        "summary": "What happens to a site no rule names: allow (and logged), or block",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EveryOtherSite"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putEgressDefault",
+        "tags": [
+          "egress"
+        ],
+        "summary": "Allow or block every site no rule names. The rules added for model keys and bots still let those through",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EveryOtherSite"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EveryOtherSite"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/egress/ai": {
       "get": {
         "operationId": "getEgressAi",
@@ -1103,6 +1173,19 @@
               "default": null
             },
             "description": "Words to find in the row's text, at most 200 characters."
+          },
+          {
+            "name": "routine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "default": null
+            },
+            "description": "Show routine traffic too: what the rules for model keys and bots let through with the key the\nfirewall put in (`ROUTINE`). Hidden when left out, unless `q` is given."
           },
           {
             "name": "limit",
@@ -4067,6 +4150,13 @@
           },
           "updatedAt": {
             "type": "string"
+          },
+          "managed": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set on a rule this firewall added by itself for a model key (`anthropic`, `openai`, …) or a\nbot (`telegram`, `slack`): it cannot be changed, and goes when the key or the bot does."
           }
         },
         "required": [
@@ -4322,6 +4412,34 @@
         "required": [
           "id"
         ]
+      },
+      "EveryOtherSite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "effect": {
+            "$ref": "#/components/schemas/DefaultEffect"
+          }
+        },
+        "required": [
+          "effect"
+        ]
+      },
+      "DefaultEffect": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "block"
+            ]
+          },
+          {
+            "type": "string",
+            "const": "allow",
+            "description": "Let through, and logged (and read by the AI log review when it is on)."
+          }
+        ],
+        "description": "\"Every other site\": what happens to a request no rule matches."
       },
       "AiView": {
         "type": "object",
@@ -4665,12 +4783,18 @@
             "type": "integer",
             "format": "int64",
             "description": "Rows the filter matches."
+          },
+          "routine": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Routine requests left out of the rows and the counts (0 when they are shown)."
           }
         },
         "required": [
           "rows",
           "counts",
-          "total"
+          "total",
+          "routine"
         ]
       },
       "ActivityRow": {

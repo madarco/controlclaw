@@ -1,0 +1,26 @@
+name: vm-agent answers on its port and on the old one, the same routes
+agent: vm-agent
+skip: {ts: "the TS build listens on one port; it no longer ships (docs/ops/t-vmagent-port-3102.md)"}
+# The role sets AGENT_LEGACY_PORT=3100; here a free port stands in for it.
+ports:
+  legacy: AGENT_LEGACY_PORT
+shims:
+  - argv: [systemctl, is-active, openclaw]
+    stdout: "active\n"
+steps:
+  - name: no token on the main port
+    request: {method: GET, path: /health}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: no token on the old port
+    request: {method: GET, path: /health, port: legacy}
+    expect: {status: 401, json: {error: Unauthorized}}
+  - name: the console's token on the old port
+    request: {method: GET, path: /health, port: legacy, token: {signer: console}}
+    expect:
+      status: 200
+      json_subset: {status: ok}
+  - name: a firewall token on the old port, for a route only the firewall may call
+    request: {method: POST, path: /hooks/deliver, port: legacy, json: {port: 3102, path: /, bodyB64: ""}, token: {signer: firewall, bind: true, claims: {purpose: hooks}}}
+    expect:
+      status: 400
+      json: {error: port must be between 8700 and 8799}

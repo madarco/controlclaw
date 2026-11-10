@@ -214,6 +214,10 @@ pub fn box_software(app: &App, console_mcp: bool, doctor_fingerprint: Option<&st
     if app.firewall_auth.tokens_bound() {
         features.push("fw_tokens_bound");
     }
+    // The role moved this vm-agent to 3102; a box without it is one 3100 is still kept for.
+    if app.config.port == crate::app::PORT {
+        features.push("agent_port_3102");
+    }
     let release = std::env::var("RELEASE_FILE").unwrap_or_else(|_| RELEASE_PATH.into());
     json!({
         "rebootRequired": Path::new("/var/run/reboot-required").exists(),
@@ -228,6 +232,7 @@ pub fn box_software(app: &App, console_mcp: bool, doctor_fingerprint: Option<&st
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     const RELEASE: &str =
         r#"{"commit":"a1b2c3d4e5f6","commitDate":"2026-09-19T08:11:00Z","installedAt":"2026-09-19T09:02:44Z"}"#;
@@ -362,5 +367,20 @@ mod tests {
         assert_eq!(firewall_origin(d.path()).as_deref(), Some("https://fw.example.com"));
         at(d.path(), "access.json", r#"{"firewallOrigin":"http://fw.example.com"}"#);
         assert_eq!(firewall_origin(d.path()), None);
+    }
+
+    #[test]
+    fn the_port_move_is_reported() {
+        let has = |app: &App| {
+            box_software(app, false, None)["features"]
+                .as_array()
+                .expect("list")
+                .iter()
+                .any(|f| f == "agent_port_3102")
+        };
+        let mut tb = crate::boxside::testing::test_box();
+        assert!(!has(&tb.app), "a vm-agent on another port (an older role's 3100)");
+        Arc::get_mut(&mut tb.app).expect("one owner").config.port = crate::app::PORT;
+        assert!(has(&tb.app));
     }
 }

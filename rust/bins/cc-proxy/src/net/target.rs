@@ -31,8 +31,9 @@ pub fn non_routable_kind(ip: IpAddr) -> Option<&'static str> {
 
 /// Why the firewall never connects to `ip`, worded for a record: non-routable, or an address on
 /// one of the firewall's own interfaces. A name the agent controls that resolves to the firewall
-/// itself would otherwise be dialled over `lo`, past the Hetzner firewall and UFW, to its 3100 and
-/// the private-address gates (3940 trusts the source address alone).
+/// itself would otherwise be dialled over `lo`, past the Hetzner firewall and UFW, to its 3100 (on a
+/// standalone box also the vm-agent's 3102) and the private-address gates (3940 trusts the source
+/// address alone).
 pub fn refusal(ip: IpAddr, shown: &str) -> Option<String> {
     if let Some(kind) = non_routable_kind(ip) {
         return Some(format!(
@@ -417,6 +418,8 @@ mod tests {
     async fn checks_before_dialling() {
         assert!(check_target("127.0.0.1", 3101).await.is_err());
         assert!(check_target("[::1]", 3101).await.is_err());
+        // The vm-agent's ports on a box that is its own firewall (3102, and 3100 for the transition).
+        assert!(check_target("127.0.0.1", 3102).await.is_err());
         assert!(check_target("localhost", 80).await.is_err());
         assert_eq!(
             check_target("93.184.216.34", 443).await,

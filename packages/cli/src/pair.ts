@@ -59,7 +59,7 @@ export interface PairRequest {
   unpairSecret?: string;
   /** Remote mode: this machine's WireGuard public key; the firewall gives it a tunnel address. */
   wgPublicKey?: string;
-  /** `ip:port` where the vm-agent listens for the firewall's calls (else the agent's address, 3100). */
+  /** `ip:port` where the vm-agent listens for the firewall's calls (the firewall's default: the agent's address, 3100). */
   agentListen?: string;
 }
 

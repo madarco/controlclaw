@@ -37,6 +37,7 @@ async fn start_with(service: &str, pool: bool, before: impl FnOnce(&Arc<App>)) -
     }
     let config = Config {
         port: 0,
+        legacy_port: None,
         bind: "127.0.0.1".into(),
         keys_dir: keys.dir.clone(),
         state_dir: dir.path().join("state"),

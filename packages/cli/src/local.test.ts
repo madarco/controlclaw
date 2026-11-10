@@ -8,7 +8,11 @@ import { disconnect, type Io, type PairNet } from "./commands.js";
 import { CA, fakeMachine, KEY } from "./fake-machine.js";
 import { gateRelayScript, localCompose, OPENCLAW_CONTAINER, up } from "./local.js";
 import { hmacHex, normalizeCode, type Post, REQUEST_TAG, RESPONSE_TAG } from "./pair.js";
+import type { OpenNet } from "./open.js";
 import { loadRecord } from "./state.js";
+
+/** A panel with no admin yet. */
+const NEW_PANEL: OpenNet = { session: async () => ({ setup: true }) };
 
 function io(): Io & { lines: string[] } {
   const lines: string[] = [];
@@ -108,7 +112,7 @@ test("up --local: starts the firewall, pairs OpenClaw at its fixed address, star
   const before = new Map(sys.files);
   const fw = firewall();
   const o = io();
-  assert.equal(await up(sys, o, { firewallImage: "controlclaw-firewall:dev-amd64", vmAgent: "/opt/vm-agent" }, fw.net), 0, o.lines.join("\n"));
+  assert.equal(await up(sys, o, { firewallImage: "controlclaw-firewall:dev-amd64", vmAgent: "/opt/vm-agent" }, fw.net, NEW_PANEL), 0, o.lines.join("\n"));
   const ran = sys.ran();
   const at = (s: string) => ran.findIndex((l) => l.includes(s));
   const c = "docker compose -p controlclaw-local --project-directory /opt/controlclaw-local -f /opt/controlclaw-local/compose.yaml";
@@ -129,14 +133,17 @@ test("up --local: starts the firewall, pairs OpenClaw at its fixed address, star
   assert.equal(agent.agent_id, "agent_local1");
   assert.equal(agent.openclaw.container, OPENCLAW_CONTAINER);
   // On the host's side of the outside network, for the firewall's container alone.
-  assert.equal(agent.listen, "172.31.252.1:3100");
+  assert.equal(agent.listen, "172.31.252.1:3102");
   assert.deepEqual(agent.firewall.allow_from, ["172.31.252.2"]);
   assert.equal(agent.firewall.gate, "127.0.0.1", "OpenClaw dials the gates on its own loopback, relayed to the firewall");
-  assert.equal(JSON.parse(String(fw.calls[0]!.body.request)).agent_listen, "172.31.252.1:3100");
+  assert.equal(JSON.parse(String(fw.calls[0]!.body.request)).agent_listen, "172.31.252.1:3102");
   assert.match(sys.files.get("/etc/systemd/system/controlclaw-agent.service")!, /After=network-online.target docker.service/);
   const text = o.lines.join("\n");
-  assert.match(text, /OpenClaw:  http:\/\/127.0.0.1:18789\/#token=[0-9a-f]{48}/);
-  assert.match(text, /Firewall:  http:\/\/127.0.0.1:8800  \(first sign-in: the setup token abc123\)/);
+  assert.match(text, /OpenClaw: http:\/\/127.0.0.1:18789\/#token=[0-9a-f]{48}/);
+  // No desktop here: the panel's link, with the setup token in its fragment.
+  assert.match(text, /Firewall panel: http:\/\/127.0.0.1:8800\/#setup=abc123/);
+  assert.match(text, /ssh -L 8800:127.0.0.1:8800 /);
+  assert.doesNotMatch(text, /blocks everything/);
   assert.match(text, /✓ request from OpenClaw: HTTP 403/);
   assert.match(text, /✓ host unreachable from it: controlclaw-local_agents gives the host no address/);
   assert.equal(loadRecord(sys)?.mode, "local");
@@ -164,16 +171,17 @@ test("up --local: refused without root, an image, or with a connect in place; un
   assert.match(o2.lines.join("\n"), /--firewall-image/);
   const s3 = localMachine();
   s3.on("docker image inspect --format {{.Id}} controlclaw-firewall:none", { code: 1 });
+  s3.on("docker pull -q controlclaw-firewall:none", { code: 1, stderr: "manifest unknown\n" });
   const o3 = io();
-  assert.equal(await up(s3, o3, { firewallImage: "controlclaw-firewall:none", vmAgent: "/opt/vm-agent" }), 1);
-  assert.match(o3.lines.join("\n"), /No image controlclaw-firewall:none here/);
+  assert.equal(await up(s3, o3, { firewallImage: "controlclaw-firewall:none", vmAgent: "/opt/vm-agent" }, firewall().net, NEW_PANEL), 1);
+  assert.match(o3.lines.join("\n"), /docker pull controlclaw-firewall:none: manifest unknown/);
 
   const s4 = localMachine();
   const before = new Map(s4.files);
   s4.on("{{.State.Health.Status}}", { stdout: "starting\n" });
   const fw = firewall();
   const o4 = io();
-  assert.equal(await up(s4, o4, { firewallImage: "controlclaw-firewall:dev-amd64", vmAgent: "/opt/vm-agent" }, fw.net), 1);
+  assert.equal(await up(s4, o4, { firewallImage: "controlclaw-firewall:dev-amd64", vmAgent: "/opt/vm-agent" }, fw.net, NEW_PANEL), 1);
   assert.match(o4.lines.join("\n"), /OpenClaw's gateway did not come up/);
   assert.ok(fw.calls.some((x) => x.url.endsWith("/unpair")), "the firewall forgets it first");
   assert.ok(s4.ran().some((l) => l.endsWith("compose.yaml down")));

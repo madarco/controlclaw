@@ -1,6 +1,6 @@
 //! Updating every box on one code (`update-all.ts`, `update-all-store.ts`, T-100). The summary
-//! names every box, the set is frozen when the code goes out, and each box keeps its own rule (no
-//! first use for the firewall). A confirmed batch writes a grant on disk, because the firewall's
+//! names every box, the set is frozen when the code goes out, and with nobody to ask the whole
+//! batch, the firewall too, applies on first use. A confirmed batch writes a grant on disk, because the firewall's
 //! own update restarts this process: the listed boxes, once each, for two and a half hours.
 
 use std::path::PathBuf;
@@ -10,7 +10,7 @@ use serde_json::{Map, Value, json};
 
 use super::agent_client::AgentTarget;
 use super::code_message::{CodeParts, Details};
-use super::consent::{iso, no_recipients};
+use super::consent::iso;
 use super::firewall_update::FirewallUpdate;
 use super::identities::Agents;
 use super::kit::{CHANNELS_UNREADABLE, Kit, awaiting, fail, obj, ok, text};
@@ -393,23 +393,12 @@ impl UpdateAll {
             return fail("failed", CHANNELS_UNREADABLE, data);
         };
         if routes.is_empty() {
-            // The firewall has no first use; a batch with it is refused.
-            if includes_self {
-                let (message, extra) = no_recipients(self.kit.agent_allowed());
-                let mut d = data;
-                d.extend(extra);
-                return fail(
-                    "failed",
-                    format!("{message} Your firewall cannot be updated until then."),
-                    d,
-                );
-            }
             self.kit.consent.forget(SCOPE);
             if let Err(e) = self.grant_for(&p) {
                 return CommandOutcome::failed("failed", e);
             }
             tracing::info!(
-                "[update-all] no code recipient: {} agent(s) applied on first use",
+                "[update-all] no code recipient: {} box(es) applied on first use",
                 p.boxes.len()
             );
             let mut d = data;

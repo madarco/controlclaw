@@ -15,6 +15,8 @@ import { useApi } from "../../lib/api";
 import { cn } from "../../lib/utils";
 import { EgressRuleDialog, draftOf } from "../egress/EgressRuleDialog";
 import { useEgressRules } from "../egress/useEgressRules";
+import { EveryOtherSiteSelect } from "../egress/EveryOtherSiteSelect";
+import { managedEgressReason } from "../../lib/managed-egress";
 import { NotInspectedBadge } from "../egress/NotInspected";
 import type { EgressBoxOption, EgressRuleListItem } from "../../lib/egress-schema";
 import { EMAIL_MODES, EmailEntryDialog, EmailSettingsPanel, useEmailRules, type EmailDemo } from "./EmailRules";
@@ -654,8 +656,19 @@ export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxe
                     <Ord />
                     <Main builtin title="Every other site" />
                     <Cell>{boxOption?.name ?? "All agents"}</Cell>
-                    <Cell sub={<>and logged<Hits item={hits("websites", "default")} now={activity.now} type="websites" block /></>}>
-                      <ActionPill tone="allow">Allow</ActionPill>
+                    <Cell
+                      sub={
+                        <>
+                          {web.otherSites === "block" ? "only the rules above" : web.otherSites === "unknown" ? "" : "and logged"}
+                          <Hits item={hits("websites", "default")} now={activity.now} type="websites" block />
+                        </>
+                      }
+                    >
+                      {web.otherSites === null ? (
+                        <ActionPill tone="allow">Allow</ActionPill>
+                      ) : (
+                        <EveryOtherSiteSelect value={web.otherSites} disabled={!canManageWebsites} onChange={(e) => void web.setOtherSites(e)} />
+                      )}
                     </Cell>
                     <Acts />
                   </TRow>
@@ -978,7 +991,12 @@ function WebsiteRow({
   // Not inspected is not one of allow, ask and block: it changes only in the editor.
   const cyclable = editable && rule.effect !== "tunnel";
   const match = [rule.matchMethod ? `${rule.matchMethod} ` : "", rule.matchDomain, rule.matchPort != null ? `:${rule.matchPort}` : "", rule.matchPath ?? ""].join("");
-  const sub = managed ? (
+  const sub = rule.managed ? (
+    <span data-testid={`egress-rule-managed-${rule.id}`}>
+      <Lock className="mr-1 inline h-[11px] w-[11px] align-[-1px]" />
+      {managedEgressReason(rule.managed)} · <span className="font-mono text-[12px]">{match}</span>
+    </span>
+  ) : managed ? (
     <>
       <Lock className="mr-1 inline h-[11px] w-[11px] align-[-1px]" />
       Managed by ControlClaw

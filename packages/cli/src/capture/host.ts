@@ -1,3 +1,4 @@
+import { AGENT_PORT } from "../agent.js";
 import { installNodeEnv, installNss, installSystemStore } from "../ca.js";
 import type { Facts } from "../doctor.js";
 import { escapeGroupMessage } from "../groups.js";
@@ -159,7 +160,7 @@ export function loopbackPorts(gatewayPort: number, profilePorts: number[] | null
   const own = top > gatewayPort ? `${gatewayPort}-${top}` : String(gatewayPort);
   const extra = [...new Set(profilePorts ?? [])].filter((p) => Number.isInteger(p) && p > 0 && p <= 65535 && (p < gatewayPort || p > top)).sort((a, b) => a - b);
   // 3111: the vm-agent's relay for app connections (OpenClaw's MCP entry for them).
-  return [String(REDSOCKS_PORT), "3100", String(CONNECTOR_RELAY_PORT), own, ...extra.map(String)];
+  return [String(REDSOCKS_PORT), String(AGENT_PORT), String(CONNECTOR_RELAY_PORT), own, ...extra.map(String)];
 }
 
 /**

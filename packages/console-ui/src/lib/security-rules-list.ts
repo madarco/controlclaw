@@ -40,7 +40,14 @@ interface RowBase {
 export type RuleRow =
   | (RowBase & { type: "messages"; rule: ContentRule })
   | (RowBase & { type: "email"; list: "senders" | "recipients"; entry: RuleEntry })
-  | (RowBase & { type: "websites"; rule: EgressRuleListItem; managed: boolean })
+  | (RowBase & {
+      type: "websites";
+      rule: EgressRuleListItem;
+      /** Kept by ControlClaw: the brain's own, or added for a provider or a channel. */
+      managed: boolean;
+      /** One of the brain's own: listed only under the brain. */
+      brain: boolean;
+    })
   | (RowBase & { type: "apps"; rule: AppRule; app: AppOption | null })
   | (RowBase & { type: "auto"; rule: SecurityRuleListItem });
 
@@ -133,7 +140,8 @@ export function websitesRow(rule: EgressRuleListItem, boxes: EgressBoxOption[], 
   return {
     type: "websites",
     rule,
-    managed: isBrainManagedRule(rule, brainIds),
+    managed: !!rule.managed || isBrainManagedRule(rule, brainIds),
+    brain: isBrainManagedRule(rule, brainIds),
     key: `websites:${rule.id}`,
     name: rule.name,
     match: [match, via, `order ${rule.priority}`].filter(Boolean).join(" · "),
@@ -243,13 +251,13 @@ export interface RuleFilter {
  * The rows that apply to one box: its own rules and the rules for all of them, as the firewall
  * reads them. Messages and Email rules have no agent (content rules apply to all, email rules are
  * per mailbox), so they stay under every agent. The brain sends no messages and asks for nothing:
- * only site rules apply to it, its managed ones included. Unfiltered, the brain's managed rules
- * are left out, as on Internet access.
+ * only site rules apply to it, its managed ones included. Unfiltered, the brain's own rules are
+ * left out, as on Internet access; the ones added for providers and channels stay.
  */
 export function filterRows(rows: RuleRow[], f: RuleFilter): RuleRow[] {
   return rows.filter((r) => {
     if (f.type && r.type !== f.type) return false;
-    if (!f.box) return !(r.type === "websites" && r.managed);
+    if (!f.box) return !(r.type === "websites" && r.brain);
     if (f.brain && r.type !== "websites") return false;
     if (r.type === "websites" || r.type === "auto") return r.rule.vmId === null || r.rule.vmId === f.box;
     if (r.type === "apps") return r.rule.agents.length === 0 || r.rule.agents.includes(f.box);

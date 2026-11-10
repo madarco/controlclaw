@@ -23,6 +23,7 @@ pub fn routes() -> Vec<Route> {
             "The Google account, its services and the agents that have it (`google.read`), and the redirect address to register",
             |c| async move {
                 let mut v = data_of(c.command("google.read", json!({})).await?)?;
+                super::managed::store(&c, "gmail", super::managed::google(&v))?;
                 if let Value::Object(m) = &mut v {
                     let uri = redirect_uri();
                     let ok = google_takes(&uri);
@@ -100,7 +101,11 @@ pub fn routes() -> Vec<Route> {
             "/api/agentmail",
             TAG,
             "The AgentMail account and its inboxes (`agentmail.read`)",
-            |c| async move { Ok(Reply::ok(&data_of(c.command("agentmail.read", json!({})).await?)?)) },
+            |c| async move {
+                let v = data_of(c.command("agentmail.read", json!({})).await?)?;
+                super::managed::store(&c, "agentmail", super::managed::agentmail(&v))?;
+                Ok(Reply::ok(&v))
+            },
         ),
         Route::write::<Value, CommandAnswer, _, _>(
             Method::POST,
@@ -235,7 +240,17 @@ async fn google_apply(c: &Ctx, kind: &str, fill: impl FnOnce(&mut Map<String, Va
     p.insert("kind".into(), json!(kind));
     fill(&mut p);
     let p = checked("google.propose", Value::Object(p))?;
-    Ok(c.apply("google", p).await?.reply())
+    let r = c.apply("google", p).await?;
+    accounts_changed(c).await;
+    Ok(r.reply())
+}
+
+/// After a change to Google or AgentMail: their agents' rules as the firewall now has them. A read
+/// that fails leaves them for the next one (`api::managed`).
+async fn accounts_changed(c: &Ctx) {
+    if let Err(e) = super::managed::refresh_accounts(c).await {
+        tracing::warn!("[cc-local] the accounts' rules: {}", e.body);
+    }
 }
 
 async fn google_connect(c: &Ctx, b: GoogleConnect) -> Result {
@@ -330,7 +345,9 @@ async fn agentmail(c: &Ctx, body: Value) -> Result {
     p.entry("changeId").or_insert_with(|| json!(new_id("chg")));
     let full = format!("agentmail.{action}");
     let p = checked(&full, Value::Object(p))?;
-    Ok(c.run(&full, Value::Object(p)).await?.reply())
+    let r = c.run(&full, Value::Object(p)).await?;
+    accounts_changed(c).await;
+    Ok(r.reply())
 }
 
 async fn login_change(c: &Ctx, b: LoginChange) -> Result {

@@ -6,7 +6,8 @@ use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::Connection;
 
-/// Version 1, then each later one (2: the panel's API; 3 and 4: pairing; 5: WireGuard). Later versions append to
+/// Version 1, then each later one (2: the panel's API; 3 and 4: pairing; 5: WireGuard; 6: the agent's
+/// address; 7: "Every other site"; 8: routine traffic). Later versions append to
 /// [`MIGRATIONS`]; a migration that ran is never edited.
 pub(crate) const MIGRATIONS: &[&str] = &[
     r#"
@@ -137,13 +138,26 @@ CREATE UNIQUE INDEX agents_wg_public_key ON agents (wg_public_key) WHERE wg_publ
     r#"
 ALTER TABLE agents ADD COLUMN agent_addr TEXT;       -- ip:port where its vm-agent listens, from pairing
 "#,
+    // "Every other site" is the block-all rule as it was first written (`every_other_site`). One
+    // the admin changed since is theirs: it gets an id of its own and stays where it is.
+    r#"
+UPDATE egress_rules SET id = 'r_' || lower(hex(randomblob(9)))
+ WHERE id = 'block-all'
+   AND NOT (match_domain = '*' AND effect = 'block' AND enabled = 1 AND vm_id IS NULL
+            AND match_path IS NULL AND match_method IS NULL AND exit IS NULL AND priority = 100000);
+"#,
+    // Routine traffic (`cc_contracts::managed::is_routine`), decided when the record comes in: Activity
+    // leaves it out unless asked. Records from before are not.
+    r#"
+ALTER TABLE activity_raw ADD COLUMN routine INTEGER NOT NULL DEFAULT 0;
+"#,
 ];
 
-/// The rule a new database file starts with, so a new firewall lets nothing out until the admin adds
-/// rules (`[]` would let everything out). Written in the same transaction as the first migration:
-/// a database that exists has it, or had it and the admin deleted it, and it never comes back.
+/// "Every other site: Block": a rule after every other (`*`, block). A new firewall has none, so
+/// every site is let through and logged, as in the cloud; the panel adds or removes this one rule
+/// (`api::egress`). Until 2026-11 a new database started with it, and those firewalls keep it.
 pub const BLOCK_ALL_ID: &str = "block-all";
-pub const BLOCK_ALL_NAME: &str = "Block everything until you add rules";
+pub const BLOCK_ALL_NAME: &str = "Every other site";
 /// Last: a rule the admin adds runs before it.
 pub const BLOCK_ALL_PRIORITY: i64 = 100_000;
 
@@ -154,30 +168,21 @@ pub struct Db {
 }
 
 impl Db {
-    /// The firewall's file; a new one starts with the block-all rule.
+    /// The firewall's file.
     pub fn open(path: &Path) -> rusqlite::Result<Self> {
-        Self::from(Connection::open(path)?, true)
+        Self::from(Connection::open(path)?)
     }
 
     /// For tests and the conformance facade: empty, no rule.
     pub fn memory() -> rusqlite::Result<Self> {
-        Self::from(Connection::open_in_memory()?, false)
+        Self::from(Connection::open_in_memory()?)
     }
 
-    fn from(c: Connection, seed: bool) -> rusqlite::Result<Self> {
+    fn from(c: Connection) -> rusqlite::Result<Self> {
         c.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;")?;
         let version: usize = c.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         for (i, m) in MIGRATIONS.iter().enumerate().skip(version) {
-            let rule = if i == 0 && seed {
-                format!(
-                    "INSERT INTO egress_rules (id, name, match_domain, effect, priority, enabled, created_at)
-                     VALUES ('{BLOCK_ALL_ID}', '{BLOCK_ALL_NAME}', '*', 'block', {BLOCK_ALL_PRIORITY}, 1, {});",
-                    now_s()
-                )
-            } else {
-                String::new()
-            };
-            c.execute_batch(&format!("BEGIN; {m} {rule} PRAGMA user_version = {}; COMMIT;", i + 1))?;
+            c.execute_batch(&format!("BEGIN; {m} PRAGMA user_version = {}; COMMIT;", i + 1))?;
         }
         Ok(Self {
             conn: Mutex::new(c),
@@ -237,48 +242,48 @@ mod tests {
     }
 
     #[test]
-    fn a_new_file_has_the_block_all_rule_from_its_first_migration() {
+    fn a_new_file_has_no_rule() {
         let d = tempfile::tempdir().expect("dir");
         let p = d.path().join("local.db");
         let db = Db::open(&p).expect("open");
         assert!(db.created());
-        assert_eq!(rules(&db), [BLOCK_ALL_ID]);
-        // Version 1 commits with the rule in it: a start that stops after it still has the rule.
-        let at_v1: i64 = db
-            .lock()
-            .query_row("SELECT COUNT(*) FROM egress_rules WHERE id = ?1", [BLOCK_ALL_ID], |r| {
-                r.get(0)
-            })
-            .expect("count");
-        assert_eq!(at_v1, 1);
-        db.lock().execute("DELETE FROM egress_rules", []).expect("delete");
-        drop(db);
-        let db = Db::open(&p).expect("reopen");
-        assert!(rules(&db).is_empty(), "a deleted rule does not come back");
-        assert!(
-            Db::memory().map(|m| rules(&m).is_empty()).expect("memory"),
-            "not in a test database"
-        );
+        assert!(rules(&db).is_empty(), "every site is let through and logged");
     }
 
+    /// A firewall from before 2026-11 keeps its block-all rule as "Every other site: Block" when
+    /// it is as it was written; one the admin changed becomes an ordinary rule of theirs.
     #[test]
-    fn a_crash_after_the_first_migration_still_has_the_rule() {
-        // The first migration and the rule in one transaction, as `from` runs it, then a stop
-        // before the later migrations: the next open finds version 1 and the rule.
-        let d = tempfile::tempdir().expect("dir");
-        let p = d.path().join("local.db");
-        {
-            let c = Connection::open(&p).expect("conn");
-            c.execute_batch(&format!(
-                "BEGIN; {} INSERT INTO egress_rules (id, name, match_domain, effect, priority, enabled, created_at)
-                 VALUES ('{BLOCK_ALL_ID}', 'x', '*', 'block', 1, 1, 0); PRAGMA user_version = 1; COMMIT;",
-                MIGRATIONS[0]
-            ))
-            .expect("v1");
+    fn an_older_block_all_rule_stays_or_becomes_the_admins() {
+        for (changed, kept) in [
+            ("", true),
+            ("UPDATE egress_rules SET enabled = 0;", false),
+            ("UPDATE egress_rules SET effect = 'require_permission';", false),
+            ("UPDATE egress_rules SET priority = 5;", false),
+            ("UPDATE egress_rules SET name = 'mine';", true),
+        ] {
+            let d = tempfile::tempdir().expect("dir");
+            let p = d.path().join("local.db");
+            {
+                let c = Connection::open(&p).expect("conn");
+                let mut sql = String::from("BEGIN;");
+                for m in &MIGRATIONS[..6] {
+                    sql.push_str(m);
+                }
+                sql.push_str(&format!(
+                    "INSERT INTO egress_rules (id, name, match_domain, effect, priority, enabled, created_at)
+                     VALUES ('{BLOCK_ALL_ID}', 'Block everything until you add rules', '*', 'block', {BLOCK_ALL_PRIORITY}, 1, 0);
+                     {changed} PRAGMA user_version = 6; COMMIT;"
+                ));
+                c.execute_batch(&sql).expect("v6");
+            }
+            let db = Db::open(&p).expect("open");
+            let ids = rules(&db);
+            assert_eq!(ids.len(), 1, "{changed}");
+            assert_eq!(ids[0] == BLOCK_ALL_ID, kept, "{changed}");
+            if !kept {
+                assert!(ids[0].starts_with("r_") && ids[0].len() == 20, "{}", ids[0]);
+            }
         }
-        let db = Db::open(&p).expect("open");
-        assert!(!db.created());
-        assert_eq!(rules(&db), [BLOCK_ALL_ID]);
     }
 
     #[test]

@@ -200,15 +200,59 @@ fn an_agent_ships_only_about_itself_and_ids_are_per_box() {
 }
 
 #[test]
-fn only_block_all_is_the_new_databases_state() {
+fn a_new_database_lets_everything_through_and_the_managed_rules_come_and_go() {
     let d = tempfile::tempdir().expect("dir");
     let p = LocalControlPlane::new(Arc::new(Db::open(&d.path().join("local.db")).expect("db")));
     p.register_self("fw").expect("self");
-    assert!(p.only_block_all().expect("only"));
+    assert!(!p.only_block_all().expect("none"));
     assert_eq!(
         call(&p, "fw", "GET", "/egress-rules", "", None).body["rules"],
-        json!([{"id": BLOCK_ALL_ID, "name": BLOCK_ALL_NAME, "match_domain": "*", "effect": "block", "priority": BLOCK_ALL_PRIORITY}])
+        json!([])
     );
-    p.db.lock().execute("DELETE FROM egress_rules", []).expect("delete");
-    assert!(!p.only_block_all().expect("none"));
+    // "Every other site: Block", as the panel writes it.
+    p.db.lock()
+        .execute(
+            "INSERT INTO egress_rules (id, name, match_domain, effect, priority, created_at) VALUES (?1, ?2, '*', 'block', ?3, 0)",
+            rusqlite::params![BLOCK_ALL_ID, BLOCK_ALL_NAME, BLOCK_ALL_PRIORITY],
+        )
+        .expect("block");
+    assert!(p.only_block_all().expect("only"));
+    // A model key the firewall took, and a bot with an agent and one without.
+    p.db.lock()
+        .execute_batch(
+            "INSERT INTO llm_keys (id, provider, hint, placeholder, state, created_at, updated_at)
+               VALUES ('k1', 'anthropic', '…1', 'x', 'active', 0, 0);",
+        )
+        .expect("keys");
+    p.db.set_setting(
+        "managed_seen:channels",
+        r#"[{"type":"telegram","vmId":"a1"},{"type":"slack"}]"#,
+    )
+    .expect("seen");
+    p.db.set_setting("managed_seen:agentmail", r#"[{"type":"agentmail","vmId":"a1"}]"#)
+        .expect("inboxes");
+    let rules = call(&p, "fw", "GET", "/egress-rules", "", None).body["rules"].clone();
+    assert_eq!(
+        rules,
+        json!([
+            {"id": BLOCK_ALL_ID, "name": BLOCK_ALL_NAME, "match_domain": "*", "effect": "block", "priority": BLOCK_ALL_PRIORITY},
+            {"id": "managed:anthropic:api.anthropic.com", "name": "Model provider: Anthropic", "match_domain": "api.anthropic.com",
+             "effect": "allow", "priority": -5, "managed": "anthropic"},
+            {"id": "managed:agentmail:api.agentmail.to:a1", "name": "Channel: AgentMail", "match_domain": "api.agentmail.to",
+             "effect": "allow", "priority": -5, "managed": "agentmail", "vm_id": "a1"},
+            {"id": "managed:agentmail:ws.agentmail.to:a1", "name": "Channel: AgentMail", "match_domain": "ws.agentmail.to",
+             "effect": "allow", "priority": -5, "managed": "agentmail", "vm_id": "a1"},
+            {"id": "managed:telegram:api.telegram.org:a1", "name": "Channel: Telegram", "match_domain": "api.telegram.org",
+             "effect": "allow", "priority": -5, "managed": "telegram", "vm_id": "a1"},
+        ])
+    );
+    p.db.lock().execute("DELETE FROM llm_keys", []).expect("remove the key");
+    p.db.set_setting("managed_seen:channels", "[]").expect("no bots");
+    p.db.set_setting("managed_seen:agentmail", "[]").expect("no inboxes");
+    assert_eq!(
+        call(&p, "fw", "GET", "/egress-rules", "", None).body["rules"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
 }

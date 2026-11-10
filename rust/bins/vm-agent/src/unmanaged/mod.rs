@@ -24,11 +24,13 @@ pub mod cli_gateway;
 pub mod config;
 pub mod copy_out;
 pub mod discover;
+pub mod offline;
 pub mod restart;
 pub mod supervisor;
 
 use config::AgentFile;
 use discover::Install;
+pub use offline::offline_writes;
 
 pub struct Unmanaged {
     pub file: AgentFile,

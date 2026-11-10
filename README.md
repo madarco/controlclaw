@@ -8,18 +8,19 @@ ControlClaw is an AI firewall and control panel for [OpenClaw](https://openclaw.
 your agent makes goes through it. You see each one, your rules decide what goes out, and your
 passwords and API keys stay on the firewall.
 
-It runs on your own machine, with its own web panel. No account, no cloud.
+It runs on your own machine and has its own web panel. You need no account and no cloud service.
 
-- **AI content rules.** Rules in plain sentences, checked by AI. "Don't share pay details." "Ask me
-  before pushing anything to GitHub." The firewall's AI reads what agents send and receive.
-- **AI log review.** The AI reads the traffic log and flags odd traffic.
-- **Password swap.** The agent types a stand-in. The firewall puts in the real password, only on the
-  sites you chose.
-- **Human approvals.** Risky actions wait for your OK.
+- **AI content rules.** You write rules as sentences, such as "Don't share pay details" or "Ask me
+  before pushing anything to GitHub". The firewall's AI checks what agents send and receive against
+  them.
+- **AI log review.** The AI reads the traffic log and flags requests that look wrong.
+- **Password swap.** The agent types a stand-in. The firewall puts in the real password, and only
+  on the sites you chose.
+- **Human approvals.** Risky actions wait until you approve them.
 - **Secrets off the agent.** API keys never reach the agent.
-- **MCP manager.** MCP servers in one place, keys on the firewall.
-- **Email rules.** Who the agent can email, and who can email it.
-- **Complete logs.** Every request and tool call logged, live, with the agent that made it.
+- **MCP manager.** Your MCP servers in one place, with their keys on the firewall.
+- **Email rules.** You decide whom the agent can email, and who can email it.
+- **Complete logs.** Every request and tool call, live, with the agent that made it.
 
 <p align="center">
   <img src=".github/assets/panel-overview.png" alt="The firewall's panel: requests per minute, blocked requests, response time, the traffic chart and the live requests" width="100%">
@@ -27,42 +28,92 @@ It runs on your own machine, with its own web panel. No account, no cloud.
 
 ## Three ways to run it
 
-| | How | Guide |
+Run `sudo npx controlclaw up` on the machine where the firewall goes. It shows a menu of these ways.
+
+| | How it works | Guide |
 | --- | --- | --- |
-| **1. Add it to the OpenClaw you run** | Keep your install. The firewall goes on a small server or VM on your network, and OpenClaw's machine sends its traffic through it. Run `controlclaw connect --mode docker`, `host` or `proxy`. | [Existing OpenClaw](docs/standalone/quickstart-existing.md) |
-| **2. A firewall on its own machine** | OpenClaw anywhere (another cloud, a home server), the firewall on its own VM. The agent reaches it over WireGuard and cannot read the firewall's data. Everything you set in the panel reaches OpenClaw: bots, models, MCP servers, secrets, the emergency stop. Install with `install.sh --wireguard`, then run `controlclaw connect --mode remote`. | [Remote firewall](docs/standalone/quickstart-remote.md) |
-| **3. Start fresh (recommended)** | The firewall and a new OpenClaw as two containers on one Linux machine, paired already. OpenClaw's only way out is the firewall. Run `controlclaw up --local`. | [Local Docker](docs/standalone/quickstart-docker.md) |
+| **1. A new OpenClaw with its own firewall (strongest)** | `controlclaw up --all` runs the firewall and a new OpenClaw as two containers on one Linux machine, already paired. OpenClaw can reach the internet only through the firewall. | [Local Docker](docs/standalone/quickstart-docker.md) |
+| **2. Protect the OpenClaw you already run** | `controlclaw up --here` keeps your install. It starts the firewall in a container next to OpenClaw and connects the two, with no code to copy. | [Same machine](docs/standalone/quickstart-same-machine.md) |
+| **3. One firewall for OpenClaw on other machines** | `controlclaw install --listen <private address>` runs the firewall on its own machine in your network. Each OpenClaw machine then runs `controlclaw connect --firewall …` with a one-time code. Over the internet, use WireGuard (remote mode). | [Another machine](docs/standalone/quickstart-existing.md), [Remote firewall](docs/standalone/quickstart-remote.md) |
 
-Then [set up the panel](docs/standalone/quickstart-panel.md): the setup token, a password, and the
-first rule. Before you choose, read [what each way protects, and what it does not](docs/standalone/protection.md).
+Next, [set up the panel](docs/standalone/quickstart-panel.md): the password, an optional model key and
+your first rule. Before you choose a way, read [what each one protects, and what it does
+not](docs/standalone/protection.md).
 
-OpenClaw can also connect itself. Give it the
-[`controlclaw-connect` skill](packages/skills/controlclaw-connect/SKILL.md) and a pairing code. It
-asks you before it changes anything.
-
-Linux only for now (amd64 and arm64).
+ControlClaw runs on Linux only for now (amd64 and arm64). The CLI needs Node 22 or newer. The
+containers need Docker 28 or newer with Compose 2.24.4 or newer.
 
 ## Try it in five minutes
 
-On a Linux machine with Docker 28 or newer and Node 22 or newer:
+On a Linux machine with Docker, open the menu:
 
 ```bash
-VERSION=0.9.4   # the latest: https://github.com/madarco/controlclaw/releases
-sudo npm i -g controlclaw@$VERSION
-sudo docker pull ghcr.io/madarco/controlclaw-firewall:$VERSION
-sudo controlclaw up --local --firewall-image ghcr.io/madarco/controlclaw-firewall:$VERSION
+sudo npx controlclaw up
 ```
 
-It prints the panel's address and its one-time setup token, and OpenClaw's address. A new firewall
-blocks everything: open the panel, allow your model provider under **Internet access**, then set up
-OpenClaw as its own docs say.
+```text
+? What do you want to set up?
+❯ Firewall + new OpenClaw here  Two containers, OpenClaw's only way out is the firewall. Strongest.
+  Protect the OpenClaw here     Keeps your install. The firewall runs next to it.
+  Firewall only                 For OpenClaw on other machines. They run `controlclaw connect`.
+  New OpenClaw only             Behind a firewall on another machine.
+  Connect this OpenClaw         To a firewall on another machine.
+```
+
+Choose **Firewall + new OpenClaw here**, which is the same as `up --all`. It starts both containers,
+pairs them, prints OpenClaw's address and opens the firewall's panel. On a machine with no desktop it
+prints the panel's address instead, with the one-time setup token in the link. The first run takes a
+few minutes while the images download and OpenClaw starts.
+
+You can also run the steps one at a time:
+
+```bash
+sudo npx controlclaw install             # the firewall, in a container
+sudo npx controlclaw openclaw install    # a new OpenClaw in Docker, connected to that firewall
+```
+
+`openclaw install` finds the firewall that `install` started and connects to it with no code. If
+OpenClaw already runs on the machine, run `controlclaw connect` instead of `openclaw install`.
+
+A new firewall allows every site and logs it. To allow only the sites you choose, set **Every other
+site** to **Block** under **Internet access**. The model keys and bots you set up in the panel keep
+working, because the firewall adds a rule for each. A model key you type into OpenClaw itself has no
+such rule, so add one for its host. Then set up OpenClaw as its own docs describe.
+
+## The commands, and the other ways to do each
+
+`up` runs these commands in order. You can run each one alone, or do the same step another way.
+
+**The firewall: `controlclaw install`.** It runs the firewall in a container on this machine
+(`--docker`, the default) or as the install script's systemd units (`--host`). Add `--listen
+<private address>` to serve OpenClaw on other machines too. Other ways:
+[`standalone/docker/compose.yaml`](standalone/docker/compose.yaml) with `docker compose up -d`, or the
+release's `install.sh` (`--wireguard` for remote agents). See [`standalone/README.md`](standalone/README.md).
+
+**OpenClaw: `controlclaw openclaw install`.** It installs OpenClaw in Docker (`--docker`, the default,
+a Compose project like OpenClaw's own) or with OpenClaw's own installer, as a user of its own
+(`--host`). Add `--firewall <url>` to connect it to a firewall on another machine in the same run.
+Other ways: OpenClaw's own installer or `docker-compose.yml`, then `connect`. Ansible support comes
+later, because the role needs the control plane.
+
+**The connection: `controlclaw connect`.** It installs the vm-agent and the capture for the mode:
+docker, host, proxy or remote. `--mode auto`, the default, picks docker or host. Without
+`--firewall`, it pairs with the firewall on this machine, with no code. Another way: give OpenClaw the
+[`controlclaw-connect` skill](packages/skills/controlclaw-connect/SKILL.md) and a pairing code. It
+asks you before it changes anything.
+
+**Undo.** `controlclaw disconnect` removes the connection. Add `--restore-config` to also put back
+OpenClaw's config as it was. `controlclaw uninstall` also removes the firewall, and its data only with
+`--purge`. `controlclaw open` opens the panel, and `controlclaw status` checks every part.
+
+Each command in detail: [`packages/cli/README.md`](packages/cli/README.md).
 
 ## Two kinds of rules
 
-Site rules say which sites agents may reach: allow, ask you first, or block. Messages rules are
-sentences the firewall's AI applies to what agents send and receive, on Telegram, Slack, email,
-websites, webhooks and apps. A rule can stop a message, hold it for you, or only record it. One rule
-is always on: a password, key or token never leaves.
+Site rules say which sites agents may reach: allow, ask you first, or block. Message rules are
+sentences that the firewall's AI applies to what agents send and receive on Telegram, Slack, email,
+websites, webhooks and apps. A message rule can stop a message, hold it for you, or only record it.
+One rule is always on: a password, key or token never leaves.
 
 <p align="center">
   <img src=".github/assets/panel-security-rules.png" alt="Security rules in the panel: four messages rules written as sentences, each with the channels it checks and what it does" width="100%">
@@ -70,9 +121,9 @@ is always on: a password, key or token never leaves.
 
 ## More docs
 
-[docs/standalone/](docs/standalone/README.md) has every page. Start with the quickstarts above, then:
+[docs/standalone/](docs/standalone/README.md) lists every page. Start with the guides above, then:
 
-- [`packages/cli/README.md`](packages/cli/README.md): the `controlclaw` CLI, each mode in detail.
+- [`packages/cli/README.md`](packages/cli/README.md): the `controlclaw` CLI and each mode in detail.
 - [`standalone/README.md`](standalone/README.md): the firewall's Docker image and install script, its ports, DNS and the CA.
 - [Your own computer behind the firewall](docs/standalone/desktop-app.md), as a node of OpenClaw's gateway.
 - [Troubleshooting](docs/standalone/troubleshooting.md), when something fails.
@@ -100,8 +151,8 @@ standalone/docker/build.sh         # the image
 
 ## Signed releases
 
-ControlClaw builds and signs releases in its own repo, not here. Each one ships a `SHA256SUMS` with a
-minisign signature, which `install.sh` and the CLI check
+ControlClaw builds and signs releases in its own repo, not here. Each release ships a `SHA256SUMS`
+file with a minisign signature, which `install.sh` and the CLI check
 ([`standalone/release/SIGNING.md`](standalone/release/SIGNING.md)).
 
 ## Reporting a security problem
@@ -111,5 +162,5 @@ See [SECURITY.md](SECURITY.md) to report a problem.
 ## License
 
 Copyright ControlClaw. Licensed under the GNU Affero General Public License v3.0 only
-(`AGPL-3.0-only`, [`LICENSE`](LICENSE)): if you run a changed version for others over a network,
-you must offer them its source.
+(`AGPL-3.0-only`, [`LICENSE`](LICENSE)). If you run a changed version for others over a network, you
+must offer them its source.

@@ -263,6 +263,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/egress/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What happens to a site no rule names: allow (and logged), or block */
+        get: operations["getEgressDefault"];
+        /** Allow or block every site no rule names. The rules added for model keys and bots still let those through */
+        put: operations["putEgressDefault"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/egress/ai": {
         parameters: {
             query?: never;
@@ -1348,6 +1366,11 @@ export interface components {
             aiPolicy?: string | null;
             createdAt: string;
             updatedAt: string;
+            /**
+             * @description Set on a rule this firewall added by itself for a model key (`anthropic`, `openai`, …) or a
+             *     bot (`telegram`, `slack`): it cannot be changed, and goes when the key or the bot does.
+             */
+            managed?: string | null;
         };
         /** @enum {string} */
         Effect: "allow" | "block" | "require_permission" | "tunnel";
@@ -1434,6 +1457,11 @@ export interface components {
         Deleted: {
             id: string;
         };
+        EveryOtherSite: {
+            effect: components["schemas"]["DefaultEffect"];
+        };
+        /** @description "Every other site": what happens to a request no rule matches. */
+        DefaultEffect: "block" | "allow";
         AiView: {
             settings: components["schemas"]["AiSettings"];
             /** @description The model keys the review can use. */
@@ -1553,6 +1581,11 @@ export interface components {
              * @description Rows the filter matches.
              */
             total: number;
+            /**
+             * Format: int64
+             * @description Routine requests left out of the rows and the counts (0 when they are shown).
+             */
+            routine: number;
         };
         ActivityRow: {
             id: string;
@@ -2776,6 +2809,68 @@ export interface operations {
             };
         };
     };
+    getEgressDefault: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EveryOtherSite"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    putEgressDefault: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EveryOtherSite"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EveryOtherSite"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     getEgressAi: {
         parameters: {
             query?: never;
@@ -3011,6 +3106,11 @@ export interface operations {
                 verdict?: "all" | "allow" | "ask" | "block";
                 /** @description Words to find in the row's text, at most 200 characters. */
                 q?: string | null;
+                /**
+                 * @description Show routine traffic too: what the rules for model keys and bots let through with the key the
+                 *     firewall put in (`ROUTINE`). Hidden when left out, unless `q` is given.
+                 */
+                routine?: boolean | null;
                 /** @description 1 to 100; 25 when left out. */
                 limit?: number | null;
                 offset?: number | null;

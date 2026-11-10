@@ -13,7 +13,9 @@ pub const DEFAULT_PATH: &str = "/etc/controlclaw/agent.json";
 #[serde(deny_unknown_fields)]
 pub struct AgentFile {
     pub mode: String,
-    /// `host:port` the agent listens on. Default `127.0.0.1:3100`.
+    /// `host:port` the agent listens on. Default `127.0.0.1` on [`crate::app::PORT`] (3102): 3100 is
+    /// the firewall agent's, 3101 its AI judge, and a firewall in a container may share the machine.
+    /// A file that sets one keeps it.
     #[serde(default)]
     pub listen: Option<String>,
     /// The agent's own files: session secret, box keypair, channel state. Default
@@ -126,8 +128,10 @@ fn parse_listen(raw: &str) -> Result<(String, u16), String> {
 impl AgentFile {
     /// Checked by [`parse`]; the default for a file built in code with a bad value.
     pub fn listen(&self) -> (String, u16) {
-        parse_listen(self.listen.as_deref().unwrap_or("127.0.0.1:3100"))
-            .unwrap_or_else(|_| ("127.0.0.1".to_string(), 3100))
+        let default = || ("127.0.0.1".to_string(), crate::app::PORT);
+        self.listen
+            .as_deref()
+            .map_or_else(default, |l| parse_listen(l).unwrap_or_else(|_| default()))
     }
 
     pub fn state_dir(&self, home: &Path) -> PathBuf {
@@ -162,7 +166,7 @@ mod tests {
     #[test]
     fn the_least_file_and_its_defaults() {
         let f = parse(r#"{"mode":"unmanaged"}"#).expect("parse");
-        assert_eq!(f.listen(), ("127.0.0.1".to_string(), 3100));
+        assert_eq!(f.listen(), ("127.0.0.1".to_string(), crate::app::PORT));
         assert_eq!(f.firewall_key(), None);
         assert!(f.state_dir(Path::new("/home/u")).ends_with("controlclaw"));
     }

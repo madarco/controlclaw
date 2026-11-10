@@ -605,6 +605,44 @@ async fn a_release_through_commands_is_confirmed_with_its_scope() {
 }
 
 #[tokio::test]
+async fn a_release_of_everything_also_releases_each_agent_stopped_on_its_own() {
+    let mut w = world();
+    let set = |kill: Value| -> Arc<dyn Fn() -> serde_json::Map<String, Value> + Send + Sync> {
+        Arc::new(move || {
+            let mut m = serde_json::Map::new();
+            m.insert("kill".into(), kill.clone());
+            m
+        })
+    };
+    let releases = |w: &World| -> Vec<(Value, Value)> {
+        let calls = w.calls.lock().expect("calls").clone();
+        calls
+            .iter()
+            .filter(|c| c.0 == "kill.release")
+            .map(|c| (c.1["scope"].clone(), c.1.get("vmId").cloned().unwrap_or(Value::Null)))
+            .collect()
+    };
+    // One agent stopped on its own, nothing org-wide: that agent's release, not an org one.
+    w.ctx.hooks.status = set(json!({"org": null, "agents": [{"vmId": "a1", "name": "Atlas"}]}));
+    let r = w.send("POST", "/api/kill/release", json!({})).await;
+    assert_eq!(r.body["status"], json!("applied"), "{:?}", r.body);
+    assert_eq!(releases(&w), [(json!("agent"), json!("a1"))]);
+    // Both: the org stop first (an agent's release under it starts nothing), then the agent.
+    w.calls.lock().expect("calls").clear();
+    w.ctx.hooks.status = set(json!({"org": {"at": "t"}, "agents": [{"vmId": "a1"}]}));
+    w.send("POST", "/api/kill/release", json!({"vmId": null})).await;
+    assert_eq!(
+        releases(&w),
+        [(json!("org"), Value::Null), (json!("agent"), json!("a1"))]
+    );
+    // Nothing stopped: one org release, as before.
+    w.calls.lock().expect("calls").clear();
+    w.ctx.hooks.status = set(json!({"org": null, "agents": []}));
+    w.send("POST", "/api/kill/release", json!({})).await;
+    assert_eq!(releases(&w), [(json!("org"), Value::Null)]);
+}
+
+#[tokio::test]
 async fn the_whole_list_gets_the_same_checks_as_one_rule() {
     let w = world();
     for (bad, why) in [
@@ -1164,4 +1202,224 @@ async fn agentmail_refuses_an_unknown_agent_or_an_empty_address() {
         .status,
         400
     );
+}
+
+#[tokio::test]
+async fn every_other_site_is_allow_until_the_admin_blocks_it() {
+    let w = world();
+    let effect = |r: Reply| r.body["effect"].clone();
+    assert_eq!(
+        effect(w.send("GET", "/api/egress/default", Value::Null).await),
+        json!("allow")
+    );
+    let r = w.send("PUT", "/api/egress/default", json!({"effect": "block"})).await;
+    assert_eq!((r.status, r.body["effect"].clone()), (200, json!("block")));
+    assert_eq!(*w.woken.lock().expect("woken"), 1, "the firewall syncs at once");
+    // Twice is once: one rule, after every other.
+    w.send("PUT", "/api/egress/default", json!({"effect": "block"})).await;
+    let rules = crate::plane::ControlPlane::call(
+        &*w.ctx.plane,
+        "fw",
+        crate::plane::Call {
+            method: "GET".into(),
+            path: "/api/vm-agent/egress-rules".into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .body["rules"]
+        .clone();
+    assert_eq!(
+        rules,
+        json!([{"id": "block-all", "name": "Every other site", "match_domain": "*", "effect": "block", "priority": 100000}])
+    );
+    // Not a rule in the list, and not one to change there.
+    let list = w.send("GET", "/api/egress/rules", Value::Null).await;
+    assert_eq!(list.body, json!([]));
+    for (m, path) in [
+        ("PATCH", "/api/egress/rules/block-all"),
+        ("POST", "/api/egress/rules/block-all/cycle"),
+        ("DELETE", "/api/egress/rules/block-all"),
+    ] {
+        let r = w
+            .send(m, path, if m == "PATCH" { json!({}) } else { Value::Null })
+            .await;
+        assert_eq!(r.status, 400, "{m} {path}");
+        assert!(
+            r.body["error"].as_str().is_some_and(|e| e.contains("Every other site")),
+            "{:?}",
+            r.body
+        );
+    }
+    // The whole list, written back as it was read, leaves it blocked; it cannot name or bend it.
+    let whole = w.send("GET", "/api/egress-rules", Value::Null).await.body;
+    assert_eq!(whole["rules"], json!([]));
+    let r = w
+        .send(
+            "PUT",
+            "/api/egress-rules",
+            json!({"rules": [{"match_domain": "example.com"}]}),
+        )
+        .await;
+    assert_eq!(r.status, 200, "{:?}", r.body);
+    assert_eq!(
+        effect(w.send("GET", "/api/egress/default", Value::Null).await),
+        json!("block")
+    );
+    let r = w
+        .send(
+            "PUT",
+            "/api/egress-rules",
+            json!({"rules": [{"id": "block-all", "match_domain": "*", "effect": "allow"}]}),
+        )
+        .await;
+    assert_eq!(r.status, 400, "{:?}", r.body);
+    w.send("PUT", "/api/egress/default", json!({"effect": "allow"})).await;
+    assert_eq!(
+        effect(w.send("GET", "/api/egress/default", Value::Null).await),
+        json!("allow")
+    );
+    assert_eq!(
+        w.send("PUT", "/api/egress/default", json!({"effect": "ask"}))
+            .await
+            .status,
+        400
+    );
+}
+
+#[tokio::test]
+async fn a_model_key_and_a_bot_bring_their_rules_which_cannot_be_changed() {
+    let w = bot_world();
+    w.ctx
+        .db
+        .lock()
+        .execute(
+            "INSERT INTO llm_keys (id, provider, hint, placeholder, state, created_at, updated_at)
+             VALUES ('k1', 'openrouter', '…1', 'x', 'active', 0, 0)",
+            [],
+        )
+        .expect("key");
+    // The bot list as the firewall holds it: bot ch1 on a1.
+    assert_eq!(w.send("GET", "/api/channels", Value::Null).await.status, 200);
+    assert_eq!(*w.woken.lock().expect("woken"), 1, "a new bot starts a sync");
+    w.send("GET", "/api/channels", Value::Null).await;
+    assert_eq!(*w.woken.lock().expect("woken"), 1, "the same list does not");
+    let list = w.send("GET", "/api/egress/rules", Value::Null).await.body;
+    let managed: Vec<(Value, Value, Value)> = list
+        .as_array()
+        .expect("list")
+        .iter()
+        .map(|r| (r["id"].clone(), r["managed"].clone(), r["vmId"].clone()))
+        .collect();
+    assert_eq!(
+        managed,
+        vec![
+            (
+                json!("managed:openrouter:openrouter.ai"),
+                json!("openrouter"),
+                Value::Null
+            ),
+            (
+                json!("managed:telegram:api.telegram.org:a1"),
+                json!("telegram"),
+                json!("a1")
+            ),
+        ]
+    );
+    let id = "managed:telegram:api.telegram.org:a1";
+    for (m, path) in [
+        ("PATCH", format!("/api/egress/rules/{id}")),
+        ("POST", format!("/api/egress/rules/{id}/cycle")),
+        ("DELETE", format!("/api/egress/rules/{id}")),
+    ] {
+        let body = if m == "PATCH" {
+            json!({"effect": "block"})
+        } else {
+            Value::Null
+        };
+        assert_eq!(w.send(m, &path, body).await.status, 403, "{m}");
+    }
+    // Nor written as a row through the whole list.
+    let r = w
+        .send(
+            "PUT",
+            "/api/egress-rules",
+            json!({"rules": [{"id": "managed:x", "match_domain": "evil.example"}]}),
+        )
+        .await;
+    assert_eq!(r.status, 400, "{:?}", r.body);
+}
+
+#[tokio::test]
+async fn routine_traffic_is_out_of_activity_unless_asked_or_searched() {
+    let w = world();
+    let now = crate::db::now_s() as f64;
+    let tg = |id: &str, ts: f64, more: Value| {
+        let mut r = json!({"source": "egress", "flow_id": id, "ts": now - ts, "effect": "allow", "host": "api.telegram.org",
+                           "method": "POST", "path": "/bot<redacted>/getUpdates", "vm_id": "a1", "status": 200,
+                           "rule": "Channel: Telegram", "rule_id": "managed:telegram:api.telegram.org:a1", "managed": "telegram",
+                           "swapped": ["CC-TG-1"]});
+        for (k, v) in more.as_object().expect("more") {
+            r[k] = v.clone();
+        }
+        r
+    };
+    ship(
+        &w,
+        json!([
+            tg("r1", 9.0, json!({})),
+            tg("r2", 8.0, json!({})),
+            // Failed, refused, and someone else's token: all stay.
+            tg("f1", 7.0, json!({"status": 502})),
+            tg("b1", 6.0, json!({"effect": "block"})),
+            tg("x1", 5.0, json!({"swapped": []})),
+            {"source": "egress", "flow_id": "o1", "ts": now - 4.0, "effect": "allow", "host": "api.github.com", "method": "GET", "path": "/", "vm_id": "a1"},
+        ]),
+    )
+    .await;
+    let r = w.send("GET", "/api/activity?source=network", Value::Null).await;
+    assert_eq!(r.status, 200, "{:?}", r.body);
+    assert_eq!(
+        (r.body["total"].clone(), r.body["routine"].clone()),
+        (json!(4), json!(2))
+    );
+    assert_eq!(
+        r.body["counts"]["allow"],
+        json!(3),
+        "not counted in the list's own tabs either"
+    );
+    let all = w
+        .send("GET", "/api/activity?source=network&routine=true", Value::Null)
+        .await;
+    assert_eq!(
+        (all.body["total"].clone(), all.body["routine"].clone()),
+        (json!(6), json!(0))
+    );
+    let site = w
+        .send("GET", "/api/activity?source=network&q=telegram", Value::Null)
+        .await;
+    assert_eq!(site.body["total"], json!(5), "a search for the site shows them");
+    let blocked = w
+        .send("GET", "/api/activity?source=network&verdict=block", Value::Null)
+        .await;
+    assert_eq!(
+        (blocked.body["total"].clone(), blocked.body["routine"].clone()),
+        (json!(1), json!(0)),
+        "none could show there"
+    );
+    let failed = r.body["rows"]
+        .as_array()
+        .expect("rows")
+        .iter()
+        .find(|x| x["statusCode"] == json!(502));
+    assert!(failed.is_some(), "the status shows: {:?}", r.body["rows"]);
+    // The overview still counts them.
+    let o = w.send("GET", "/api/overview?range=1h", Value::Null).await;
+    let allowed: i64 = o.body["traffic"]["points"]
+        .as_array()
+        .expect("points")
+        .iter()
+        .map(|p| p["allowed"].as_i64().unwrap_or(0))
+        .sum();
+    assert_eq!(allowed, 5);
 }

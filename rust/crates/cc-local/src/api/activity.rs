@@ -173,6 +173,10 @@ pub struct ActivityQuery {
     /// Words to find in the row's text, at most 200 characters.
     #[serde(default)]
     pub q: Option<String>,
+    /// Show routine traffic too: what the rules for model keys and bots let through with the key the
+    /// firewall put in (`ROUTINE`). Hidden when left out, unless `q` is given.
+    #[serde(default)]
+    pub routine: Option<bool>,
     /// 1 to 100; 25 when left out.
     #[serde(default)]
     pub limit: Option<i64>,
@@ -216,7 +220,14 @@ pub struct ActivityPage {
     pub counts: Counts,
     /// Rows the filter matches.
     pub total: i64,
+    /// Routine requests left out of the rows and the counts (0 when they are shown).
+    pub routine: i64,
 }
+
+/// A routine request (`cc_contracts::managed::is_routine`, decided when it came in): a model call or
+/// a bot's polling through the firewall's own rules, with the key it put in, answered without an
+/// error. The AI log review skips exactly these, so none of them can carry a finding.
+const ROUTINE: &str = "a.routine = 1";
 
 /// `?1` to `?n` for a list.
 fn marks(from: usize, n: usize) -> String {
@@ -243,7 +254,27 @@ fn list(c: &Ctx) -> Result {
             n = args.len()
         ));
     }
+    // Routine traffic is left out, unless asked for or searched for: a search is how a person looks
+    // at one site.
+    // Network only: routine requests are traffic.
+    let hide = matches!(q.source, Kind::Network) && q.routine != Some(true) && like.is_none();
     let db = c.db.lock();
+    // Counted in the pass below; out of every count and the page after it. Only an Allowed or All
+    // view could show them, so only those say how many were left out.
+    let routine: i64 = if hide && matches!(q.verdict, VerdictFilter::All | VerdictFilter::Allow) {
+        db.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM activity_raw a LEFT JOIN agents g ON g.vm_id = a.vm_id WHERE {base} AND {ROUTINE}"
+            ),
+            rusqlite::params_from_iter(args.iter()),
+            |r| r.get(0),
+        )?
+    } else {
+        0
+    };
+    if hide {
+        base.push_str(&format!(" AND NOT {ROUTINE}"));
+    }
     // The four counts in one pass.
     let case = |f| {
         format!(
@@ -277,7 +308,7 @@ fn list(c: &Ctx) -> Result {
     let w = verdict_sql(q.verdict).map(|v| format!(" AND {v}")).unwrap_or_default();
     let mut stmt = db.prepare(&format!(
         "SELECT a.id, a.occurred_at, a.source, a.status, a.summary, a.vm_id, g.name,
-                json_extract(a.record, '$.status_code'), json_extract(a.record, '$.rule')
+                COALESCE(json_extract(a.record, '$.status_code'), json_extract(a.record, '$.status')), json_extract(a.record, '$.rule')
          FROM activity_raw a LEFT JOIN agents g ON g.vm_id = a.vm_id
          WHERE {base}{w} ORDER BY a.occurred_at DESC, a.id DESC LIMIT {limit} OFFSET {offset}"
     ))?;
@@ -298,7 +329,12 @@ fn list(c: &Ctx) -> Result {
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
-    Ok(Reply::ok(&ActivityPage { rows, counts, total }))
+    Ok(Reply::ok(&ActivityPage {
+        rows,
+        counts,
+        total,
+        routine,
+    }))
 }
 
 // ---- the overview ----

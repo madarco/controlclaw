@@ -28,8 +28,13 @@ steps:
     expect:
       status: 404
       json: {error: Not found}
-  - name: never the box's own control port
+  - name: never the box's own control port (the old one)
     request: {method: POST, path: /hooks/deliver, json: {port: 3100, path: /, bodyB64: ""}, token: {signer: firewall, bind: true, claims: {purpose: hooks}}}
+    expect:
+      status: 400
+      json: {error: port must be between 8700 and 8799}
+  - name: never the box's own control port
+    request: {method: POST, path: /hooks/deliver, json: {port: 3102, path: /, bodyB64: ""}, token: {signer: firewall, bind: true, claims: {purpose: hooks}}}
     expect:
       status: 400
       json: {error: port must be between 8700 and 8799}

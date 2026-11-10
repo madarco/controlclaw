@@ -24,14 +24,14 @@ pub fn open(app_config: &crate::app::Config) -> Result<Arc<LocalControlPlane>, S
     plane
         .register_self(&app_config.box_id)
         .map_err(|e| format!("{}: {e}", path.display()))?;
-    // A new file has the rule from its first migration (`cc_local::db::BLOCK_ALL_ID`).
-    let new = db.created();
     // Every start, not only the first: a log rotated since then would leave the refusals unexplained.
-    if new || plane.only_block_all().unwrap_or(false) {
+    if plane.only_block_all().unwrap_or(false) {
         tracing::warn!(
-            "[cc-local] {}the only rule is \"{}\": every request is refused until you add rules",
-            if new { "new database: " } else { "" },
-            cc_local::plane::BLOCK_ALL_NAME
+            "[cc-local] \"Every other site\" is Block and there is no other rule: only the model keys and bots set up in the panel get through"
+        );
+    } else if db.created() {
+        tracing::info!(
+            "[cc-local] new database: every site is let through and logged; to lock it down set \"Every other site\" to Block in the panel (Internet access)"
         );
     }
     // Every client of the agent (StoreClient, ConsoleClient) answers `local:` URLs with it.
@@ -125,6 +125,9 @@ pub async fn serve(app: &Arc<App>, plane: Arc<LocalControlPlane>, commands: Comm
     super::local_pair::serve(plane.db.clone(), app.config.keys_dir.clone()).await;
     super::node_relay::serve().await;
     let admin = Admin::new(plane.db.clone(), plane, hooks, config);
+    // The bots', inboxes' and Google grants' rules from the firewall's own lists.
+    let a = admin.clone();
+    tokio::spawn(async move { a.read_managed().await });
     if let Some(t) = admin.setup_token() {
         tracing::warn!(
             "[cc-local] no admin yet: set the password with this one-time setup token (POST /api/setup): {t}"

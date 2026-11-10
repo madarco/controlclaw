@@ -247,7 +247,7 @@ impl Updates {
     }
 
     /// `applyToTarget`: a run for a batch whose code was already confirmed (update-all). No consent
-    /// check here; only the batch calls it, after claiming the box from a grant a code wrote.
+    /// check here; only the batch calls it, after claiming the box from a grant a code (or first use) wrote.
     pub async fn apply_to_target(
         self: &Arc<Self>,
         target: &AgentTarget,

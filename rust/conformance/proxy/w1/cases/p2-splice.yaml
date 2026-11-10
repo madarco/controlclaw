@@ -155,6 +155,18 @@ steps:
       records: [{effect: block, rule: non_routable_target, host: 10.0.0.2, port: 3100,
                  error: "10.0.0.2 is one of the firewall's own addresses; the firewall never connects there"}]
 ---
+name: a raw TCP tunnel to the firewall's own address is refused, on the vm-agent's port too (a standalone box)
+skip: {mitmproxy: "dialled the firewall itself before #511"}
+files:
+  rules.json: [{name: t, effect: tunnel, match_domain: 10.0.0.2, match_port: 3102, priority: 1}]
+  identities.json: [{private_ip: 10.0.0.3, vm_id: test-agent}]
+steps:
+  - raw: {connect: "10.0.0.2:3102", send: "hello"}
+    expect: {closed: true}
+  - log:
+      records: [{effect: block, rule: non_routable_target, host: 10.0.0.2, port: 3102,
+                 error: "10.0.0.2 is one of the firewall's own addresses; the firewall never connects there"}]
+---
 name: a CONNECT target that is not a host name matches no tunnel rule and is dropped
 skip: {mitmproxy: "the addon matched the raw target"}
 files:

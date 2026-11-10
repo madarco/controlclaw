@@ -36,6 +36,7 @@ async fn rig() -> Rig {
     let db = plugin_db(&dir.path().join(".openclaw"), &[call]);
     let config = Config {
         port: 0,
+        legacy_port: None,
         bind: "127.0.0.1".into(),
         keys_dir: keys.dir.clone(),
         state_dir: dir.path().join("state"),

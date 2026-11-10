@@ -30,6 +30,11 @@ export type AgentChannelBoxStatus = {
   at: string;
   /** Set while the channel's OpenClaw plugin is being installed on the box, or if that failed. */
   setup?: { state: "installing" | "failed"; message: string } | null;
+  /**
+   * WhatsApp: the linked number, as the box reports it right now. Only on a live read, never
+   * stored: the connect dialog shows it so the person knows which number to message.
+   */
+  self?: string | null;
 };
 
 export type AgentChannelChangeKind =

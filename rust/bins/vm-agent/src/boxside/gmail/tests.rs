@@ -39,6 +39,7 @@ fn the_watch_config_is_checked_before_it_reaches_a_unit_file() {
     );
     assert_eq!(bad(json!({"topic": "a=b"})), "topic may not contain a newline or an =");
     assert_eq!(bad(json!({"port": 3100})), "port must be between 8700 and 8799");
+    assert_eq!(bad(json!({"port": 3102})), "port must be between 8700 and 8799");
     assert_eq!(bad(json!({"port": 8700.5})), "port must be between 8700 and 8799");
     assert_eq!(
         GmailWatch::parse(&body({
