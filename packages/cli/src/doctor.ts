@@ -38,6 +38,7 @@ export interface Facts {
   resolveUid: number | null;
 }
 
+/** `local` last: found by its name for an old record, never offered (`verdicts`). */
 export const MODES: CaptureMode[] = [docker, host, proxy, remote, local];
 
 export async function gatherFacts(sys: Sys, opts: { user?: string; vmAgent?: string } = {}): Promise<Facts> {
@@ -94,7 +95,7 @@ export interface ModeVerdict {
 }
 
 export function verdicts(f: Facts): ModeVerdict[] {
-  return MODES.map((m) => {
+  return MODES.filter((m) => m.name !== "local").map((m) => {
     const blockers = m.blockers(f);
     return { name: m.name, ok: blockers.length === 0, protects: m.protects, blockers };
   });

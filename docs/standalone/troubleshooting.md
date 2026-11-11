@@ -4,7 +4,7 @@ Start with these two commands. They usually say what is wrong:
 
 ```bash
 controlclaw doctor          # what this machine can do, and why a mode is refused
-sudo controlclaw status     # whether the capture, the vm-agent, and the firewall's proxy and DNS are up
+controlclaw status          # whether the capture, the vm-agent, and the firewall's proxy and DNS are up
 ```
 
 If `connect` ran with `sudo`, run `status` and `disconnect` with `sudo` too.
@@ -20,8 +20,7 @@ If `connect` ran with `sudo`, run `status` and `disconnect` with `sudo` too.
 - **The firewall is down, or can't be reached.** Captured traffic then fails; it does not go around
   the firewall. `status` shows which check fails. On the firewall, look at its services:
   - install script: `systemctl status controlclaw-mitmproxy controlclaw-dns`;
-  - `install`, `up --here`: `sudo docker compose -p controlclaw-firewall logs firewall`;
-  - `up --all`: `sudo docker compose -p controlclaw-local logs firewall`.
+  - `install`, `up --here`, `up --all`: `docker compose -p controlclaw-firewall logs firewall`.
 - **The CA is not trusted yet.** Node reads the CA only when it starts, so `connect` restarts OpenClaw.
   For a systemd unit, `connect` also sets `NODE_EXTRA_CA_CERTS` for it. Under pm2 or as a plain
   process it can't. Add `NODE_EXTRA_CA_CERTS=/etc/controlclaw/ca.crt` (`~/.config/controlclaw/ca.crt`
@@ -32,7 +31,7 @@ If `connect` ran with `sudo`, run `status` and `disconnect` with `sudo` too.
 
 Host and remote mode point systemd-resolved at the firewall, and only at it. When the firewall stops,
 every program on the machine loses DNS, not only OpenClaw. Start the firewall again, or run
-`sudo controlclaw disconnect` to put the machine's DNS back.
+`sudo controlclaw disconnect` (host and remote mode run with sudo) to put the machine's DNS back.
 
 ## The capture is gone after a while (host and remote mode)
 
@@ -96,11 +95,11 @@ and undoes everything. Something on the way blocks UDP to the firewall's port 51
   with the newest token in it (use sudo for a firewall from the install script). The firewall's log
   also has it, at each start while there is no admin. Only the newest one works.
   - install script: `sudo journalctl -u controlclaw-mitm-agent | grep 'no admin yet'`
-  - `install`, `up --here`: `sudo docker compose -p controlclaw-firewall logs firewall | grep 'no admin yet'`
-  - `up --all`: `sudo docker compose -p controlclaw-local logs firewall | grep 'no admin yet'`
+  - `install`, `up --here`, `up --all`: `docker compose -p controlclaw-firewall logs firewall | grep 'no admin yet'`
 - **`install` refuses: something already listens on 127.0.0.1:8800.** Another firewall runs on this
-  machine (`install.sh`, `up --all`, `standalone/docker`). Remove it, or keep it and connect OpenClaw
-  to it. A firewall from `up --all` already has its own OpenClaw. For the others, run
+  machine (`install.sh`, `up --all` of 0.10.0 or earlier, `standalone/docker`). Remove it, or keep
+  it and connect OpenClaw to it. A firewall from such an `up --all` already has its own OpenClaw. For
+  the others, run
   `controlclaw connect --firewall http://<its address>:8801` with a code from its panel.
 - **`install` refuses rootless Docker.** Rootless Docker's networks live in a namespace of their own,
   where this machine has no address for the vm-agent. Use Docker run by root (your user in the
@@ -117,11 +116,21 @@ and undoes everything. Something on the way blocks UDP to the firewall's port 51
 OpenClaw's Codex relay listens on a random local port, which host mode's rules refuse. Use Docker
 mode for it.
 
+## A machine set up by 0.10.0 or earlier
+
+`up --all` or `up --local` of 0.10.0 or earlier ran as root, in `/opt/controlclaw-local`. Such a
+machine keeps working: `sudo controlclaw status`, `disconnect` and `uninstall` handle it, and
+`up --all` on it only runs its checks. Its firewall's logs are under `-p controlclaw-local` instead
+of `-p controlclaw-firewall`. To move to the current setup, run `sudo npx controlclaw uninstall`, then
+`npx controlclaw up --all`.
+
 ## Undo everything
 
 ```bash
-sudo controlclaw disconnect     # puts back every file and setting connect changed
+controlclaw disconnect     # puts back every file and setting connect changed
 ```
+
+Use `sudo` if `connect` ran with it.
 
 A step that fails stays recorded, so you can run `disconnect` again once you fix the cause.
 `disconnect --force` gives up such steps and lists what to check by hand.

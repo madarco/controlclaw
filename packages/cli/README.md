@@ -5,8 +5,11 @@ OpenClaw, and connects the two. After `connect`, OpenClaw's traffic goes through
 vm-agent lets the firewall manage OpenClaw's models and channels. It runs on Linux only for now.
 
 ```bash
-sudo npx controlclaw up      # a menu: pick one of the ways below
+npx controlclaw up      # a menu: pick one of the ways below
 ```
+
+Docker mode needs a user in the `docker` group (which can do what root does), or sudo. To add
+yourself: `sudo usermod -aG docker $USER`, then log in again. Host and remote mode need sudo.
 
 The three main ways:
 
@@ -32,9 +35,8 @@ The three main ways:
 | `uninstall [--purge]` | Runs `disconnect`, then removes the firewall installed here. Its data (rules, the panel's password, the CA) goes only with `--purge`. |
 | `doctor [--json]` | Shows the OS, root access, nftables, Docker, redsocks, DNS, Chrome, WireGuard and the vm-agent, and OpenClaw's CLI, version, config and how it runs. Says which modes this machine can use and how much each one protects. |
 
-Host mode and `install --host` need root (sudo). Docker mode needs a user who can use Docker, which
-means root or a member of the `docker` group. That group can do what root does. Proxy mode needs
-neither.
+Host and remote mode, `install --host` and `openclaw install --host` need root (sudo). Docker mode
+needs root or a member of the `docker` group. Proxy mode needs neither.
 
 Other ways to do each step:
 
@@ -340,9 +342,9 @@ For any OpenClaw on the machine, also on a machine without root.
 ## up
 
 ```bash
-sudo npx controlclaw up            # the menu
-sudo npx controlclaw up --all      # the firewall and a new OpenClaw here (install, openclaw install, connect)
-sudo npx controlclaw up --here     # the firewall next to the OpenClaw here (install, then connect)
+npx controlclaw up            # the menu
+npx controlclaw up --all      # the firewall and a new OpenClaw here (install, openclaw install, connect)
+npx controlclaw up --here     # the firewall next to the OpenClaw here (install, then connect)
 ```
 
 The menu has five choices:
@@ -358,15 +360,15 @@ The menu has five choices:
 Choose with the arrow keys. When stdin is not a terminal (`curl … | sh`), the menu asks for a number on
 the terminal instead. With no terminal at all, it stops and asks you to pass `--all` or `--here`.
 
-`up --all` is what `up --local` was, and `up --local` still works
+`up --local` is the older name of `up --all`
 ([details below](#up---all-up---local-the-firewall-and-openclaw-on-one-machine)).
 
 ## install
 
 ```bash
-sudo npx controlclaw install                          # this machine only
-sudo npx controlclaw install --listen 10.0.1.5        # also for OpenClaw on other machines of your network
-sudo npx controlclaw install --host                   # install.sh's systemd units instead of a container
+npx controlclaw install                              # this machine only
+npx controlclaw install --listen 10.0.1.5            # also for OpenClaw on other machines of your network
+sudo npx controlclaw install --host                  # install.sh's systemd units instead: they need root
 ```
 
 - `--docker` (the default) runs the image of this CLI's release,
@@ -398,9 +400,9 @@ sudo npx controlclaw install --host                   # install.sh's systemd uni
 ## openclaw install
 
 ```bash
-sudo npx controlclaw openclaw install                                     # in Docker, connected to the firewall here
-sudo npx controlclaw openclaw install --firewall http://10.0.1.5:8801     # asks for the code
-sudo npx controlclaw openclaw install --host
+npx controlclaw openclaw install                                     # in Docker, connected to the firewall here
+npx controlclaw openclaw install --firewall http://10.0.1.5:8801     # asks for the code
+sudo npx controlclaw openclaw install --host                         # installs Node and makes a user: needs root
 ```
 
 - `--docker` (the default) makes a Compose project like OpenClaw's own `docker-compose.yml` (one
@@ -423,7 +425,8 @@ sudo npx controlclaw openclaw install --host
 ## connect, to the firewall on this machine
 
 ```bash
-sudo npx controlclaw connect                      # npx controlclaw connect works too for docker mode
+npx controlclaw connect          # docker mode
+sudo npx controlclaw connect     # host mode: nftables rules and a system service
 ```
 
 Without `--firewall`, `connect` pairs with the firewall that `install` runs here as a container, with
@@ -447,9 +450,11 @@ OpenClaw at (docker mode: `172.31.251.10`; host mode: this machine on `outside`,
   itself (and unpairs), so the next one starts over.
 - `disconnect` puts OpenClaw back and leaves the firewall running. `uninstall` removes both.
 
-**Without sudo (docker mode).** A user who can use Docker (in the `docker` group) can run `install`,
-`connect` and `openclaw install --docker` without sudo. This saves a password prompt, not a risk,
-because the `docker` group can do what root does.
+**Without sudo (docker mode).** A user who can use Docker (in the `docker` group) can run `up`,
+`up --all`, `up --here` (OpenClaw in Docker), `install`, `openclaw install --docker`, `connect` in
+docker mode, `open`, `status`, `disconnect`, `uninstall` and `doctor` without sudo. This saves a
+password prompt, not a risk, because the `docker` group can do what root does. A machine set up with
+sudo is run with sudo afterwards.
 
 - The records, the override and the CA are in `~/.config/controlclaw/`. The vm-agent is in
   `~/.local/bin/` and runs as a systemd user service. `connect` turns on lingering (`loginctl
@@ -478,8 +483,7 @@ set OpenClaw's models, bots or MCP servers, or stop it. Nothing writes to OpenCl
 Before the vm-agent first writes to OpenClaw's config, `connect` keeps a copy of it (0600, in the
 state folder: `/etc/controlclaw/openclaw.json.before-controlclaw`). `disconnect --restore-config` puts
 the copy back (as the file's owner, never through a link) and restarts OpenClaw. `disconnect` alone
-removes the copy and keeps what the panel set. `up --all` keeps no copy, because it made that OpenClaw
-itself.
+removes the copy and keeps what the panel set.
 
 ## open
 
@@ -499,44 +503,28 @@ the end.
 ## up --all (up --local): the firewall and OpenClaw on one machine
 
 ```bash
-sudo npx controlclaw up --all
+npx controlclaw up --all
 ```
 
-It runs two containers in a Compose project, `controlclaw-local`, in `/opt/controlclaw-local`
-(`--dir` for another folder):
+It runs `install`, `openclaw install --docker` and `connect`, the same code as the three commands,
+then `open`:
 
-- **OpenClaw** (`ghcr.io/openclaw/openclaw:2026.10.9`, `--openclaw-image` for another) is only on an
-  internal network, `agents` (`172.31.251.0/24`, OpenClaw at `.10`), whose one other member is the
-  firewall (`.2`). Its proxy and DNS are the firewall's, with the CA in Node and in the system store
-  (as in docker mode). It has no other way out. The network's bridge gives this machine no address
-  either (`gateway_mode_ipv4: isolated`, so Docker 28 or newer), which keeps this machine's own
-  services out of OpenClaw's reach.
-- **The firewall** (`ghcr.io/madarco/controlclaw-firewall:<the CLI's version>`, pulled when missing;
-  `--firewall-image` for another, such as one from `standalone/docker/build.sh`) is also on
-  `outside` (`172.31.252.0/24`). Its panel (8800) and pairing (8801) listen there only, so OpenClaw
-  can't reach them. On this machine's loopback only, it publishes OpenClaw's gateway (18789, through
-  `CC_FORWARD`, because Docker publishes nothing from an internal network), its panel, pairing and
-  pages.
-- It pairs by itself:
-  - it makes a code on the firewall with OpenClaw's address on it;
-  - it pairs over the loopback;
-  - it installs the vm-agent on this machine, as root, for the container, with the firewall's key and
-    the agent's id. The vm-agent listens on this machine's side of `outside` (`172.31.252.1:3102`,
-    after Docker starts), where the firewall calls it, and takes connections from the firewall's
-    container only. OpenClaw, on `agents` only, has no route there of its own.
-- On the first run, OpenClaw is set up with a gateway token (in `.env`, 0600). At each run, its
-  Control UI's allowed origins are set to `http://127.0.0.1:18789` and `http://localhost:18789`.
-  OpenClaw sees the browser through the firewall's relay and accepts the page only from an origin it
-  is told.
-- It prints OpenClaw's address with its token, then runs `open` (the panel's address, with the
-  first-run setup token in the link). From another machine: `ssh -L 8800:127.0.0.1:8800 -L
-  18789:127.0.0.1:18789 <machine>`.
-- A new firewall allows every site and logs it. To lock it down, set **Every other site** to
-  **Block** under **Internet access**.
-- `disconnect` stops the containers (`compose down`), unpairs, and removes the vm-agent and the files
-  it wrote. OpenClaw's data (`openclaw/`, `openclaw-secrets/`) and the firewall's volume stay, and
-  `up --all` picks them up again.
-- It needs root, Docker 28 and Compose 2.24.4 or newer. The two networks' subnets must be free.
+- **The firewall:** the Compose project `controlclaw-firewall`, its files in
+  `/etc/controlclaw/firewall` (`~/.config/controlclaw/firewall` without sudo). `--firewall-image`
+  picks another image.
+- **OpenClaw:** the Compose project `openclaw`, in `/opt/openclaw` (`~/openclaw` without sudo;
+  `--dir` for another folder). `--openclaw-image` picks another image.
+- **The connection:** docker mode. OpenClaw's container joins the firewall's internal `agents`
+  network as its only network, so the firewall is its only way out. `--name` and `--vm-agent` work as
+  for `connect`.
+
+Run again, it checks what is there. After a stop half way, it goes on from there.
+
+A machine set up by `up --local` or `up --all` of 0.10.0 or earlier (as root, two containers in one
+Compose project, `controlclaw-local`, in `/opt/controlclaw-local`) keeps working.
+`sudo npx controlclaw status`, `disconnect` and `uninstall` handle it. `up --all` on it only runs its
+checks and says how to move: `sudo npx controlclaw uninstall`, then `npx controlclaw up --all`. The
+new OpenClaw starts empty; the old one's data stays in its folder.
 
 ## What disconnect does
 
@@ -567,8 +555,8 @@ it.
   it.
 - **sudo.** If OpenClaw's user can use sudo, then in host mode OpenClaw, or its agent, can remove the
   rules. `doctor` warns about it.
-- **The vm-agent runs as OpenClaw's user** in host and proxy mode, and as root for Docker (as your
-  own user after `up --here` without sudo). See
+- **The vm-agent runs as OpenClaw's user** in host and proxy mode. For Docker it runs as root, or as
+  your own user when you ran `connect` or `up` without sudo. See
   [`rust/bins/vm-agent/UNMANAGED.md`](../../rust/bins/vm-agent/UNMANAGED.md).
 - **The firewall must serve DNS** on port 53 for host and docker mode. Without it, `connect` still
   runs, but `status` shows the DNS check failing.

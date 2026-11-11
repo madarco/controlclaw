@@ -20,8 +20,11 @@ You need:
 ## 1. Start it
 
 ```bash
-sudo npx controlclaw up --here      # or: sudo npx controlclaw up, then "Protect the OpenClaw here"
+npx controlclaw up --here       # OpenClaw in Docker, as a user in the docker group
+sudo npx controlclaw up --here  # OpenClaw installed on the machine: host mode's rules need root
 ```
+
+Or run `npx controlclaw up` and choose "Protect the OpenClaw here".
 
 It runs two commands, which you can also run yourself:
 
@@ -35,9 +38,9 @@ It runs two commands, which you can also run yourself:
 
 Then it opens the firewall's panel.
 
-For an OpenClaw in Docker, you can run `npx controlclaw up --here` without sudo if your user can use
-Docker (it is in the `docker` group). This only saves the password prompt: anyone in the `docker` group
-can do what root does on the machine.
+For an OpenClaw in Docker, run it without sudo as a user in the `docker` group (to add yourself:
+`sudo usermod -aG docker $USER`, then log in again), or with sudo. Without sudo only saves the
+password prompt: anyone in the `docker` group can do what root does on the machine.
 
 On a machine with a desktop, the panel opens in your browser. Otherwise `up` prints the address, and
 the SSH tunnel that reaches it from your computer:
@@ -58,7 +61,7 @@ code with **Go to the panel**.
 ## 3. Check that it works
 
 ```bash
-sudo npx controlclaw status
+npx controlclaw status          # with sudo if you ran up --here with sudo
 ```
 
 Every line should start with ✓. Ask OpenClaw something that needs the web. The request shows in the
@@ -100,10 +103,12 @@ pairs twice.
 ## Undo it
 
 ```bash
-sudo npx controlclaw disconnect                    # OpenClaw back as it was; the firewall stays
-sudo npx controlclaw disconnect --restore-config   # also OpenClaw's config as it was before connect
-sudo npx controlclaw uninstall                     # disconnect, then the firewall (--purge: its data too)
+npx controlclaw disconnect                    # OpenClaw back as it was; the firewall stays
+npx controlclaw disconnect --restore-config   # also OpenClaw's config as it was before connect
+npx controlclaw uninstall                     # disconnect, then the firewall (--purge: its data too)
 ```
+
+Use `sudo` for these if you ran `up --here` with sudo.
 
 `disconnect` removes the capture and the vm-agent, and makes the firewall forget OpenClaw. What the
 panel set in OpenClaw (a model, a bot) stays in OpenClaw's config unless you add `--restore-config`.

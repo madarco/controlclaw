@@ -7,10 +7,11 @@ import type { Ctx } from "./capture/mode.js";
 import { disconnect, type Io, type PairNet, realNet } from "./commands.js";
 import { gatherFacts, runsText } from "./doctor.js";
 import { codeIn, composeIn, containerHealthy, dockerProblem, ensureImage, listening, pairHere, releaseImage, rootlessDocker, waitFirewall, waitFor } from "./fwcontainer.js";
-import { AGENTS_SUBNET, firewallNetworks, firewallService, FW_AGENTS_IP, FW_OUTSIDE_IP, HOST_OUTSIDE_IP, OUTSIDE_SUBNET } from "./local.js";
+import { AGENTS_SUBNET, firewallNetworks, firewallService, FW_AGENTS_IP, FW_OUTSIDE_IP, HOST_OUTSIDE_IP, local, OUTSIDE_SUBNET } from "./local.js";
 import { open as openPanel, type OpenNet, realOpenNet } from "./open.js";
 import { backupConfig } from "./openclaw-config.js";
-import { cliArgv, restartArgv, restartUser } from "./openclaw.js";
+import { cliArgv, findVmAgent, restartArgv, restartUser } from "./openclaw.js";
+import { openclawInstall } from "./openclaw-install.js";
 import { caFingerprint, unpair } from "./pair.js";
 import type { Check } from "./probe.js";
 import { cliVersion, releaseFile, vmAgentOrRelease } from "./release.js";
@@ -59,8 +60,12 @@ export interface HereNet extends PairNet {
   busy?: Listening;
 }
 
-/** The firewall's Compose file. `forwards`: the gateway's ports it publishes (connect, docker mode). */
-export function upCompose(o: { image: string; listen?: string; forwards?: ComposeInfo["ports"] }): string {
+/**
+ * The firewall's Compose file. `forwards`: the gateway's ports it publishes (connect, docker mode).
+ * `gateOnAgents`: its gates on `agents`, where a gateway in docker mode reaches them; else on
+ * `outside`, where this machine (host mode) and, through --listen, other machines do.
+ */
+export function upCompose(o: { image: string; listen?: string; forwards?: ComposeInfo["ports"]; gateOnAgents?: boolean }): string {
   const ports = o.forwards ?? [];
   // One relay per port of the gateway, however many host addresses it was published on.
   const relayed = [...new Set(ports.map((p) => p.container))];
@@ -72,8 +77,7 @@ export function upCompose(o: { image: string; listen?: string; forwards?: Compos
     ...firewallService({
       image: o.image,
       agents: true,
-      // Its gates where this machine (host mode) and, through --listen, other machines reach them.
-      gate: FW_OUTSIDE_IP,
+      gate: o.gateOnAgents ? FW_AGENTS_IP : FW_OUTSIDE_IP,
       pairAt: l ?? FW_AGENTS_IP,
       forwards: relayed.map((port) => ({ port, to: `${UP_GATEWAY_IP}:${port}` })),
       publish: [
@@ -286,7 +290,7 @@ async function afterInstall(sys: Sys, io: Io, o: InstallOpts, net: HereNet, pair
     io.out(`No pairing code yet (${code.stderr.trim() || "no answer"}): make one in the panel, Agents.`);
     return;
   }
-  io.out(`OpenClaw on another machine: sudo npx controlclaw connect --firewall http://${o.listen}:8801`);
+  io.out(`OpenClaw on another machine: npx controlclaw connect --firewall http://${o.listen}:8801 (with sudo there for host mode)`);
   io.out(`  with the pairing code ${c} (once, within 10 minutes; the panel makes more, in Agents).`);
 }
 
@@ -400,6 +404,9 @@ async function connectHereWith(sys: Sys, io: Io, o: ConnectHereOpts, net: HereNe
   const compose = composeIn(fwRec.project!, dir);
   const fwNet: FirewallNet | undefined = mode === "docker" ? { network: `${fwRec.project}_agents`, firewall: FW_AGENTS_IP, gateway: UP_GATEWAY_IP } : undefined;
   const fwIp = mode === "docker" ? FW_AGENTS_IP : FW_OUTSIDE_IP;
+  // Docker mode: the gateway is on `agents` alone, so the gates go there too. Not with --listen:
+  // other machines reach the gates through ports Docker publishes on `outside`.
+  const gateOnAgents = mode === "docker" && !fwRec.listen;
   const record: ConnectRecord = {
     version: 1,
     mode,
@@ -458,7 +465,7 @@ async function connectHereWith(sys: Sys, io: Io, o: ConnectHereOpts, net: HereNe
         // This machine's side of `outside`, where the firewall's container calls it, from its own address only.
         listen: AGENT_LISTEN,
         allowFrom: [FW_OUTSIDE_IP],
-        gate: FW_OUTSIDE_IP,
+        gate: gateOnAgents ? FW_AGENTS_IP : FW_OUTSIDE_IP,
         // A system unit only: a user's own systemd does not know Docker's.
         ...(sys.euid === 0 ? { after: "docker.service" } : {}),
       });
@@ -473,13 +480,14 @@ async function connectHereWith(sys: Sys, io: Io, o: ConnectHereOpts, net: HereNe
     const ctx: Ctx = { sys, rec, facts, install, user, firewall: record.firewall, caPem: p.paired.caPem, caPath: record.ca, log, ...(fwNet ? { firewallNet: fwNet } : {}) };
     notes.push(...(await (mode === "docker" ? docker : host).install(ctx)));
 
-    if (info?.ports.length) {
+    if (info?.ports.length || gateOnAgents) {
       // The gateway left its ports: the firewall publishes them now, relayed to it on `agents`.
-      io.out("Publishing OpenClaw's ports from the firewall");
+      if (info?.ports.length) io.out("Publishing OpenClaw's ports from the firewall");
       // Undone before the gateway is put back on its own network, which wants its ports again: the
-      // firewall comes back without them (its compose file is put back first, then this runs).
+      // firewall comes back without them, its gates where they were (its compose file is put back
+      // first, then this runs).
       rec.onUndo("give OpenClaw's ports back", [compose("up", "-d", "firewall")]);
-      await rec.file(join(dir, "compose.yaml"), upCompose({ image: fwRec.image, listen: fwRec.listen, forwards: info.ports }));
+      await rec.file(join(dir, "compose.yaml"), upCompose({ image: fwRec.image, listen: fwRec.listen, forwards: info?.ports, gateOnAgents }));
       await startFirewall(sys, compose);
     }
     if (mode === "docker") {
@@ -528,6 +536,99 @@ export async function upHere(sys: Sys, io: Io, o: InstallOpts & ConnectHereOpts,
     io.out("Next: open the panel and set it up.");
   }
   return connected;
+}
+
+export interface UpAllOpts {
+  firewallImage?: string;
+  name?: string;
+  openclawImage?: string;
+  /** OpenClaw's folder (`openclaw install --dir`). */
+  dir?: string;
+  vmAgent?: string;
+}
+
+/**
+ * `up --all` (and `up --local`): `install`, `openclaw install --docker`, then `connect`, each skipped
+ * when done already, then the panel once. Run again, it checks what is there. Without root for a user
+ * who can use Docker, as those three are.
+ */
+export async function upAll(sys: Sys, io: Io, o: UpAllOpts, net: HereNet = realNet): Promise<number> {
+  const tmp: { dir: string | null } = { dir: null };
+  try {
+    return await upAllWith(sys, io, o, net, tmp);
+  } finally {
+    if (tmp.dir) sys.remove(tmp.dir);
+  }
+}
+
+async function upAllWith(sys: Sys, io: Io, o: UpAllOpts, net: HereNet, tmp: { dir: string | null }): Promise<number> {
+  const existing = loadRecord(sys);
+  if (existing?.mode === "local") return oldLocal(sys, io, existing, net);
+  if (sys.euid !== 0 && !existing && !loadFirewall(sys) && (sys.exists(ROOT_RECORD) || sys.exists(ROOT_FIREWALL))) {
+    io.err("This machine was set up with sudo. Run: sudo npx controlclaw up --all");
+    return 1;
+  }
+  const theirs = await sudoUserRecord(sys);
+  if (theirs) {
+    io.err(`This machine was set up by ${theirs.user.name} without sudo. Run, as ${theirs.user.name}: npx controlclaw up --all`);
+    return 1;
+  }
+  if (existing && !existing.up) {
+    io.err(`This machine's OpenClaw is connected to another firewall (${existing.mode} mode, ${existing.firewall.url}). Run controlclaw disconnect first.`);
+    return 1;
+  }
+  const fwHere = loadFirewall(sys);
+  if (fwHere?.kind === "host") {
+    io.err("The firewall here was installed with install.sh, which up --all cannot pair with by itself: controlclaw openclaw install --firewall http://<its address>:8801, with a code from its panel.");
+    return 1;
+  }
+  if (!fwHere) {
+    const installed = await installFirewall(sys, io, { firewallImage: o.firewallImage, noOpen: true }, net);
+    if (installed !== 0) return installed;
+  }
+  let connected: number;
+  if (existing) {
+    connected = await connectHere(sys, io, { name: o.name, vmAgent: o.vmAgent }, net);
+  } else {
+    // Whether OpenClaw is here already (an earlier up --all that stopped before connect): the
+    // vm-agent tells, downloaded once for the look and for connect.
+    const found = await vmAgentOrRelease(await findVmAgent(sys, o.vmAgent), io);
+    if (!found) return 1;
+    tmp.dir = found.downloaded;
+    const vmAgent = found.path;
+    const facts = await gatherFacts(sys, { vmAgent });
+    if (facts.openclaw.discoverError) {
+      io.err(`The vm-agent could not look for OpenClaw here (vm-agent discover: ${facts.openclaw.discoverError}).`);
+      return 1;
+    }
+    if (facts.openclaw.install.runs.kind === "not-found") {
+      io.out("");
+      connected = await openclawInstall(sys, io, { openclawImage: o.openclawImage, dir: o.dir, name: o.name, vmAgent }, net);
+    } else {
+      io.out(`OpenClaw is on this machine already (${runsText(facts.openclaw.install.runs, facts.openclaw.user?.name ?? null)}): connecting it`);
+      connected = await connectHere(sys, io, { name: o.name, vmAgent }, net);
+    }
+  }
+  // connect again opens the panel itself, after its checks.
+  if (connected === 0 && !existing?.up) {
+    await openPanel(sys, io, net.open);
+    io.out("Next: open the panel and set it up.");
+  }
+  return connected;
+}
+
+/**
+ * A machine set up by `up --local` before 0.10.1 (`/opt/controlclaw-local`, two containers of one
+ * Compose project): it keeps running as it is. `up --all` checks it; uninstall, then `up --all`,
+ * moves it to the shape the three commands make (its data stays in its folder and volume).
+ */
+async function oldLocal(sys: Sys, io: Io, record: ConnectRecord, net: HereNet): Promise<number> {
+  io.out(`This machine was set up by up --local or up --all of 0.10.0 or earlier (since ${record.at}, in ${record.up?.dir ?? "/opt/controlclaw-local"}): checking it`);
+  const checks = await local.status(sys, record);
+  for (const c of checks) io.out(`${c.ok ? "✓" : "✗"} ${c.name}: ${c.detail}`);
+  await openPanel(sys, io, net.open);
+  io.out("It keeps working as it is. To move to the current setup: sudo npx controlclaw uninstall, then npx controlclaw up --all (a new OpenClaw: its old data stays in its folder).");
+  return checks.every((c) => c.ok) ? 0 : 1;
 }
 
 /**

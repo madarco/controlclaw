@@ -4,11 +4,14 @@
 
 # ControlClaw
 
-ControlClaw is an AI firewall and control panel for OpenClaw. It filters every request, including MCPs and OpenConnector integrations. 
-You can monitor everything and firewal rules are written in plain English. 
-Also your passwords and API keys stay on the firewall and are swapped on the the fly.
+ControlClaw is an AI firewall and control panel for [OpenClaw](https://openclaw.ai). It filters every
+request, including MCP servers and OpenConnector integrations. You can monitor everything, and you
+write firewall rules in plain English. Your passwords and API keys stay on the firewall and are swapped
+in on the fly.
 
-It can runs on a dedicated machine or in a docker container next to your OpenClaw, or run it from our managed service: [controlclaw.com](https://controlclaw.com) with multi agents team chat, GBrain and daily backups.
+It can run on a dedicated machine or in a Docker container next to your OpenClaw. Or use our managed
+service, [controlclaw.com](https://controlclaw.com), with team chat for many agents, GBrain and daily
+backups.
 
 - **AI content rules.** You write rules as sentences, such as "Don't share pay details" or "Ask me
   before pushing anything to GitHub". The firewall's AI checks what agents send and receive against
@@ -28,7 +31,7 @@ It can runs on a dedicated machine or in a docker container next to your OpenCla
 
 ## Three ways to run it
 
-Run `sudo npx controlclaw up` on the machine where the firewall goes. It shows a menu of these ways.
+Run `npx controlclaw up` on the machine where the firewall goes. It shows a menu of these ways.
 
 | | How it works | Guide |
 | --- | --- | --- |
@@ -41,14 +44,16 @@ your first rule. Before you choose a way, read [what each one protects, and what
 not](docs/standalone/protection.md).
 
 ControlClaw runs on Linux only for now (amd64 and arm64). The CLI needs Node 22 or newer. The
-containers need Docker 28 or newer with Compose 2.24.4 or newer.
+containers need Docker 28 or newer with Compose 2.24.4 or newer, and a user in the `docker` group
+(which can do what root does) or sudo. To add yourself: `sudo usermod -aG docker $USER`, then log in
+again.
 
 ## Try it in five minutes
 
 On a Linux machine with Docker, open the menu:
 
 ```bash
-sudo npx controlclaw up
+npx controlclaw up
 ```
 
 ```text
@@ -68,8 +73,8 @@ few minutes while the images download and OpenClaw starts.
 You can also run the steps one at a time:
 
 ```bash
-sudo npx controlclaw install             # the firewall, in a container
-sudo npx controlclaw openclaw install    # a new OpenClaw in Docker, connected to that firewall
+npx controlclaw install             # the firewall, in a container
+npx controlclaw openclaw install    # a new OpenClaw in Docker, connected to that firewall
 ```
 
 `openclaw install` finds the firewall that `install` started and connects to it with no code. If
@@ -85,22 +90,23 @@ such rule, so add one for its host. Then set up OpenClaw as its own docs describ
 `up` runs these commands in order. You can run each one alone, or do the same step another way.
 
 **The firewall: `controlclaw install`.** It runs the firewall in a container on this machine
-(`--docker`, the default) or as the install script's systemd units (`--host`). Add `--listen
-<private address>` to serve OpenClaw on other machines too. Other ways:
+(`--docker`, the default) or as the install script's systemd units (`--host`, with sudo). Add
+`--listen <private address>` to serve OpenClaw on other machines too. Other ways:
 [`standalone/docker/compose.yaml`](standalone/docker/compose.yaml) with `docker compose up -d`, or the
 release's `install.sh` (`--wireguard` for remote agents). See [`standalone/README.md`](standalone/README.md).
 
 **OpenClaw: `controlclaw openclaw install`.** It installs OpenClaw in Docker (`--docker`, the default,
 a Compose project like OpenClaw's own) or with OpenClaw's own installer, as a user of its own
-(`--host`). Add `--firewall <url>` to connect it to a firewall on another machine in the same run.
+(`--host`, with sudo: the installer installs Node and makes a user). Add `--firewall <url>` to
+connect it to a firewall on another machine in the same run.
 Other ways: OpenClaw's own installer or `docker-compose.yml`, then `connect`. Ansible support comes
 later, because the role needs the control plane.
 
 **The connection: `controlclaw connect`.** It installs the vm-agent and the capture for the mode:
-docker, host, proxy or remote. `--mode auto`, the default, picks docker or host. Without
-`--firewall`, it pairs with the firewall on this machine, with no code. Another way: give OpenClaw the
-[`controlclaw-connect` skill](packages/skills/controlclaw-connect/SKILL.md) and a pairing code. It
-asks you before it changes anything.
+docker, host, proxy or remote (host and remote need sudo). `--mode auto`, the default, picks docker
+or host. Without `--firewall`, it pairs with the firewall on this machine, with no code. Another
+way: give OpenClaw the [`controlclaw-connect` skill](packages/skills/controlclaw-connect/SKILL.md)
+and a pairing code. It asks you before it changes anything.
 
 **Undo.** `controlclaw disconnect` removes the connection. Add `--restore-config` to also put back
 OpenClaw's config as it was. `controlclaw uninstall` also removes the firewall, and its data only with

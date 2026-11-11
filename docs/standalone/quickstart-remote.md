@@ -7,7 +7,7 @@ You need:
 
 - **For the firewall:** a fresh Ubuntu 24.04 VM (amd64 or arm64, 2 GB of RAM is enough) with a public
   address. In its cloud firewall, open UDP 51820 and TCP 8801 to the agent's machine.
-- **For the agent's machine:** Linux with systemd, root, and Node 22 or newer. OpenClaw must be
+- **For the agent's machine:** Linux with systemd, sudo, and Node 22 or newer. OpenClaw must be
   installed and running as its own user, not root and not in the `docker` group.
 
 ## 1. Install the firewall
@@ -18,7 +18,7 @@ On the firewall VM:
 VERSION=0.9.4   # the latest: https://github.com/madarco/controlclaw/releases
 curl -fsSLO https://github.com/madarco/controlclaw/releases/download/v$VERSION/controlclaw-install-$VERSION.tar.gz
 tar xzf controlclaw-install-$VERSION.tar.gz
-sudo ./controlclaw-install-$VERSION/install.sh --version $VERSION --wireguard
+sudo ./controlclaw-install-$VERSION/install.sh --version $VERSION --wireguard   # systemd units and WireGuard need root
 ```
 
 The script checks the release's signature, installs the firewall, and prints what it set up. Its last
@@ -45,15 +45,15 @@ panel**. You make the code in the next step, once the agent's machine is ready.
 On the agent's machine, install the CLI:
 
 ```bash
-sudo npm i -g controlclaw
-sudo controlclaw doctor
+sudo npm i -g controlclaw     # into the system's Node
+sudo controlclaw doctor       # as root, so it can check remote mode
 ```
 
 `doctor` should show `✓ remote`. In the panel, go to **Agents**, **Connect an agent**, **Make a
 pairing code**. The panel shows a command with `--mode host`. For this setup, use `--mode remote`:
 
 ```bash
-sudo controlclaw connect --mode remote --firewall http://<firewall address>:8801
+sudo controlclaw connect --mode remote --firewall http://<firewall address>:8801   # WireGuard and nftables need root
 ```
 
 It asks for the code and does not show it as you type. Then it:
@@ -66,7 +66,7 @@ It asks for the code and does not show it as you type. Then it:
 ## 4. Check that it works
 
 ```bash
-sudo controlclaw status
+sudo controlclaw status       # with sudo, as connect ran
 ```
 
 Every line should start with ✓. Then ask OpenClaw something that needs the web. The request shows in

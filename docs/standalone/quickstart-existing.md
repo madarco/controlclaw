@@ -26,8 +26,9 @@ You need:
 - **For the firewall:** a fresh Ubuntu 24.04 machine (amd64 or arm64, 2 GB of RAM is enough) with an
   address on the private network, such as `192.168.1.20` or `10.0.1.2`. That address must not be
   reachable from the internet.
-- **For OpenClaw's machine:** Linux with systemd and Node 22 or newer, on the same network. Docker and
-  host mode need root.
+- **For OpenClaw's machine:** Linux with systemd and Node 22 or newer, on the same network. Docker
+  mode needs a user in the `docker` group (which can do what root does) or sudo. Host mode needs
+  sudo.
 
 ## 1. Install the firewall
 
@@ -35,7 +36,7 @@ On the firewall's machine (it needs Docker 28 or newer and Node 22 or newer), gi
 machine's private address. This example uses `10.0.1.2`:
 
 ```bash
-sudo npx controlclaw install --listen 10.0.1.2
+npx controlclaw install --listen 10.0.1.2     # as a user in the docker group, or with sudo
 ```
 
 The firewall runs in a container. Its proxy (8080), DNS (53), pairing (8801) and gates (3900, 3940)
@@ -53,7 +54,7 @@ You can also download and run that script yourself:
 VERSION=0.9.4   # the latest: https://github.com/madarco/controlclaw/releases
 curl -fsSLO https://github.com/madarco/controlclaw/releases/download/v$VERSION/controlclaw-install-$VERSION.tar.gz
 tar xzf controlclaw-install-$VERSION.tar.gz
-sudo ./controlclaw-install-$VERSION/install.sh --version $VERSION --listen 10.0.1.2
+sudo ./controlclaw-install-$VERSION/install.sh --version $VERSION --listen 10.0.1.2   # installs systemd units
 ```
 
 ## 2. Set up the panel
@@ -68,8 +69,8 @@ first run](quickstart-panel.md): the setup token, a password, and the firewall's
 On OpenClaw's machine:
 
 ```bash
-sudo npm i -g controlclaw
-sudo controlclaw doctor     # without sudo, it marks the modes that need root as blocked
+sudo npm i -g controlclaw   # sudo to install into the system's Node; npx controlclaw works too
+controlclaw doctor          # without sudo, it marks the modes that need root as blocked
 ```
 
 Before the first `connect`, `doctor` can only guess, because it has no vm-agent yet to look with. It may
@@ -80,19 +81,20 @@ Use the code `install` printed, or make one in the panel under **Agents**, **Con
 **Make a pairing code**. Then run this. It asks for the code and does not show it as you type:
 
 ```bash
-sudo controlclaw connect --firewall http://10.0.1.2:8801
+controlclaw connect --firewall http://10.0.1.2:8801        # docker mode, as a user in the docker group
+sudo controlclaw connect --firewall http://10.0.1.2:8801   # host mode: nftables rules and a system service
 ```
 
 `--mode auto`, the default, picks docker for an OpenClaw in Docker Compose and host for one installed
 on the machine. To choose, add `--mode docker`, `--mode host` or `--mode proxy`. Run proxy mode as
-OpenClaw's own user, or with `sudo` when OpenClaw runs as a system-wide service. A user in the
-`docker` group can run docker mode without sudo.
+OpenClaw's own user, or with `sudo` when OpenClaw runs as a system-wide service.
 
 `connect` downloads the vm-agent, pairs, installs the CA and the capture, and restarts OpenClaw.
 
-No OpenClaw on that machine yet? `sudo npx controlclaw openclaw install --firewall
-http://10.0.1.2:8801` installs one (in Docker, or with OpenClaw's own installer when you add `--host`)
-and connects it in the same run.
+No OpenClaw on that machine yet? `npx controlclaw openclaw install --firewall
+http://10.0.1.2:8801` installs one in Docker and connects it in the same run. With `--host` it uses
+OpenClaw's own installer, which needs sudo: it installs Node and build tools, and makes a user for
+OpenClaw.
 
 With the firewall on another machine, the firewall sees OpenClaw's traffic and applies your rules,
 but it cannot call OpenClaw's machine. So Telegram and Slack bots, models, MCP servers, secrets and
@@ -108,7 +110,7 @@ asks you before it changes anything.
 ## 4. Check that it works
 
 ```bash
-sudo controlclaw status        # without sudo if you ran connect in proxy mode without it
+controlclaw status        # with sudo if you ran connect with sudo
 ```
 
 Every line should start with ✓. Ask OpenClaw something that needs the web. The request shows in the
@@ -122,8 +124,10 @@ of its own for the provider's host.
 ## Undo it
 
 ```bash
-sudo controlclaw disconnect               # on OpenClaw's machine (--restore-config: its config as it was too)
-sudo npx controlclaw uninstall --purge    # on the firewall (without --purge its data stays)
+controlclaw disconnect               # on OpenClaw's machine (--restore-config: its config as it was too)
+npx controlclaw uninstall --purge    # on the firewall (without --purge its data stays)
 ```
+
+On each machine, use `sudo` if you set it up with sudo.
 
 When something fails: [troubleshooting.md](troubleshooting.md).

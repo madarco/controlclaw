@@ -13,15 +13,15 @@ Then open <http://localhost:8800>.
 
 The panel first asks for a one-time setup token. On the firewall's machine, `controlclaw open` gives
 the panel's link with the token in it, and the panel fills it in. For a firewall installed with
-`install.sh`, run it with `sudo`. `up` and `install` show the same link when they finish.
+`install.sh`, run it with `sudo`, because the token is in the system journal. `up` and `install` show
+the same link when they finish.
 
 The token is also in the firewall's log, which writes a new one at each start until there is an
 admin:
 
 ```bash
-sudo journalctl -u controlclaw-mitm-agent | grep 'no admin yet'                     # install.sh
-sudo docker compose -p controlclaw-firewall logs firewall | grep 'no admin yet'    # install, up --here
-sudo docker compose -p controlclaw-local logs firewall | grep 'no admin yet'       # up --all
+sudo journalctl -u controlclaw-mitm-agent | grep 'no admin yet'               # install.sh (the system journal)
+docker compose -p controlclaw-firewall logs firewall | grep 'no admin yet'    # install, up --here, up --all
 ```
 
 Only the newest token works.

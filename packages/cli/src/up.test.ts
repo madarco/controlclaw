@@ -13,7 +13,7 @@ import { open, type OpenNet } from "./open.js";
 import { hmacHex, normalizeCode, type Post, REQUEST_TAG, RESPONSE_TAG } from "./pair.js";
 import { loadFirewall, loadRecord } from "./state.js";
 import type { FakeSys } from "./sys.js";
-import { connectHere, type HereNet, installFirewall, uninstall, UP_GATEWAY_IP, upCompose, upHere } from "./up.js";
+import { connectHere, type HereNet, installFirewall, uninstall, upAll, UP_GATEWAY_IP, upCompose, upHere } from "./up.js";
 
 function io(): Io & { lines: string[] } {
   const lines: string[] = [];
@@ -128,7 +128,7 @@ test("install: starts the firewall, opens the panel and prints a code for other 
   const text = o.lines.join("\n");
   assert.match(text, /Firewall panel: http:\/\/127.0.0.1:8800\/#setup=beef22/, "the newest token only");
   assert.match(text, /OpenClaw on this machine: sudo npx controlclaw connect \(it pairs by itself\)/);
-  assert.match(text, /sudo npx controlclaw connect --firewall http:\/\/10.0.1.5:8801\n  with the pairing code 4F7K-92QD-XM3P/);
+  assert.match(text, /npx controlclaw connect --firewall http:\/\/10.0.1.5:8801 \(with sudo there for host mode\)\n  with the pairing code 4F7K-92QD-XM3P/);
   assert.equal(loadRecord(sys), null, "installed, not connected");
 
   // Again, another way: refused, nothing changed.
@@ -240,6 +240,95 @@ test("up --here: install, then connect, then the panel once; uninstall takes bot
   assert.match(u.lines.join("\n"), /The firewall's data stays/);
   assert.ok(!sys.ran().some((l) => l.startsWith("docker volume rm")));
   assert.deepEqual([...sys.files.keys()].sort(), [...before.keys()].sort());
+});
+
+/** A machine with Docker and no OpenClaw, until `openclaw install` starts one (then as upMachine's). */
+function bareDocker(dir?: string): FakeSys {
+  const sys = upMachine("docker", dir);
+  const none: [string, Partial<{ stdout: string }>][] = [
+    ["/opt/vm-agent discover", { stdout: '{"cli":null,"version":null,"config_file":null,"state_dir":null,"runs":{"kind":"not-found"},"gateway_port":18789}' }],
+    ["ps -eo", { stdout: "    0     1 /sbin/init\n" }],
+  ];
+  sys.answers.unshift(...none);
+  const run = sys.run.bind(sys);
+  sys.run = async (argv, opts) => {
+    const r = await run(argv, opts);
+    if (argv.join(" ").endsWith("up -d openclaw-gateway")) sys.answers = sys.answers.filter((a) => !none.includes(a));
+    return r;
+  };
+  return sys;
+}
+
+test("up --all: install, openclaw install, connect in docker mode, then the panel once; again, it only checks", async () => {
+  const sys = bareDocker();
+  const before = new Map(sys.files);
+  const fw = firewall(UP_GATEWAY_IP);
+  const o = io();
+  assert.equal(await run(["up", "--all", "--firewall-image", IMAGE, "--vm-agent", "/opt/vm-agent"], o, sys, noTerminal, fw.net), 0, o.lines.join("\n"));
+  const text = o.lines.join("\n");
+  const ran = sys.ran();
+  const at = (x: string) => ran.findIndex((l) => l.includes(x));
+  assert.ok(at(`${FW} up -d firewall`) >= 0);
+  assert.ok(at("-f /opt/openclaw/compose.yaml up -d openclaw-gateway") > at(`${FW} up -d firewall`));
+  assert.ok(at("pair-code --name openclaw") > at("up -d openclaw-gateway"));
+  assert.match(text, /Control UI: http:\/\/127.0.0.1:18789\/#token=[0-9a-f]{48}/);
+  assert.match(text, /Connected in docker mode/);
+  assert.equal(text.match(/Firewall panel:/g)?.length, 1, "the panel once, at the end");
+  assert.ok(text.indexOf("Connected in docker mode") < text.indexOf("Firewall panel:"));
+  assert.equal(loadFirewall(sys)?.kind, "docker");
+  assert.equal(loadRecord(sys)?.mode, "docker");
+  const agent = JSON.parse(sys.files.get("/etc/controlclaw/agent.json")!);
+  assert.equal(agent.openclaw.container, "openclaw-openclaw-gateway-1");
+  // The gateway is on `agents` alone: the gates are there too.
+  assert.equal(agent.firewall.gate, "172.31.251.2");
+  assert.match(sys.files.get("/etc/controlclaw/firewall/compose.yaml")!, /CONNECTOR_GATE_BIND: "172.31.251.2"/);
+
+  // Again: nothing installed twice, the checks.
+  sys.calls = [];
+  const o2 = io();
+  assert.equal(await upAll(sys, o2, { vmAgent: "/opt/vm-agent" }, fw.net), 0, o2.lines.join("\n"));
+  assert.match(o2.lines.join("\n"), /^Already connected to the firewall on this machine \(docker mode/);
+  assert.equal(o2.lines.join("\n").match(/Firewall panel:/g)?.length, 1);
+  assert.ok(!sys.ran().some((l) => l.includes("pair-code") || l.includes("onboard")));
+
+  const u = io();
+  assert.equal(await uninstall(sys, u, {}, fw.net.post), 0, u.lines.join("\n"));
+  // OpenClaw's own folder stays, as openclaw install leaves it.
+  assert.deepEqual([...sys.files.keys()].filter((k) => !k.startsWith("/opt/openclaw")).sort(), [...before.keys()].sort());
+});
+
+test("up --all without sudo: everything in the user's folders, the vm-agent a user service; a stop half way is picked up", async () => {
+  const sys = bareDocker("/home/claw/.config/controlclaw/firewall");
+  sys.euid = 1001;
+  sys.env.HOME = "/home/claw";
+  const fw = firewall(UP_GATEWAY_IP);
+  // connect fails once (the firewall's pairing is down): OpenClaw stays installed.
+  const down = { ...fw.net, post: async () => ({ status: 503, json: { error: "down" } }) };
+  const o = io();
+  assert.equal(await upAll(sys, o, { vmAgent: "/opt/vm-agent", firewallImage: IMAGE }, down), 1, o.lines.join("\n"));
+  assert.ok(sys.files.has("/home/claw/openclaw/compose.yaml"));
+  assert.equal(loadRecord(sys), null);
+  sys.calls = [];
+  const o2 = io();
+  assert.equal(await upAll(sys, o2, { vmAgent: "/opt/vm-agent" }, fw.net), 0, o2.lines.join("\n"));
+  assert.match(o2.lines.join("\n"), /OpenClaw is on this machine already \(Docker container openclaw-openclaw-gateway-1\): connecting it/);
+  assert.ok(!sys.ran().some((l) => l.includes("onboard")), "not set up twice");
+  assert.ok(sys.files.has("/home/claw/.config/controlclaw/connect.json"));
+  assert.ok(sys.ran().includes("systemctl --user enable --now controlclaw-agent.service"));
+  assert.ok(!sys.ran().some((l) => l.startsWith("sudo ")));
+
+  // Connected to a firewall elsewhere, or one install.sh runs here: refused before anything is installed.
+  const remote = bareDocker();
+  remote.files.set("/etc/controlclaw/connect.json", JSON.stringify({ version: 1, mode: "remote", at: "x", user: null, firewall: { url: "http://10.0.0.2:8801/", proxy: "", dns: "" }, steps: [] }));
+  const o3 = io();
+  assert.equal(await upAll(remote, o3, { vmAgent: "/opt/vm-agent", firewallImage: IMAGE }, fw.net), 1);
+  assert.match(o3.lines.join("\n"), /connected to another firewall \(remote mode/);
+  const hostFw = bareDocker();
+  hostFw.files.set("/etc/controlclaw/firewall.json", JSON.stringify({ version: 1, kind: "host", at: "x", image: "0.10.0", steps: [] }));
+  const o4 = io();
+  assert.equal(await upAll(hostFw, o4, { vmAgent: "/opt/vm-agent" }, fw.net), 1);
+  assert.match(o4.lines.join("\n"), /installed with install.sh/);
+  for (const m of [remote, hostFw]) assert.ok(!m.ran().some((l) => l.includes(" up -d ") || l.includes("docker pull")));
 });
 
 test("connect here: refused with no firewall here, no OpenClaw, rootless Docker, a busy panel port, or a gateway that can get out", async () => {

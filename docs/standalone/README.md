@@ -1,5 +1,8 @@
 # ControlClaw firewall docs
 
+Docker mode needs a user in the `docker` group (which can do what root does), or sudo. To add
+yourself: `sudo usermod -aG docker $USER`, then log in again. Host and remote mode need sudo.
+
 ## Start here
 
 | Page | Read it for |

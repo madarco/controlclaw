@@ -1,11 +1,10 @@
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 import { connect, disconnect, doctor, type Io, realNet, status } from "./commands.js";
-import { up } from "./local.js";
 import { type Ask, terminalAsk } from "./menu.js";
 import { open } from "./open.js";
 import { openclawInstall } from "./openclaw-install.js";
-import { connectHere, type HereNet, installFirewall, uninstall, upHere } from "./up.js";
+import { connectHere, type HereNet, installFirewall, uninstall, upAll, upHere } from "./up.js";
 import { realSys, type Sys } from "./sys.js";
 
 declare const __CC_CLI_VERSION__: string;
@@ -163,7 +162,7 @@ export async function run(argv: string[], io: Io, sys: Sys = realSys(), ask: Ask
         io.err("up --all starts its own OpenClaw in Docker: leave out --mode.");
         return 2;
       }
-      return up(sys, io, { firewallImage: s("firewall-image"), openclawImage: s("openclaw-image"), dir: s("dir"), name: s("name"), vmAgent: s("vm-agent") }, net, net.open);
+      return upAll(sys, io, { firewallImage: s("firewall-image"), openclawImage: s("openclaw-image"), dir: s("dir"), name: s("name"), vmAgent: s("vm-agent") }, net);
     }
     case "disconnect":
       return disconnect(sys, io, { force: b("force"), restoreConfig: b("restore-config") }, net.post);
@@ -204,7 +203,7 @@ async function upMenu(sys: Sys, io: Io, ask: Ask, net: HereNet, o: { firewallIma
   };
   switch (UP_CHOICES[at]!.id) {
     case "all":
-      return up(sys, io, { firewallImage: o.firewallImage, name: o.name, vmAgent: o.vmAgent }, net, net.open);
+      return upAll(sys, io, o, net);
     case "here":
       return upHere(sys, io, o, net);
     case "firewall": {
