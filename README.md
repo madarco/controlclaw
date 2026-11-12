@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/assets/hero.png" alt="ControlClaw: the AI firewall for OpenClaw. AI content rules, AI log review, password swap, human approvals, secrets off the agent, MCP manager, email rules, complete logs. Three ways to run it." width="100%">
+  <img src=".github/assets/hero.png" alt="ControlClaw: the AI firewall for OpenClaw. Open source, AGPL-3.0. AI content rules, AI log review, password swap, human approvals, secrets off the agent, MCP manager, email rules, complete logs. Run it with npx controlclaw up." width="100%">
 </p>
 
 # ControlClaw
