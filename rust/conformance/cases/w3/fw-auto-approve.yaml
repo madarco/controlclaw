@@ -1,0 +1,97 @@
+name: firewall autoapprove.* commands and the 3940 gate's /permission (Auto approve rules on the firewall)
+agent: mitm-agent
+skip: {ts: "Auto approve rules are kept on the firewall from the Rust builds on; the TS firewall leaves them to the console"}
+env:
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  AUTO_APPROVE_PATH: state/autoapprove-rules.enc
+  PENDING_PATH: run/pending.jsonl
+  APPS_RULES_PATH: state/apps-rules.enc
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+ports:
+  tools: CONTROLPLANE_MCP_GATE_PORT
+console:
+  /api/vm-agent/store: [[200, {"alg":"AES-256-GCM","version":3,"salt":"EOAs1CQu5G+TauJ9Vr3rGA==","payload_box":{"nonce":"+YiBQEkV9gqfkwgw","ct":"toh5QvWD2tHplOMcVi5LEyTJNqDVg2yQAC3yP2PzhmN/dDr4VEHKJCrZH0NUbhKCWq+n03F7/zBfXmQhL/I5fO/g9oxQ//o3TP22BpXh6fHOb+I9EQ9ccKbcrpuz033jnKRoBJK1gl+bSNB4wmdTDxcXKgTmipHxDMjKdYdvJtvP4RoccSCUlAypqz/82MiBfie16MA3xrcCHuk5TLQiAVrhFrfa71xTfag3f1W0v+Jv25/eX8dxWL+yp+b8S+VBCvkutcgUmEFEB8WRhu1GcR0EOtkrlLRuHN75RCr6GHc2butnGlo6TpLGHwI2xU3nst2tMgjNCVJD5fk="},"payload_user":{"nonce":"uHdb9w+WFDr6ReZl","ct":"8awnwLeJby/fhRhIdpdAxo0bLvmeiWrsTWcuG5ClyDWxayDvypjnRUOikEtTb8XULqUpnso45CY/0ot4wYiZa5IsTgbe3FlIgEOTbrUhsIhebDmIucGYc2+aHbtIAYs/6EB7RptVjLiU0cPBCNTkfxHMKChdtSv0K1KPs26vVJt/2Bw+hQZTjDVojYtoXGFUk5NclU/RZ7LycCGKqlOOh/NF7OCrM7phbH/C+IULFttOGjde/b9CKst4vCG9bv+e01scbHxrVZfWHxRZXJVS7LaBt7jQT4GJj43nrHssCyWo09QCvyJBSyD+1YE2ZbYKA/I2IB2KbAoQMxI="}}]]
+  /api/vm-agent/webhooks: [[200, {hooks: []}]]
+  /api/vm-agent/identities: [[200, {identities: [{vm_id: vm_1, hostname: "127.0.0.2", name: atlas, private_ip: 127.0.0.1}]}]]
+  /api/vm-agent/egress-rules:
+    - [200, {rules: [], ai: null, auto_approve: {app_names: {github: GitHub}, seed: [
+        {id: git, name: Allow git status, kinds: [exec], title_like: git status, title_match: contains, vm_id: vm_1, effect: allow, enabled: true},
+        {id: rm, name: Block rm, kinds: [], title_like: rm -rf, title_match: null, vm_id: null, effect: block, enabled: true}]}}]
+  /api/vm-agent/permission: [[200, {ok: true, status: pending}]]
+steps:
+  - name: the console's rules seed the store on the first sync, and the beat says so
+    beat:
+      json_subset: {auto_approve: {rules: 2, ask: 0}}
+  - name: the rules, read from the firewall
+    command:
+      id: a1
+      action: autoapprove.read
+      result: {command_id: a1, ok: true, status: read, data: {rules: [{id: git, effect: allow}, {id: rm, effect: block}]}}
+  - name: a change that lets nothing more through applies at once
+    command:
+      id: a2
+      action: autoapprove.propose
+      payload: {changeId: c1, change: {op: put, rule: {id: curl, name: Ask about curl, kinds: [exec], title_like: curl, effect: ask}}}
+      result: {command_id: a2, ok: true, status: applied, data: {rules: [{id: git}, {id: rm}, {id: curl}]}}
+  - name: nobody can be asked, so a change that lets more through applies too (tofu)
+    command:
+      id: a3
+      action: autoapprove.propose
+      payload: {changeId: c2, change: {op: put, rule: {id: plugins, name: Allow plugin actions, kinds: [plugin], effect: allow}}}
+      result: {command_id: a3, ok: true, status: applied, data: {rules: [{id: git}, {id: rm}, {id: curl}, {id: plugins}], tofu: true}}
+  - name: a malformed change
+    command:
+      id: a4
+      action: autoapprove.propose
+      payload: {changeId: c3, change: {op: put, rule: {id: x, name: x, effect: maybe}}}
+      result: {command_id: a4, ok: false, status: failed,
+               message: "The Auto approve rules change could not be applied. Check the input, then retry."}
+  - name: confirm with nothing waiting
+    command:
+      id: a5
+      action: autoapprove.confirm
+      payload: {changeId: c9, code: "123456"}
+      result: {command_id: a5, ok: false, status: expired, message: "", data: {}}
+  - name: cancel
+    command:
+      id: a6
+      action: autoapprove.cancel
+      payload: {changeId: c9}
+      result: {command_id: a6, ok: true, status: cancelled, data: {changeId: c9}}
+  - name: an agent's shell command a rule allows is answered on the firewall
+    request: {method: POST, path: /permission, port: tools, json: {permission_id: "oc:1", kind: exec, title: git status --short}}
+    expect: {status: 200, json: {ok: true, status: approved}}
+  - name: and reported to the console afterwards, with the rule
+    received:
+      - path: /api/vm-agent/permission
+        method: POST
+        json_subset: {permission_id: "oc:1", kind: exec, agent_vm_id: vm_1, decided: {effect: allow, rule_id: git, rule_name: Allow git status}}
+  - name: an ask goes to the console with the rule that asked
+    request: {method: POST, path: /permission, port: tools, json: {permission_id: "oc:2", kind: exec, title: curl example.org, agent_vm_id: someone-else}}
+    expect: {status: 200, json: {ok: true, status: pending}}
+    received:
+      - path: /api/vm-agent/permission
+        method: POST
+        json_subset: {permission_id: "oc:2", agent_vm_id: vm_1, checked: {rule_id: curl, rule_name: Ask about curl}}
+  - name: a meeting ask is not the gate's
+    request: {method: POST, path: /permission, port: tools, json: {permission_id: "m:1", kind: meeting_request, title: x}}
+    expect: {status: 403, headers: {x-cc-gate: "1"}}
+  - name: a settle without the agent's own token is refused (OpenClaw at the agent's address has none)
+    request: {method: POST, path: /permission, port: tools, json: {permission_id: "oc:2", resolution: approved}}
+    expect: {status: 403, headers: {x-cc-gate: "1"}}
+  - name: the agent's settle goes on with its token, as the agent's own call
+    request: {method: POST, path: /permission, port: tools, headers: {x-cc-agent-token: the-agents-token}, json: {permission_id: "oc:2", resolution: denied, agent_vm_id: other}}
+    expect: {status: 200, headers: {x-cc-gate: "1"}}
+    received:
+      - path: /api/vm-agent/permission
+        method: POST
+        json_subset: {permission_id: "oc:2", resolution: denied}
+  - name: the rules are kept across a restart, and a later seed is not taken
+    restart: true
+    console:
+      /api/vm-agent/egress-rules: [[200, {rules: [], ai: null, auto_approve: {app_names: {}, seed: [{id: other, name: Other, effect: allow}]}}]]
+    command:
+      id: a7
+      action: autoapprove.read
+      result: {command_id: a7, ok: true, status: read, data: {rules: [{id: git}, {id: rm}, {id: curl}, {id: plugins}]}}

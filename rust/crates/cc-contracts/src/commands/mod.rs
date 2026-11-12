@@ -15,6 +15,7 @@ use crate::Extra;
 pub mod agentmail;
 pub mod ai;
 pub mod apps;
+pub mod autoapprove;
 pub mod channels;
 pub mod connectors;
 pub mod drive;
@@ -150,6 +151,10 @@ actions! {
     "auto-update.confirm" => SaasOnly,
     "auto-update.disable" => SaasOnly,
     "auto-update.propose" => SaasOnly,
+    "autoapprove.cancel" => Both(ChangeRef),
+    "autoapprove.confirm" => Both(Confirm),
+    "autoapprove.propose" => Both(autoapprove::Propose),
+    "autoapprove.read" => Both(Empty),
     "backup.firewall-restore" => SaasOnly,
     "backup.firewall-restore.cancel" => SaasOnly,
     "backup.firewall-restore.confirm" => SaasOnly,

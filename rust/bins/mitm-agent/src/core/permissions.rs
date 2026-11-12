@@ -3,7 +3,7 @@
 //! reads, so the retried request passes and the secret is swapped in.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use serde_json::{Map, Value, json};
 
@@ -15,6 +15,9 @@ use super::sync::js_truthy;
 pub const EMAIL_GRANT_SECONDS: u64 = 30 * 60;
 /// An app call's approval is kept as long as the gate waits for its retry.
 const APP_GRANT_SECONDS: u64 = 24 * 3600;
+
+/// How many of this firewall's own asks keep their Auto approve decision in memory.
+const DECIDED_MAX: usize = 10_000;
 
 /// One call a person approves: an app action (`APP …`) or an MCP tool call (`MCP …`, `call_asks`).
 fn call_ask(scope: &str) -> bool {
@@ -50,7 +53,17 @@ struct State {
     granted_once: HashSet<String>,
     /// Revoked email approvals the console has not been told about yet.
     revoked_unsent: Vec<String>,
+    /// What the Auto approve rules said about each of this firewall's own asks, decided once.
+    decided: HashMap<String, (cc_contracts::auto_approve::Decision, String)>,
+    /// `decided`'s ids, oldest first.
+    decided_order: std::collections::VecDeque<String>,
+    /// Decisions made here that the console has not taken yet, with when to give up (epoch s).
+    reports: Vec<(Value, u64)>,
 }
+
+/// How long a decision made here is offered to the console before it is dropped: the agent already
+/// has its answer, only the console's count and log miss it.
+const REPORT_FOR_SECONDS: u64 = 600;
 
 pub struct PermissionBridge {
     pub grants: Arc<GrantStore>,
@@ -59,6 +72,8 @@ pub struct PermissionBridge {
     ttl_seconds: u64,
     client: super::store_client::StoreClient,
     state: Mutex<State>,
+    /// The Auto approve rules and this firewall's own vm id, once the core started.
+    auto: OnceLock<(Arc<super::auto_approve::AutoApproveFirewall>, Option<String>)>,
 }
 
 impl PermissionBridge {
@@ -76,7 +91,132 @@ impl PermissionBridge {
             ttl_seconds,
             client,
             state: Mutex::new(State::default()),
+            auto: OnceLock::new(),
         }
+    }
+
+    /// The Auto approve rules, checked on this firewall's own asks; `own_vm` is what the rules for
+    /// its website and email asks name.
+    pub fn with_auto(&self, rules: Arc<super::auto_approve::AutoApproveFirewall>, own_vm: Option<String>) {
+        let _ = self.auto.set((rules, own_vm));
+    }
+
+    /// A JSON POST to the control plane's permission endpoint: the status and the body (`null` when
+    /// it is not JSON).
+    pub async fn post_json(&self, body: &Value) -> Result<(u16, Value), String> {
+        let (status, text) = self.client.post_text(&self.url, body).await?;
+        Ok((status, serde_json::from_str(&text).unwrap_or(Value::Null)))
+    }
+
+    /// A POST made as an agent, with its own box token (a settle carried for it).
+    pub async fn post_as(&self, body: &Value, agent_token: &str) -> Result<(u16, Value), String> {
+        let (status, text) = self.client.post_as(&self.url, body, agent_token).await?;
+        Ok((status, serde_json::from_str(&text).unwrap_or(Value::Null)))
+    }
+
+    /// A GET with `query` (no leading `?`).
+    pub async fn get_json(&self, query: &str) -> Result<(u16, Value), String> {
+        let (status, text) = self.client.get_text(&format!("{}?{query}", self.url)).await?;
+        Ok((status, serde_json::from_str(&text).unwrap_or(Value::Null)))
+    }
+
+    /// A decision made here, for the console's count and log: offered on every tick until it is
+    /// taken, refused for good, or ten minutes passed.
+    pub fn report(&self, body: Value) {
+        let mut st = self.st();
+        if st.reports.len() < 1000 {
+            st.reports.push((body, now_s() + REPORT_FOR_SECONDS));
+        } else {
+            tracing::warn!("[perm] too many decisions waiting for the console; one was dropped");
+        }
+    }
+
+    async fn send_reports(&self) {
+        let now = now_s();
+        let due = {
+            let mut st = self.st();
+            st.reports.retain(|(_, until)| *until > now);
+            st.reports.clone()
+        };
+        for (body, until) in due {
+            let done = match self.post(&body).await {
+                Ok(s) if (200..300).contains(&s) => true,
+                Ok(s) if s != 429 && (400..500).contains(&s) => {
+                    tracing::error!("[perm] ControlClaw refused a decision made here: HTTP {s}");
+                    true
+                }
+                _ => false,
+            };
+            if done {
+                let pid = body.get("permission_id").cloned();
+                self.st()
+                    .reports
+                    .retain(|(b, u)| !(b.get("permission_id") == pid.as_ref() && *u == until));
+            }
+        }
+    }
+
+    /// What an approval writes for the proxy: a grant as long as its kind of ask is good for.
+    fn grant_approved(&self, pid: &str, scope: &str, now: u64) {
+        let ttl = if scope.starts_with("EMAIL ") {
+            EMAIL_GRANT_SECONDS
+        } else if call_ask(scope) {
+            APP_GRANT_SECONDS
+        } else {
+            self.ttl_seconds
+        };
+        self.grants.set(pid, now + ttl, scope, false);
+        if once(scope) {
+            self.st().granted_once.insert(pid.to_string());
+        }
+    }
+
+    /// The Auto approve rules on one of this firewall's own asks, decided once per id: an Allow is
+    /// granted here, a Block is not. The raise then carries `decided` or `checked`.
+    fn decide_own(&self, pid: &str, rec: &Map<String, Value>, body: &mut Map<String, Value>) {
+        let Some((rules, own_vm)) = self.auto.get() else { return };
+        let known = self.st().decided.get(pid).cloned();
+        let (d, _) = match known {
+            Some(k) => k,
+            None => {
+                let kind = body.get("kind").and_then(Value::as_str).unwrap_or("access");
+                // An app call is the agent's; a website or email ask matches the firewall that raised it.
+                let vm = if kind == "app_call" {
+                    rec.get("vm_id").and_then(Value::as_str).map(str::to_string)
+                } else {
+                    own_vm.clone()
+                };
+                let Some(k) = rules.decide(&Value::Object(body.clone()), vm.as_deref()) else {
+                    return;
+                };
+                let scope = rec
+                    .get("scope")
+                    .filter(|s| !s.is_null())
+                    .map(|s| js_string(Some(s)))
+                    .unwrap_or_default();
+                match k.0.effect {
+                    cc_contracts::auto_approve::Effect::Allow => self.grant_approved(pid, &scope, now_s()),
+                    cc_contracts::auto_approve::Effect::Block => self.grants.delete(pid),
+                    cc_contracts::auto_approve::Effect::Ask => {}
+                }
+                if k.0.effect != cc_contracts::auto_approve::Effect::Ask {
+                    tracing::info!("[perm] {pid}: {} by an Auto approve rule", k.0.effect.as_str());
+                }
+                let mut st = self.st();
+                // Kept as long as the ask can come back from `pending.jsonl`; a bounded number, the
+                // oldest dropped (an id seen again is decided again, by the same rules).
+                if st.decided.len() >= DECIDED_MAX
+                    && let Some(old) = st.decided_order.pop_front()
+                {
+                    st.decided.remove(&old);
+                }
+                st.decided.insert(pid.to_string(), k.clone());
+                st.decided_order.push_back(pid.to_string());
+                drop(st);
+                k
+            }
+        };
+        super::auto_approve::mark(body, &d);
     }
 
     fn st(&self) -> std::sync::MutexGuard<'_, State> {
@@ -87,6 +227,7 @@ impl PermissionBridge {
         self.drain_pending().await;
         self.poll_grants().await;
         self.send_revoked().await;
+        self.send_reports().await;
     }
 
     /// `revokeEmail`: end the email approvals whose scope matches (the email rules took that
@@ -170,7 +311,12 @@ impl PermissionBridge {
                 }
                 st.meta.entry(pid.clone()).or_insert_with(|| rec.clone());
             }
-            match self.post(&request_body(&rec)).await {
+            let mut body = match request_body(&rec) {
+                Value::Object(o) => o,
+                _ => Map::new(),
+            };
+            self.decide_own(&pid, &rec, &mut body);
+            match self.post(&Value::Object(body)).await {
                 Ok(s) if (200..300).contains(&s) => {}
                 Ok(s) => {
                     // Said, never dropped quietly: the person would wait for a card that never came.
@@ -222,17 +368,7 @@ impl PermissionBridge {
                         .filter(|s| !s.is_null())
                         .map(|s| js_string(Some(s)))
                         .unwrap_or_default();
-                    let ttl = if scope.starts_with("EMAIL ") {
-                        EMAIL_GRANT_SECONDS
-                    } else if call_ask(&scope) {
-                        APP_GRANT_SECONDS
-                    } else {
-                        self.ttl_seconds
-                    };
-                    self.grants.set(&pid, now + ttl, &scope, false);
-                    if once(&scope) {
-                        self.st().granted_once.insert(pid.clone());
-                    }
+                    self.grant_approved(&pid, &scope, now);
                     tracing::info!("[perm] granted {pid}");
                 }
                 Some("denied") | Some("expired") => self.grants.delete(&pid),
@@ -299,7 +435,7 @@ fn request_body(rec: &Map<String, Value>) -> Value {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -313,11 +449,21 @@ mod tests {
         assert_eq!(encode_uri_component("a b/é*"), "a%20b%2F%C3%A9*");
     }
 
-    async fn console(
+    pub(crate) async fn console(
         answer: impl Fn(&str, Value) -> (u16, Value) + Send + Sync + 'static,
     ) -> (String, Arc<Mutex<Vec<Value>>>) {
+        let (url, seen, _) = console_with_auth(answer).await;
+        (url, seen)
+    }
+
+    /// [`console`], with each POST's `authorization` header as well.
+    pub(crate) async fn console_with_auth(
+        answer: impl Fn(&str, Value) -> (u16, Value) + Send + Sync + 'static,
+    ) -> (String, Arc<Mutex<Vec<Value>>>, Arc<Mutex<Vec<String>>>) {
         let seen = Arc::new(Mutex::new(Vec::new()));
+        let auths = Arc::new(Mutex::new(Vec::new()));
         let s = seen.clone();
+        let au = auths.clone();
         let answer = Arc::new(answer);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let addr = listener.local_addr().expect("addr");
@@ -327,6 +473,7 @@ mod tests {
             |_, _| true,
             move |req, _| {
                 let s = s.clone();
+                let au = au.clone();
                 let answer = answer.clone();
                 async move {
                     use http_body_util::BodyExt;
@@ -335,6 +482,13 @@ mod tests {
                     let body: Value = serde_json::from_slice(&raw).unwrap_or(Value::Null);
                     if parts.method == http::Method::POST {
                         s.lock().expect("lock").push(body.clone());
+                        let a = parts
+                            .headers
+                            .get(http::header::AUTHORIZATION)
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or("")
+                            .to_string();
+                        au.lock().expect("lock").push(a);
                     }
                     let (status, out) = answer(parts.method.as_str(), body);
                     cc_http::json(status, &out)
@@ -342,10 +496,10 @@ mod tests {
             },
         );
         tokio::spawn(cc_http::serve(listener, Arc::new(router)));
-        (format!("http://{addr}/api/vm-agent/permission"), seen)
+        (format!("http://{addr}/api/vm-agent/permission"), seen, auths)
     }
 
-    fn bridge(dir: &std::path::Path, url: &str, grants: Arc<GrantStore>) -> PermissionBridge {
+    pub(crate) fn bridge(dir: &std::path::Path, url: &str, grants: Arc<GrantStore>) -> PermissionBridge {
         cc_testkit::BoxKeys::write(&dir.join("keys"), "fw_1", "fw.example").expect("keys");
         PermissionBridge::new(
             grants,

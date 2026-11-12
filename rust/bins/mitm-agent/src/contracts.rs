@@ -403,6 +403,22 @@ pub trait PermissionGrants: Send + Sync {
     fn consume(&self, permission_id: &str);
 }
 
+/// OpenClaw's own approvals, which an agent's vm-agent sends to the 3940 gate (`/permission`).
+/// Provided by W3 (`core::auto_approve`); used by the tools gate, which has already told the agent
+/// by its source address. Answers are `(HTTP status, JSON body)`, as the control plane's.
+pub trait AgentPermissions: Send + Sync {
+    /// False until a control plane sent the Auto approve rules (an older one does not): the gate
+    /// answers 404 and the agent asks its control plane itself.
+    fn active(&self) -> bool;
+    /// A raise: the rules answer Allow or Block here; Ask goes to the control plane.
+    fn raise(&self, vm_id: &str, body: Value) -> BoxFuture<(u16, Value)>;
+    /// `GET ?permission_id=`, forwarded for the agent.
+    fn status(&self, vm_id: &str, permission_id: &str) -> BoxFuture<(u16, Value)>;
+    /// A request the agent settled itself, forwarded with the agent's own box token (`token`), so the
+    /// control plane checks the agent, not this firewall.
+    fn settle(&self, vm_id: &str, body: Value, token: &str) -> BoxFuture<(u16, Value)>;
+}
+
 /// What the integration checks need from the content rules (`GateAppContent` in
 /// `connector-gate.ts`, channel `apps`). Provided by W4; used by the connector gate, the MCP server
 /// gate and the MCP checks (W5).
@@ -647,6 +663,7 @@ pub struct Contracts {
     pub agents: Slot<dyn AgentClient>,
     pub emergency_stop: Slot<dyn EmergencyStop>,
     pub grants: Slot<dyn PermissionGrants>,
+    pub agent_permissions: Slot<dyn AgentPermissions>,
     pub app_content: Slot<dyn AppContent>,
     pub judge: Slot<dyn IntegrationJudge>,
     pub mcp_grants: Slot<dyn McpGrants>,
@@ -675,6 +692,7 @@ impl Default for Contracts {
             agents: Slot::new("AgentClient"),
             emergency_stop: Slot::new("EmergencyStop"),
             grants: Slot::new("PermissionGrants"),
+            agent_permissions: Slot::new("AgentPermissions"),
             app_content: Slot::new("AppContent"),
             judge: Slot::new("IntegrationJudge"),
             mcp_grants: Slot::new("McpGrants"),

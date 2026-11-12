@@ -43,8 +43,10 @@ Next, [set up the panel](docs/standalone/quickstart-panel.md): the password, an 
 your first rule. Before you choose a way, read [what each one protects, and what it does
 not](docs/standalone/protection.md).
 
-ControlClaw runs on Linux only for now (amd64 and arm64). The CLI needs Node 22 or newer. The
-containers need Docker 28 or newer with Compose 2.24.4 or newer, and a user in the `docker` group
+The firewall runs in Docker on Linux and macOS (amd64 and arm64). OpenClaw's side needs Linux with
+systemd for now: `connect`, which `up --all` and `up --here` also run, installs the vm-agent, and it is
+built for Linux only. The CLI needs Node 22 or newer.
+The containers need Docker 28 or newer with Compose 2.24.4 or newer, and a user in the `docker` group
 (which can do what root does) or sudo. To add yourself: `sudo usermod -aG docker $USER`, then log in
 again.
 

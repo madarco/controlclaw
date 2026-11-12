@@ -1,10 +1,15 @@
 //! Bridges OpenClaw's own approvals (exec, plugin, system-agent) into the ControlClaw queue
 //! (`approvals.ts`).
 //!
-//! `<family>.approval.requested` → `POST /api/vm-agent/permission` (the control plane runs the org's
-//! rules); approved or denied at once → `approval.resolve`; pending → asked again every few seconds;
-//! `<family>.approval.resolved` (answered in OpenClaw, cancelled, expired) → the resolution is posted
-//! so the console's card clears. Decisions sent to the gateway are `allow-once` or `deny` only.
+//! `<family>.approval.requested` → `POST /permission` on the firewall's 3940 gate, which checks the
+//! Auto approve rules and passes an Ask on to the control plane; approved or denied at once →
+//! `approval.resolve`; pending → asked again every few seconds; `<family>.approval.resolved`
+//! (answered in OpenClaw, cancelled, expired) → the resolution is posted so the console's card
+//! clears. Decisions sent to the gateway are `allow-once` or `deny` only.
+//!
+//! A firewall that does not check the rules yet answers the gate with 404: the approval then goes to
+//! the control plane's `/api/vm-agent/permission` as before (it runs the rules itself), and so does
+//! every new one for [`GATE_OFF_MS`]. Each approval is asked about and settled where it was raised.
 //!
 //! What leaves the box: the command line (redacted, control characters stripped, cut at 200), cwd,
 //! agent id, session key, host and OpenClaw's risk flags. Never environment, output or chat text.
@@ -22,6 +27,10 @@ use super::time::iso_ms;
 /// Event families → ControlClaw kinds. `openclaw.*` is OpenClaw's name for system-agent approvals.
 pub const FAMILIES: [(&str, &str); 3] = [("exec", "exec"), ("plugin", "plugin"), ("openclaw", "system")];
 pub const TITLE_MAX: usize = 200;
+/// How long a gate that answered 404 is left alone before it is tried again.
+pub const GATE_OFF_MS: i64 = 10 * 60_000;
+/// The firewall's gate for its agents (`tools_gate.rs` in the mitm-agent).
+pub const GATE_PORT: u16 = 3940;
 
 // Control characters and ANSI escape sequences: a command line is untrusted text.
 static CONTROL: LazyLock<Regex> =
@@ -140,13 +149,40 @@ pub fn resolution_of(p: &Value) -> &'static str {
     "expired"
 }
 
+/// Where an approval was raised: the firewall's gate, or the control plane itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Via {
+    Gate,
+    Console,
+}
+
+/// What a permission endpoint answered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Answer {
+    /// It took the call; the request's status word.
+    Status(String),
+    /// 404: a firewall that does not take approvals at its gate.
+    Missing,
+    /// Not reached, or refused: asked again on the next tick.
+    Failed,
+}
+
+impl Answer {
+    fn status(self) -> Option<String> {
+        match self {
+            Answer::Status(s) => Some(s),
+            _ => None,
+        }
+    }
+}
+
 struct Tracked {
     kind: &'static str,
     approval_kind: String,
     payload: Value,
     expires_at: Option<f64>,
-    /// False until the control plane took the POST; a tick raises it again meanwhile.
-    raised: bool,
+    /// None until the gate or the control plane took the POST; a tick raises it again meanwhile.
+    via: Option<Via>,
     /// The gateway or the console decided; nothing more to do.
     done: bool,
     /// This bridge sent the decision, so the echoed `resolved` event is not news.
@@ -155,18 +191,24 @@ struct Tracked {
 
 /// A gateway method with its params.
 pub type GatewayCall = Box<dyn Fn(&str, Value) -> cc_http::BoxFuture<Result<Value, String>> + Send + Sync>;
-/// `POST` a body; Some(status word) when the control plane took it.
-pub type PermissionPost = Box<dyn Fn(Value) -> cc_http::BoxFuture<Option<String>> + Send + Sync>;
-/// `GET ?permission_id=`; Some(status word) when it answered.
-pub type PermissionGet = Box<dyn Fn(String) -> cc_http::BoxFuture<Option<String>> + Send + Sync>;
+/// `POST` a body.
+pub type PermissionPost = Box<dyn Fn(Value) -> cc_http::BoxFuture<Answer> + Send + Sync>;
+/// `GET ?permission_id=`.
+pub type PermissionGet = Box<dyn Fn(String) -> cc_http::BoxFuture<Answer> + Send + Sync>;
+
+/// One place approvals are raised: the same calls on the gate and on the control plane.
+pub struct Endpoint {
+    pub post: PermissionPost,
+    pub get: PermissionGet,
+}
 
 /// What the bridge needs from the box.
 pub struct ApprovalsOptions {
     pub call: GatewayCall,
-    /// `POST` the body; Some(status word) when the control plane took it.
-    pub post: PermissionPost,
-    /// `GET ?permission_id=`; Some(status word) when it answered.
-    pub get_status: PermissionGet,
+    /// The firewall's gate; none on a box with no firewall.
+    pub gate: Option<Endpoint>,
+    /// The control plane; none on an unmanaged box, which has only its firewall.
+    pub console: Option<Endpoint>,
     pub redact: Box<dyn Fn(&str) -> String + Send + Sync>,
     pub log: Box<dyn Fn(&str) + Send + Sync>,
     pub now: Box<dyn Fn() -> i64 + Send + Sync>,
@@ -177,6 +219,8 @@ pub struct ApprovalsBridge {
     /// By approval id, in the order seen (a JS `Map`).
     tracked: Mutex<Vec<(String, Tracked)>>,
     in_flight: AtomicBool,
+    /// Until when (ms) the gate is not tried, after it answered 404.
+    gate_off_until: Mutex<i64>,
 }
 
 impl ApprovalsBridge {
@@ -185,6 +229,7 @@ impl ApprovalsBridge {
             o,
             tracked: Mutex::new(Vec::new()),
             in_flight: AtomicBool::new(false),
+            gate_off_until: Mutex::new(0),
         }
     }
 
@@ -304,7 +349,7 @@ impl ApprovalsBridge {
                     approval_kind,
                     payload: p.clone(),
                     expires_at: p.get("expiresAtMs").and_then(Value::as_f64),
-                    raised: false,
+                    via: None,
                     done: false,
                     resolved_by_us: false,
                 },
@@ -313,12 +358,41 @@ impl ApprovalsBridge {
         self.raise(id).await;
     }
 
-    /// POST the approval to the control plane; a tick tries again when it fails.
+    fn endpoint(&self, via: Via) -> Option<&Endpoint> {
+        match via {
+            Via::Gate => self.o.gate.as_ref(),
+            Via::Console => self.o.console.as_ref(),
+        }
+    }
+
+    /// POST the body to the gate, else (none, or 404 lately) to the control plane. Where it was
+    /// taken and the status; None when nobody took it (a tick tries again).
+    async fn post_new(&self, body: Value) -> Option<(Via, String)> {
+        let now = (self.o.now)();
+        if let Some(gate) = &self.o.gate
+            && now >= *lock(&self.gate_off_until)
+        {
+            match (gate.post)(body.clone()).await {
+                Answer::Status(s) => return Some((Via::Gate, s)),
+                // A firewall that does not check the rules yet: the control plane, for a while.
+                Answer::Missing => {
+                    *lock(&self.gate_off_until) = now + GATE_OFF_MS;
+                    self.log("the firewall does not take approvals yet: asking ControlClaw");
+                }
+                // An emergency stop, or the firewall not reached: never around it.
+                Answer::Failed => return None,
+            }
+        }
+        let console = self.o.console.as_ref()?;
+        (console.post)(body).await.status().map(|s| (Via::Console, s))
+    }
+
+    /// Raise the approval; a tick tries again when it fails.
     async fn raise(&self, id: &str) {
         let redact = |s: &str| (self.o.redact)(s);
         let Some(body) = self
             .with(id, |t| {
-                (!t.raised && !t.done).then(|| {
+                (t.via.is_none() && !t.done).then(|| {
                     json!({
                         "permission_id": format!("oc:{id}"),
                         "kind": t.kind,
@@ -333,14 +407,21 @@ impl ApprovalsBridge {
         else {
             return;
         };
-        let Some(status) = (self.o.post)(body).await else {
+        let Some((via, status)) = self.post_new(body).await else {
             return;
         };
         let kind = self.with(id, |t| {
-            t.raised = true;
+            t.via = Some(via);
             t.kind
         });
-        self.log(&format!("raised {} approval {id} → {status}", kind.unwrap_or_default()));
+        let to = match via {
+            Via::Gate => "the firewall",
+            Via::Console => "ControlClaw",
+        };
+        self.log(&format!(
+            "raised {} approval {id} with {to} → {status}",
+            kind.unwrap_or_default()
+        ));
         self.apply_status(id, &status).await;
     }
 
@@ -375,10 +456,10 @@ impl ApprovalsBridge {
             .retain(|(_, t)| !t.done || t.expires_at.is_some_and(|e| e != 0.0 && now <= e + 3_600_000.0));
         let ids: Vec<String> = lock(&self.tracked).iter().map(|(i, _)| i.clone()).collect();
         for id in ids {
-            let Some((done, raised, expired)) = self.with(&id, |t| {
+            let Some((done, via, expired)) = self.with(&id, |t| {
                 (
                     t.done,
-                    t.raised,
+                    t.via,
                     t.expires_at.is_some_and(|e| e != 0.0 && now > e + 60_000.0),
                 )
             }) else {
@@ -390,17 +471,23 @@ impl ApprovalsBridge {
             if expired {
                 // OpenClaw gave up and the event was missed. Clear the card.
                 self.with(&id, |t| t.done = true);
-                if raised {
+                if via.is_some() {
                     self.post_resolution(&id, "expired").await;
                 }
                 continue;
             }
-            if !raised {
+            let Some(ep) = via.and_then(|v| self.endpoint(v)) else {
                 self.raise(&id).await;
                 continue;
-            }
-            if let Some(status) = (self.o.get_status)(format!("oc:{id}")).await {
-                self.apply_status(&id, &status).await;
+            };
+            match (ep.get)(format!("oc:{id}")).await {
+                Answer::Status(status) => self.apply_status(&id, &status).await,
+                // The firewall stopped taking approvals (rolled back, or its rules could not be
+                // read): raised again, which asks the control plane when the gate still says no.
+                Answer::Missing if via == Some(Via::Gate) => {
+                    self.with(&id, |t| t.via = None);
+                }
+                _ => {}
             }
         }
     }
@@ -437,15 +524,65 @@ impl ApprovalsBridge {
     }
 
     async fn post_resolution(&self, id: &str, resolution: &str) {
-        // The console never saw one that was not raised.
-        if self.with(id, |t| t.raised) != Some(true) {
+        // Told where it was raised; nobody saw one that was not.
+        let Some(ep) = self.with(id, |t| t.via).flatten().and_then(|v| self.endpoint(v)) else {
             return;
-        }
-        let _ = (self.o.post)(
+        };
+        let _ = (ep.post)(
             json!({ "permission_id": format!("oc:{id}"), "resolution": resolution, "resolved_by": "openclaw" }),
         )
         .await;
     }
+}
+
+/// The bridge, run against a gateway client: each approval event as it comes, a reconcile on every
+/// connect and after events were lost (a lagged channel), and a tick every `every`. The tasks, so a
+/// caller that sets it up again can stop them.
+pub fn run_bridge(
+    bridge: Arc<ApprovalsBridge>,
+    client: &cc_openclaw::GatewayClient,
+    every: std::time::Duration,
+) -> Vec<tokio::task::JoinHandle<()>> {
+    let mut events = client.events();
+    let b = bridge.clone();
+    let on_events = tokio::spawn(async move {
+        loop {
+            match events.recv().await {
+                Ok(ev) if ev.event.contains(".approval.") => {
+                    let b = b.clone();
+                    tokio::spawn(async move { b.on_event(&ev.event, &ev.payload).await });
+                }
+                Ok(_) => {}
+                // Events were dropped: what is pending on the gateway is listed again.
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => b.reconcile().await,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+            }
+        }
+    });
+    let mut connected = client.connection_state();
+    let b = bridge.clone();
+    let on_connect = tokio::spawn(async move {
+        loop {
+            if *connected.borrow_and_update() {
+                b.reconcile().await;
+            }
+            if connected.changed().await.is_err() {
+                return;
+            }
+        }
+    });
+    let ticks = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(every);
+        tick.tick().await;
+        loop {
+            tick.tick().await;
+            let b = bridge.clone();
+            if tokio::spawn(async move { b.tick().await }).await.is_err() {
+                tracing::error!("[approvals] tick failed");
+            }
+        }
+    });
+    vec![on_events, on_connect, ticks]
 }
 
 /// The real control-plane calls: `<base>/api/vm-agent/permission` with the box's token, 20 s.
@@ -454,13 +591,15 @@ pub fn permission_calls(
     keys: cc_auth::keys::KeysDir,
     http: cc_client::HttpClient,
     log: Arc<dyn Fn(&str) + Send + Sync>,
-) -> (PermissionPost, PermissionGet) {
+) -> Endpoint {
     let url = format!("{base}/api/vm-agent/permission");
     let (u1, k1, h1) = (url.clone(), keys.clone(), http.clone());
     let post = Box::new(move |body: Value| {
         let (url, keys, http, log) = (u1.clone(), k1.clone(), h1.get(), log.clone());
         Box::pin(async move {
-            let token = cc_auth::sign::box_token(&keys).ok()?;
+            let Ok(token) = cc_auth::sign::box_token(&keys) else {
+                return Answer::Failed;
+            };
             let res = http
                 .post(url)
                 .bearer_auth(token)
@@ -469,46 +608,139 @@ pub fn permission_calls(
                 .timeout(super::metrics::SHIP_TIMEOUT)
                 .send()
                 .await;
-            let res = match res {
-                Ok(r) => r,
-                Err(e) => {
-                    log(&format!("[approvals] POST failed: {}", e.without_url()));
-                    return None;
-                }
-            };
-            if !res.status().is_success() {
-                log(&format!("[approvals] POST failed: HTTP {}", res.status().as_u16()));
-                return None;
-            }
-            let out: Value = res.json().await.ok()?;
-            Some(
-                out.get("status")
-                    .and_then(Value::as_str)
-                    .unwrap_or("pending")
-                    .to_string(),
-            )
-        }) as cc_http::BoxFuture<Option<String>>
+            answer(res, &*log, "POST").await
+        }) as cc_http::BoxFuture<Answer>
     });
     let get = Box::new(move |permission_id: String| {
         let (url, keys, http) = (url.clone(), keys.clone(), http.get());
         Box::pin(async move {
-            let token = cc_auth::sign::box_token(&keys).ok()?;
+            let Ok(token) = cc_auth::sign::box_token(&keys) else {
+                return Answer::Failed;
+            };
             let res = http
                 .get(url)
                 .query(&[("permission_id", permission_id)])
                 .bearer_auth(token)
                 .timeout(super::metrics::SHIP_TIMEOUT)
                 .send()
-                .await
-                .ok()?;
-            if !res.status().is_success() {
-                return None;
-            }
-            let body: Value = res.json().await.ok()?;
-            body.get("status").and_then(Value::as_str).map(str::to_string)
-        }) as cc_http::BoxFuture<Option<String>>
+                .await;
+            answer(res, &|_| {}, "GET").await
+        }) as cc_http::BoxFuture<Answer>
     });
-    (post, get)
+    Endpoint { post, get }
+}
+
+/// The firewall's gate: `http://<firewall>:3940/permission`, plain HTTP on the private network with
+/// no token (the gate knows the agent by its address). `firewall` is read at every call, so an
+/// address written after start-up is used; none answers [`Answer::Missing`], as an old firewall.
+/// The agent's own box token, which a settle sent to the gate carries (the gate refuses one without
+/// it). None when the agent cannot sign: the settle is not sent, and the card runs out.
+pub type AgentToken = Arc<dyn Fn() -> Option<String> + Send + Sync>;
+
+pub fn gate_calls(
+    firewall: Arc<dyn Fn() -> Option<String> + Send + Sync>,
+    token: AgentToken,
+    http: cc_client::HttpClient,
+    log: Arc<dyn Fn(&str) + Send + Sync>,
+) -> Endpoint {
+    let url = move |f: &Arc<dyn Fn() -> Option<String> + Send + Sync>| {
+        f().map(|ip| format!("http://{ip}:{GATE_PORT}/permission"))
+    };
+    let (f1, h1) = (firewall.clone(), http.clone());
+    let post = Box::new(move |body: Value| {
+        let (url, http, log) = (url(&f1), h1.get(), log.clone());
+        let settle = body.get("resolution").is_some();
+        let signed = if settle { token() } else { None };
+        Box::pin(async move {
+            let Some(url) = url else { return Answer::Missing };
+            let mut req = http
+                .post(url)
+                .header("content-type", "application/json")
+                .body(body.to_string())
+                .timeout(super::metrics::SHIP_TIMEOUT);
+            if settle {
+                let Some(t) = signed else {
+                    log("[approvals] cannot sign a settle for the firewall: not sent");
+                    return Answer::Failed;
+                };
+                req = req.header(GATE_AGENT_TOKEN, t);
+            }
+            gate_answer(req.send().await, &*log, "gate POST").await
+        }) as cc_http::BoxFuture<Answer>
+    });
+    let get = Box::new(move |permission_id: String| {
+        let (url, http) = (url(&firewall), http.get());
+        Box::pin(async move {
+            let Some(url) = url else { return Answer::Missing };
+            let res = http
+                .get(url)
+                .query(&[("permission_id", permission_id)])
+                .timeout(super::metrics::SHIP_TIMEOUT)
+                .send()
+                .await;
+            gate_answer(res, &|_| {}, "gate GET").await
+        }) as cc_http::BoxFuture<Answer>
+    });
+    Endpoint { post, get }
+}
+
+/// The gate's headers (`tools_gate.rs` in the firewall agent).
+const GATE_HEADER: &str = "x-cc-gate";
+const GATE_OFF_HEADER: &str = "x-cc-auto-approve";
+const GATE_AGENT_TOKEN: &str = "x-cc-agent-token";
+
+/// The gate's answer. A 404 is "ask the control plane" only from a firewall that does not answer
+/// approvals (no `x-cc-gate`: an older one) or says it does not check the rules yet (`x-cc-auto-approve:
+/// off`). Any other 404, and a 503 while it starts, are tried again: the firewall is never gone around.
+async fn gate_answer(
+    res: Result<reqwest::Response, reqwest::Error>,
+    log: &(dyn Fn(&str) + Send + Sync),
+    what: &str,
+) -> Answer {
+    if let Ok(r) = &res
+        && r.status().as_u16() == 404
+    {
+        let h = r.headers();
+        let ours = h.get(GATE_HEADER).is_some();
+        let off = h.get(GATE_OFF_HEADER).is_some_and(|v| v.as_bytes() == b"off");
+        if ours && !off {
+            log(&format!("[approvals] {what}: the firewall answered 404"));
+            return Answer::Failed;
+        }
+        return Answer::Missing;
+    }
+    answer(res, log, what).await
+}
+
+async fn answer(
+    res: Result<reqwest::Response, reqwest::Error>,
+    log: &(dyn Fn(&str) + Send + Sync),
+    what: &str,
+) -> Answer {
+    let res = match res {
+        Ok(r) => r,
+        Err(e) => {
+            log(&format!("[approvals] {what} failed: {}", e.without_url()));
+            return Answer::Failed;
+        }
+    };
+    let status = res.status().as_u16();
+    if status == 404 {
+        return Answer::Missing;
+    }
+    if !res.status().is_success() {
+        log(&format!("[approvals] {what} failed: HTTP {status}"));
+        return Answer::Failed;
+    }
+    match res.json::<Value>().await {
+        Ok(out) => Answer::Status(
+            out.get("status")
+                .and_then(Value::as_str)
+                .unwrap_or("pending")
+                .to_string(),
+        ),
+        Err(_) => Answer::Failed,
+    }
 }
 
 #[cfg(test)]
@@ -563,38 +795,82 @@ mod tests {
     struct Rig {
         bridge: ApprovalsBridge,
         calls: Arc<Mutex<Vec<(String, Value)>>>,
+        /// What the control plane was sent.
         posts: Arc<Mutex<Vec<Value>>>,
+        /// What the gate was sent.
+        gate_posts: Arc<Mutex<Vec<Value>>>,
         answer: Arc<Mutex<Option<String>>>,
+        gate_answer: Arc<Mutex<Option<String>>>,
+        gets: Arc<Mutex<Vec<(Via, String)>>>,
+        now: Arc<Mutex<i64>>,
     }
 
-    fn rig(post_status: Option<&'static str>) -> Rig {
+    fn status(s: Option<&str>) -> Answer {
+        s.map_or(Answer::Failed, |s| Answer::Status(s.to_string()))
+    }
+
+    /// `post_status`: what the control plane says to a POST (None: not reached). `gate`: none for a
+    /// box with no firewall gate; `Some(None)` a gate that answers 404; `Some(Some(Answer))` one that
+    /// answers so. `console`: false on an unmanaged box.
+    fn rig_with(post_status: Option<&'static str>, gate: Option<Option<Answer>>, console: bool) -> Rig {
         let calls = Arc::new(Mutex::new(Vec::new()));
         let posts = Arc::new(Mutex::new(Vec::new()));
+        let gate_posts = Arc::new(Mutex::new(Vec::new()));
         let answer = Arc::new(Mutex::new(None::<String>));
-        let (c, p, a) = (calls.clone(), posts.clone(), answer.clone());
+        let gate_answer = Arc::new(Mutex::new(None::<String>));
+        let gets = Arc::new(Mutex::new(Vec::new()));
+        let now = Arc::new(Mutex::new(1_000_000_i64));
+        let (c, p, a, g) = (calls.clone(), posts.clone(), answer.clone(), gets.clone());
+        let console = console.then(|| Endpoint {
+            post: Box::new(move |body| {
+                lock(&p).push(body);
+                Box::pin(async move { status(post_status) })
+            }),
+            get: Box::new(move |id| {
+                lock(&g).push((Via::Console, id));
+                let s = lock(&a).clone();
+                Box::pin(async move { status(s.as_deref()) })
+            }),
+        });
+        let (gp, ga, g2) = (gate_posts.clone(), gate_answer.clone(), gets.clone());
+        let gate = gate.map(|on_post| Endpoint {
+            post: Box::new(move |body| {
+                lock(&gp).push(body);
+                let a = on_post.clone().unwrap_or(Answer::Missing);
+                Box::pin(async move { a })
+            }),
+            get: Box::new(move |id| {
+                lock(&g2).push((Via::Gate, id));
+                let s = lock(&ga).clone();
+                Box::pin(async move { status(s.as_deref()) })
+            }),
+        });
+        let n = now.clone();
         let bridge = ApprovalsBridge::new(ApprovalsOptions {
             call: Box::new(move |m, params| {
                 lock(&c).push((m.to_string(), params));
                 Box::pin(async { Ok(json!([])) })
             }),
-            post: Box::new(move |body| {
-                lock(&p).push(body);
-                Box::pin(async move { post_status.map(str::to_string) })
-            }),
-            get_status: Box::new(move |_| {
-                let s = lock(&a).clone();
-                Box::pin(async move { s })
-            }),
+            gate,
+            console,
             redact: Box::new(|s| s.to_string()),
             log: Box::new(|_| {}),
-            now: Box::new(|| 1_000_000),
+            now: Box::new(move || *lock(&n)),
         });
         Rig {
             bridge,
             calls,
             posts,
+            gate_posts,
             answer,
+            gate_answer,
+            gets,
+            now,
         }
+    }
+
+    fn rig(post_status: Option<&'static str>) -> Rig {
+        rig_with(post_status, None, true)
     }
 
     fn resolves(r: &Rig) -> Vec<Value> {
@@ -672,5 +948,157 @@ mod tests {
             )
             .await;
         assert_eq!(lock(&r.posts).len(), 2, "never raised: no resolution posted");
+    }
+
+    #[tokio::test]
+    async fn an_allow_from_the_gate_resolves_at_once_and_the_console_is_not_asked() {
+        let r = rig_with(Some("pending"), Some(Some(Answer::Status("approved".into()))), true);
+        r.bridge
+            .on_event(
+                "exec.approval.requested",
+                &json!({ "id": "g1", "request": { "command": "git status" } }),
+            )
+            .await;
+        assert_eq!(lock(&r.gate_posts)[0]["permission_id"], json!("oc:g1"));
+        assert_eq!(lock(&r.gate_posts)[0]["title"], json!("git status"));
+        assert_eq!(
+            resolves(&r),
+            vec![json!({ "id": "g1", "kind": "exec", "decision": "allow-once" })]
+        );
+        r.bridge.tick().await;
+        assert!(lock(&r.posts).is_empty(), "the control plane was not asked");
+        assert!(lock(&r.gets).is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_approval_raised_on_the_gate_is_asked_about_and_settled_there() {
+        let r = rig_with(Some("approved"), Some(Some(Answer::Status("pending".into()))), true);
+        r.bridge
+            .on_event("plugin.approval.requested", &json!({ "id": "g2" }))
+            .await;
+        r.bridge.tick().await;
+        assert_eq!(*lock(&r.gets), vec![(Via::Gate, "oc:g2".to_string())]);
+        *lock(&r.gate_answer) = Some("denied".into());
+        r.bridge.tick().await;
+        assert_eq!(
+            resolves(&r),
+            vec![json!({ "id": "g2", "kind": "plugin", "decision": "deny" })]
+        );
+        // Settled in OpenClaw before: the gate is told, not the control plane.
+        r.bridge
+            .on_event("plugin.approval.requested", &json!({ "id": "g3" }))
+            .await;
+        r.bridge
+            .on_event(
+                "plugin.approval.resolved",
+                &json!({ "id": "g3", "decision": "deny", "resolvedBy": "web" }),
+            )
+            .await;
+        assert_eq!(
+            lock(&r.gate_posts).last().cloned(),
+            Some(json!({ "permission_id": "oc:g3", "resolution": "denied", "resolved_by": "openclaw" }))
+        );
+        assert!(lock(&r.posts).is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_gate_that_answers_404_sends_approvals_to_the_console_for_ten_minutes() {
+        let r = rig_with(Some("pending"), Some(None), true);
+        r.bridge
+            .on_event("exec.approval.requested", &json!({ "id": "o1" }))
+            .await;
+        assert_eq!(lock(&r.gate_posts).len(), 1);
+        assert_eq!(lock(&r.posts).len(), 1, "raised with the control plane instead");
+        r.bridge.tick().await;
+        assert_eq!(*lock(&r.gets), vec![(Via::Console, "oc:o1".to_string())]);
+        // Remembered: the next one does not try the gate.
+        r.bridge
+            .on_event("exec.approval.requested", &json!({ "id": "o2" }))
+            .await;
+        assert_eq!(lock(&r.gate_posts).len(), 1);
+        assert_eq!(lock(&r.posts).len(), 2);
+        // Ten minutes later the gate is tried again.
+        *lock(&r.now) += GATE_OFF_MS;
+        r.bridge
+            .on_event("exec.approval.requested", &json!({ "id": "o3" }))
+            .await;
+        assert_eq!(lock(&r.gate_posts).len(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_gate_that_refuses_is_never_gone_around() {
+        let r = rig_with(Some("approved"), Some(Some(Answer::Failed)), true);
+        r.bridge
+            .on_event("exec.approval.requested", &json!({ "id": "f1" }))
+            .await;
+        r.bridge.tick().await;
+        assert_eq!(lock(&r.gate_posts).len(), 2, "tried again on the tick");
+        assert!(lock(&r.posts).is_empty(), "never sent around the firewall");
+        assert!(resolves(&r).is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_unmanaged_box_has_only_its_firewall() {
+        let r = rig_with(None, Some(Some(Answer::Status("denied".into()))), false);
+        r.bridge
+            .on_event("exec.approval.requested", &json!({ "id": "u1" }))
+            .await;
+        assert_eq!(
+            resolves(&r),
+            vec![json!({ "id": "u1", "kind": "exec", "decision": "deny" })]
+        );
+        // An old firewall and no control plane: nothing is raised, and it is tried again later.
+        let old = rig_with(None, Some(None), false);
+        old.bridge
+            .on_event("exec.approval.requested", &json!({ "id": "u2" }))
+            .await;
+        assert_eq!(old.bridge.pending_count(), 1);
+        assert!(resolves(&old).is_empty());
+        let _ = (&old.answer, &old.calls);
+    }
+}
+
+#[cfg(test)]
+mod gate_answer_tests {
+    use super::*;
+
+    /// One raw HTTP answer on a fresh port; the URL to ask.
+    async fn answering(raw: &'static str) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let url = format!("http://{}/permission", l.local_addr().expect("addr"));
+        tokio::spawn(async move {
+            if let Ok((mut s, _)) = l.accept().await {
+                let mut buf = [0u8; 4096];
+                let _ = s.read(&mut buf).await;
+                let _ = s.write_all(raw.as_bytes()).await;
+            }
+        });
+        url
+    }
+
+    async fn ask(raw: &'static str) -> Answer {
+        let url = answering(raw).await;
+        gate_answer(reqwest::Client::new().get(url).send().await, &|_| {}, "test").await
+    }
+
+    #[tokio::test]
+    async fn only_an_older_firewall_or_one_that_says_off_sends_approvals_around_it() {
+        // An older firewall: no such route, no mark of the gate.
+        let a = ask("HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\nconnection: close\r\n\r\n").await;
+        assert!(matches!(a, Answer::Missing));
+        // This firewall, not checking the rules yet.
+        let a = ask("HTTP/1.1 404 Not Found\r\nx-cc-gate: 1\r\nx-cc-auto-approve: off\r\ncontent-length: 0\r\nconnection: close\r\n\r\n").await;
+        assert!(matches!(a, Answer::Missing));
+        // Any other 404 of this gate (a control plane's, passed on): tried again, never around it.
+        let a = ask("HTTP/1.1 404 Not Found\r\nx-cc-gate: 1\r\ncontent-length: 0\r\nconnection: close\r\n\r\n").await;
+        assert!(matches!(a, Answer::Failed));
+        // Starting: tried again.
+        let a =
+            ask("HTTP/1.1 503 Service Unavailable\r\nx-cc-gate: 1\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+                .await;
+        assert!(matches!(a, Answer::Failed));
+        let a = ask("HTTP/1.1 200 OK\r\nx-cc-gate: 1\r\ncontent-type: application/json\r\ncontent-length: 19\r\nconnection: close\r\n\r\n{\"status\":\"denied\"}").await;
+        assert!(matches!(a, Answer::Status(ref s) if s == "denied"), "{a:?}");
     }
 }

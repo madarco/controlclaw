@@ -1906,6 +1906,136 @@
         }
       }
     },
+    "/api/security/rules": {
+      "get": {
+        "operationId": "getSecurityRules",
+        "tags": [
+          "rules"
+        ],
+        "summary": "The Auto approve rules, first match wins (`autoapprove.read`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": true
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/security/rules/change": {
+      "post": {
+        "operationId": "postSecurityRulesChange",
+        "tags": [
+          "rules"
+        ],
+        "summary": "Add or change an Auto approve rule (`{op: put, rule, at?}`), delete one (`{op: delete, id}`), or move one (`{op: move, id, to}`)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rule-metrics": {
+      "get": {
+        "operationId": "getRule_metrics",
+        "tags": [
+          "rules"
+        ],
+        "summary": "How often each Auto approve rule, and Every other request, matched in a range: by agent with `agentId`",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleMetrics"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d"
+              ],
+              "default": "7d"
+            }
+          },
+          {
+            "name": "agentId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "description": "One agent's matches only."
+          }
+        ]
+      }
+    },
     "/api/kill": {
       "get": {
         "operationId": "getKill",
@@ -5545,6 +5675,26 @@
           },
           "updatedAt": {
             "type": "string"
+          },
+          "resolvedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who settled it: `user` (the panel), `rule` (an Auto approve rule), `openclaw`, `firewall`."
+          },
+          "ruleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Auto approve rule that decided it, or that asked about it."
+          },
+          "ruleName": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5615,6 +5765,108 @@
           "direction",
           "channel"
         ]
+      },
+      "RuleMetrics": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleActivity"
+            }
+          },
+          "generatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "generatedAt"
+        ]
+      },
+      "RuleActivity": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Always `auto` here."
+          },
+          "key": {
+            "type": "string",
+            "description": "The rule's id, or `default` for Every other request."
+          },
+          "ruleId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "builtin": {
+            "type": "boolean"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "The panel tells a deleted rule by the list it read; always false here."
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RuleCounts"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastAt": {
+            "type": "string",
+            "description": "The newest match in the range."
+          }
+        },
+        "required": [
+          "type",
+          "key",
+          "name",
+          "builtin",
+          "deleted",
+          "counts",
+          "total",
+          "lastAt"
+        ],
+        "description": "One rule's matches in the range, as the console's `RuleActivityItem`."
+      },
+      "RuleCounts": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "asked": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "held": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "blocked": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recorded": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "allowed",
+          "asked",
+          "held",
+          "blocked",
+          "recorded"
+        ],
+        "description": "What happened each time, as the console's `RuleCounts`."
       },
       "KillView": {
         "type": "object",

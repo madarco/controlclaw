@@ -33,6 +33,8 @@ pub const CONTROLPLANE_MCP_GATE_PORT: u16 = 3940;
 pub const GATE_MAX_BODY: usize = 256 * 1024;
 /// Per source address, per minute: far above what an agent needs, low enough to stop a loop.
 pub const GATE_CALLS_PER_MINUTE: u32 = 120;
+/// `/permission`'s calls a minute from one address (its own budget).
+pub const PERMISSION_CALLS_PER_MINUTE: u32 = 600;
 const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(60);
 /// Request headers the control plane may see. Never the caller's own authorization or cookies.
 const FORWARD: &[&str] = &[
@@ -82,6 +84,8 @@ pub struct ToolsGate {
     pub local: Option<Arc<dyn LocalTools>>,
     servers: Option<Arc<ServerGate>>,
     windows: Mutex<HashMap<String, (i64, u32)>>,
+    /// `/permission`'s own budget: an agent polling its approvals never starves its MCP calls.
+    permission_windows: Mutex<HashMap<String, (i64, u32)>>,
     http: reqwest::Client,
 }
 
@@ -107,6 +111,7 @@ impl ToolsGate {
             local,
             servers,
             windows: Mutex::new(HashMap::new()),
+            permission_windows: Mutex::new(HashMap::new()),
             // `redirect: "manual"`.
             http: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
@@ -114,6 +119,72 @@ impl ToolsGate {
                 .build()
                 .unwrap_or_default(),
         })
+    }
+
+    /// The router for a standalone firewall's listener toward its agents' vm-agents (an agent in a
+    /// container on another network than its vm-agent, as `up --all` sets it up): only `/permission`,
+    /// and only for an agent whose paired vm-agent is at the caller's address.
+    pub fn permission_router(self: &Arc<Self>) -> cc_http::Router {
+        let mut r = cc_http::Router::new(&["gate"]);
+        let me = self.clone();
+        r.route(
+            "gate",
+            |_, _| true,
+            move |req, ctx| {
+                let me = me.clone();
+                async move { me.serve_vm_agent(req, ctx).await }
+            },
+        );
+        r
+    }
+
+    async fn serve_vm_agent(self: Arc<Self>, req: Req, ctx: Ctx) -> Resp {
+        let address = remote_address(&ctx);
+        let address = address.strip_prefix("::ffff:").unwrap_or(&address).to_string();
+        if req.uri().path() != PERMISSION_PATH {
+            return refuse(404);
+        }
+        let agents: Vec<_> = self
+            .app
+            .contracts
+            .identities
+            .require()
+            .map(|ids| {
+                ids.agents()
+                    .into_iter()
+                    .filter(|a| {
+                        ids.route_for(&a.vm_id)
+                            .is_some_and(|r| same_address(Some(&address), Some(&r.host)))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        // The caller is known by its address alone: two agents whose vm-agents share it cannot be told
+        // apart, so neither is answered here.
+        let agent = match agents.as_slice() {
+            [one] => one.clone(),
+            [] => {
+                tracing::info!("[auto-approve] refused a call from {address}: not a paired agent's vm-agent");
+                return marked(refuse(403));
+            }
+            _ => {
+                tracing::warn!(
+                    "[auto-approve] refused a call from {address}: {} paired agents have their vm-agent there",
+                    agents.len()
+                );
+                return marked(refuse(403));
+            }
+        };
+        if (self.locked)(&agent.vm_id) {
+            return marked(refuse(403));
+        }
+        if self.over_permission_budget(&address) {
+            return marked(refuse(429));
+        }
+        match self.app.contracts.agent_permissions.get() {
+            Some(p) => permission(p, &agent.vm_id, req).await,
+            None => marked(refuse(503)),
+        }
     }
 
     pub fn router(self: &Arc<Self>) -> cc_http::Router {
@@ -166,12 +237,22 @@ impl ToolsGate {
     }
 
     fn over_budget(&self, address: &str) -> bool {
+        over(&self.windows, address, GATE_CALLS_PER_MINUTE)
+    }
+
+    fn over_permission_budget(&self, address: &str) -> bool {
+        over(&self.permission_windows, address, PERMISSION_CALLS_PER_MINUTE)
+    }
+}
+
+fn over(windows: &Mutex<HashMap<String, (i64, u32)>>, address: &str, limit: u32) -> bool {
+    {
         let t = js::now_ms();
-        let mut w = self.windows.lock().unwrap_or_else(|e| e.into_inner());
+        let mut w = windows.lock().unwrap_or_else(|e| e.into_inner());
         match w.get_mut(address) {
             Some((start, count)) if t - *start < 60_000 => {
                 *count += 1;
-                *count > GATE_CALLS_PER_MINUTE
+                *count > limit
             }
             _ => {
                 w.insert(address.to_string(), (t, 1));
@@ -182,7 +263,9 @@ impl ToolsGate {
             }
         }
     }
+}
 
+impl ToolsGate {
     async fn serve(self: Arc<Self>, req: Req, ctx: Ctx) -> Resp {
         let started_at = js::now_ms();
         let method = req.method().as_str().to_string();
@@ -192,7 +275,10 @@ impl ToolsGate {
         let local = self.local.clone().filter(|l| l.path() == path);
         let servers = self.servers.clone().filter(|_| path.starts_with(SERVER_GATE_PREFIX));
         let ca = self.ca.get().cloned().filter(|_| path == "/ca");
-        if path != "/mcp" && local.is_none() && servers.is_none() && ca.is_none() {
+        // OpenClaw's own approvals (`core/auto_approve.rs`): answered here once this firewall keeps
+        // the rules; what it says before that is marked, so the agent tells it from an older firewall.
+        let permissions = (path == PERMISSION_PATH).then(|| self.app.contracts.agent_permissions.get());
+        if path != "/mcp" && local.is_none() && servers.is_none() && ca.is_none() && permissions.is_none() {
             return refuse(404);
         }
         // No identity map yet: nobody is known, so every caller is refused.
@@ -245,6 +331,15 @@ impl ToolsGate {
                 return refuse(429);
             }
             return s.handle(&vm_id, req).await;
+        }
+        if let Some(p) = permissions {
+            if self.over_permission_budget(&address) {
+                return marked(refuse(429));
+            }
+            return match p {
+                Some(p) => permission(p, &vm_id, req).await,
+                None => marked(refuse(503)),
+            };
         }
         // Stateless server: a 2025 client's GET (an event stream) or DELETE is answered here.
         if method != "POST" {
@@ -372,6 +467,94 @@ impl ToolsGate {
                 self.record(&vm_id, &method, 502, bytes_in, 0, started_at, None);
                 refuse(502)
             }
+        }
+    }
+}
+
+/// Where an agent's vm-agent sends OpenClaw's approvals.
+pub const PERMISSION_PATH: &str = "/permission";
+/// A raise is a title, a few detail rows and ids: well under this.
+const PERMISSION_MAX_BODY: usize = 16 * 1024;
+
+/// `/permission` for the agent the gate named: `GET ?permission_id=` and `POST` (a raise, or a
+/// request the agent settled itself), answered as the control plane answers them.
+/// Every `/permission` answer says it is this gate's: a 404 without it is an older firewall.
+pub const GATE_HEADER: &str = "x-cc-gate";
+/// On a 404: this firewall does not check the rules yet (its store is not seeded).
+pub const OFF_HEADER: &str = "x-cc-auto-approve";
+/// The agent's own box token, which a settle carries to the control plane.
+pub const AGENT_TOKEN_HEADER: &str = "x-cc-agent-token";
+
+fn marked(mut r: Resp) -> Resp {
+    r.headers_mut().insert(GATE_HEADER, HeaderValue::from_static("1"));
+    r
+}
+
+async fn permission(p: Arc<dyn crate::contracts::AgentPermissions>, vm_id: &str, req: Req) -> Resp {
+    if !p.active() {
+        let mut r = marked(refuse(404));
+        r.headers_mut().insert(OFF_HEADER, HeaderValue::from_static("off"));
+        return r;
+    }
+    marked(answer_permission(p, vm_id, req).await)
+}
+
+async fn answer_permission(p: Arc<dyn crate::contracts::AgentPermissions>, vm_id: &str, req: Req) -> Resp {
+    let reply = |(status, body): (u16, Value)| {
+        let text = js::stringify(&body);
+        let len = text.len();
+        let mut r = cc_http::full(
+            StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_GATEWAY),
+            "application/json",
+            text,
+        );
+        r.headers_mut()
+            .insert(http::header::CONTENT_LENGTH, HeaderValue::from(len));
+        r
+    };
+    match req.method().as_str() {
+        "GET" => {
+            let id = url::form_urlencoded::parse(req.uri().query().unwrap_or("").as_bytes())
+                .find(|(k, _)| k == "permission_id")
+                .map(|(_, v)| v.into_owned())
+                .filter(|v| (1..=128).contains(&v.len()));
+            match id {
+                Some(id) => reply(p.status(vm_id, &id).await),
+                None => refuse(400),
+            }
+        }
+        "POST" => {
+            // A settle is the agent's own, as it always was: it carries the vm-agent's box token, which
+            // the control plane checks. Anything else at the agent's address (OpenClaw) has none.
+            let token = req
+                .headers()
+                .get(AGENT_TOKEN_HEADER)
+                .and_then(|v| v.to_str().ok())
+                .map(str::trim)
+                .filter(|t| !t.is_empty() && t.len() <= 4096)
+                .map(str::to_string);
+            let body = match http_body_util::Limited::new(req.into_body(), PERMISSION_MAX_BODY)
+                .collect()
+                .await
+            {
+                Ok(b) => b.to_bytes(),
+                Err(_) => return refuse(413),
+            };
+            let Ok(v) = serde_json::from_slice::<Value>(&body) else {
+                return refuse(400);
+            };
+            if v.get("resolution").is_some() {
+                let Some(token) = token else { return refuse(403) };
+                reply(p.settle(vm_id, v, &token).await)
+            } else {
+                reply(p.raise(vm_id, v).await)
+            }
+        }
+        _ => {
+            let mut r = refuse(405);
+            r.headers_mut()
+                .insert(http::header::ALLOW, HeaderValue::from_static("GET, POST"));
+            r
         }
     }
 }

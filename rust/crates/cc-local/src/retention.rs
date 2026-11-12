@@ -18,6 +18,8 @@ pub fn prune(db: &Db, now: i64) -> rusqlite::Result<(usize, usize)> {
         "DELETE FROM activity_hourly WHERE hour < ?1",
         [now - ROLLUP_DAYS * 86_400],
     )?;
+    // The per-rule counts are a rollup too.
+    c.execute("DELETE FROM rule_hourly WHERE hour < ?1", [now - ROLLUP_DAYS * 86_400])?;
     c.execute("DELETE FROM sessions WHERE expires_at < ?1", [now])?;
     c.execute(
         "UPDATE permission_requests SET status = 'expired', updated_at = ?1

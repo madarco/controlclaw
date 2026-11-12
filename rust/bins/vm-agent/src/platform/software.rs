@@ -155,7 +155,7 @@ pub fn firewall_origin(state_dir: &Path) -> Option<String> {
     }
 }
 
-const AGENT_FEATURES: [&str; 23] = [
+const AGENT_FEATURES: [&str; 24] = [
     "logs_page",
     "whatsapp_page",
     "meetings_page",
@@ -179,6 +179,8 @@ const AGENT_FEATURES: [&str; 23] = [
     "skills_capture",
     "notes_start",
     "storage_grow",
+    // OpenClaw's approvals go to the firewall's gate, which checks the Auto approve rules.
+    "approvals_via_firewall",
 ];
 
 /// `boxSoftware()`: the object reported on `/ready` and `/status`, in the TS key order.

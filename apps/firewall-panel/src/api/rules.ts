@@ -4,6 +4,8 @@ import type { RulesChangeRpc } from "@controlclaw/console-ui/firewall/rules";
 import { mcpCatalogServer, type AppOption, type AppRulesSnapshot } from "@controlclaw/console-ui/lib/app-rules-schema";
 import type { ContentRulesSnapshot } from "@controlclaw/console-ui/lib/content-rules-schema";
 import type { EmailRulesSnapshot } from "@controlclaw/console-ui/lib/email-rules-schema";
+import { autoApproveSnapshot, type AutoApproveSnapshot } from "@controlclaw/console-ui/lib/auto-approve-schema";
+import type { RuleActivityItem } from "@controlclaw/console-ui/lib/rule-metrics";
 import { fw } from "./client";
 import { refusalText } from "./changes";
 
@@ -78,4 +80,25 @@ export const appRules: ConsoleApi["appRules"] = {
 export const emailRules: ConsoleApi["emailRules"] = {
   ...appliedAtOnce((change) => fw.post("/api/email-rules/change", { body: { change } })),
   get: async () => (await fw.get("/api/email-rules")) as EmailRulesSnapshot,
+};
+
+/** Auto approve rules: kept on the firewall, changed at once by the signed-in admin, as the app rules. */
+export const autoApprove: NonNullable<ConsoleApi["autoApprove"]> = {
+  ...appliedAtOnce((change) => fw.post("/api/security/rules/change", { body: { change } })),
+  get: async () => autoApproveSnapshot.parse(await fw.get("/api/security/rules")) as AutoApproveSnapshot,
+};
+
+const notHere = (what: string) => () => Promise.reject(new Error(`This firewall does not count ${what}`));
+
+/**
+ * The counts the Security rules tab shows: Auto approve rules only, the one type this firewall counts.
+ * Given to Security rules alone; the Overview's rule cards would read the other types too.
+ */
+export const ruleMetrics: NonNullable<ConsoleApi["ruleMetrics"]> = {
+  list: async ({ range, agentId }) => {
+    const res = await fw.get("/api/rule-metrics", { query: { range, ...(agentId ? { agentId } : {}) } });
+    return { items: res.items.map((i) => ({ ...i, ruleId: i.ruleId ?? null }) as RuleActivityItem), generatedAt: res.generatedAt };
+  },
+  overview: notHere("rules for the Overview"),
+  firewallRules: notHere("rules for the Overview"),
 };

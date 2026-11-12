@@ -165,6 +165,7 @@ pub const BEAT_FIELDS: &[(&str, Scope)] = &[
     ("agentmail", Scope::Both),
     ("agents_moved", Scope::Both),
     ("agents_reach", Scope::Both),
+    ("auto_approve", Scope::Both),
     ("auto_update", Scope::SaasOnly),
     ("backup", Scope::SaasOnly),
     ("code_recipients", Scope::Both),
@@ -304,7 +305,8 @@ pub struct PermissionAck {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionStatus {
-    /// `pending`, `approved`, `denied`, `expired`, `revoked` or `unknown`.
+    /// `pending`, `approved`, `denied`, `expired`, `revoked`, `unknown`, or `approved_on_box` (an
+    /// approval the agent settled itself, never one to carry out).
     pub status: String,
     #[serde(default)]
     pub expires_at: Option<String>,

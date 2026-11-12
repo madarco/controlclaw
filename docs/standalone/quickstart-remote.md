@@ -15,7 +15,7 @@ You need:
 On the firewall VM:
 
 ```bash
-VERSION=0.9.4   # the latest: https://github.com/madarco/controlclaw/releases
+VERSION=0.11.0  # the latest: https://github.com/madarco/controlclaw/releases
 curl -fsSLO https://github.com/madarco/controlclaw/releases/download/v$VERSION/controlclaw-install-$VERSION.tar.gz
 tar xzf controlclaw-install-$VERSION.tar.gz
 sudo ./controlclaw-install-$VERSION/install.sh --version $VERSION --wireguard   # systemd units and WireGuard need root

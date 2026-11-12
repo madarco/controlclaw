@@ -111,3 +111,14 @@ export type SecurityRuleListItem = {
   createdAt: string;
   updatedAt: string;
 };
+
+/**
+ * What a change to an Auto approve rule answers. On a firewall that keeps the rules it carries the
+ * change: applied, or waiting for the code the firewall sent (confirm it with `change_confirm`,
+ * area `auto`). The rule is then the one proposed, not yet in force.
+ */
+export type SecurityRuleMutation = SecurityRuleListItem & {
+  changeId?: string;
+  status?: "applied" | "awaiting_code";
+  sentVia?: string | null;
+};

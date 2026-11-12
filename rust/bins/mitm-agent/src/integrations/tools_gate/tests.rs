@@ -591,3 +591,233 @@ async fn the_ca_is_given_to_agents_and_a_box_that_installed_it_is_recorded() {
         .expect("post");
     assert_eq!(r.status(), 405);
 }
+
+/// OpenClaw's approvals as the core answers them: recorded, with the agent the gate named.
+struct Perms {
+    on: AtomicBool,
+    seen: Mutex<Vec<(String, String, Value)>>,
+}
+
+impl crate::contracts::AgentPermissions for Perms {
+    fn active(&self) -> bool {
+        self.on.load(Ordering::SeqCst)
+    }
+    fn raise(&self, vm_id: &str, body: Value) -> BoxFuture<(u16, Value)> {
+        self.seen.lock().expect("l").push(("raise".into(), vm_id.into(), body));
+        Box::pin(async { (200, json!({"ok": true, "status": "approved"})) })
+    }
+    fn status(&self, vm_id: &str, permission_id: &str) -> BoxFuture<(u16, Value)> {
+        self.seen
+            .lock()
+            .expect("l")
+            .push(("status".into(), vm_id.into(), json!(permission_id)));
+        Box::pin(async { (200, json!({"status": "pending"})) })
+    }
+    fn settle(&self, vm_id: &str, body: Value, token: &str) -> BoxFuture<(u16, Value)> {
+        let mut body = body;
+        body["token"] = json!(token);
+        self.seen.lock().expect("l").push(("settle".into(), vm_id.into(), body));
+        Box::pin(async { (200, json!({"ok": true, "status": "denied"})) })
+    }
+}
+
+#[tokio::test]
+async fn approvals_go_to_the_core_for_the_agent_at_the_callers_address_once_it_checks_them() {
+    let dir = tempfile::tempdir().expect("dir");
+    let app = testing::app(dir.path());
+    app.contracts
+        .identities
+        .set(Identities::of(&[("agent-1", "127.0.0.1", "One")]));
+    let g = gate(None, Some(app.clone())).await;
+    let raise = json!({"permission_id": "oc:1", "kind": "exec", "title": "ls"}).to_string();
+    // Starting (the core has not set it up yet): 503, marked as this gate's, so the agent waits.
+    let r = post(&g.base, "/permission", &raise, &[]).await;
+    assert_eq!(r.status(), 503);
+    assert_eq!(r.headers().get("x-cc-gate").map(|v| v.as_bytes()), Some(&b"1"[..]));
+    let perms = Arc::new(Perms {
+        on: AtomicBool::new(false),
+        seen: Mutex::new(Vec::new()),
+    });
+    app.contracts.agent_permissions.set(perms.clone());
+    // Not checking yet (an older control plane): 404 that says so; the agent asks the console.
+    let r = post(&g.base, "/permission", &raise, &[]).await;
+    assert_eq!(r.status(), 404);
+    assert_eq!(
+        r.headers().get("x-cc-auto-approve").map(|v| v.as_bytes()),
+        Some(&b"off"[..])
+    );
+    assert!(r.headers().get("x-cc-gate").is_some());
+    perms.on.store(true, Ordering::SeqCst);
+    let r = post(&g.base, "/permission", &raise, &[]).await;
+    assert_eq!(r.status(), 200);
+    assert!(r.headers().get("x-cc-gate").is_some());
+    assert_eq!(r.json::<Value>().await.expect("json")["status"], json!("approved"));
+    // A settle needs the vm-agent's own token: anything else at the agent's address has none.
+    let settle = json!({"permission_id": "oc:1", "resolution": "approved"}).to_string();
+    assert_eq!(post(&g.base, "/permission", &settle, &[]).await.status(), 403);
+    let settle = json!({"permission_id": "oc:1", "resolution": "denied"}).to_string();
+    assert_eq!(
+        post(&g.base, "/permission", &settle, &[("x-cc-agent-token", "tok")])
+            .await
+            .status(),
+        200
+    );
+    let st = reqwest::get(format!("{}/permission?permission_id=oc%3A1", g.base))
+        .await
+        .expect("get");
+    assert_eq!(st.json::<Value>().await.expect("json")["status"], json!("pending"));
+    let seen = perms.seen.lock().expect("l").clone();
+    let what: Vec<(String, String)> = seen.iter().map(|(k, v, _)| (k.clone(), v.clone())).collect();
+    assert_eq!(
+        what,
+        vec![
+            ("raise".into(), "agent-1".into()),
+            ("settle".into(), "agent-1".into()),
+            ("status".into(), "agent-1".into())
+        ]
+    );
+    assert_eq!(seen[1].2["token"], json!("tok"));
+    assert_eq!(seen[2].2, json!("oc:1"));
+    // Bad input, a body too large, another method.
+    assert_eq!(post(&g.base, "/permission", "not json", &[]).await.status(), 400);
+    assert_eq!(
+        post(&g.base, "/permission", &"x".repeat(20 * 1024), &[]).await.status(),
+        413
+    );
+    assert_eq!(
+        reqwest::get(format!("{}/permission", g.base))
+            .await
+            .expect("get")
+            .status(),
+        400
+    );
+    // Under an emergency stop the agent's approvals are refused, as its other calls are.
+    g.stop.0.store(true, Ordering::SeqCst);
+    assert_eq!(post(&g.base, "/permission", &raise, &[]).await.status(), 403);
+    let _ = &g.ids;
+}
+
+/// A standalone agent in a container: its OpenClaw at one address, its vm-agent at another.
+struct Split(Mutex<String>);
+
+impl crate::contracts::IdentityMap for Split {
+    fn agents(&self) -> Vec<crate::contracts::AgentIdentity> {
+        vec![crate::contracts::AgentIdentity {
+            vm_id: "agent-1".into(),
+            private_ip: "10.0.0.9".into(),
+            hostname: None,
+            name: Some("One".into()),
+        }]
+    }
+    fn agent(&self, vm_id: &str) -> Option<crate::contracts::AgentIdentity> {
+        self.agents().into_iter().find(|a| a.vm_id == vm_id)
+    }
+    fn host_for(&self, _: &str) -> Option<String> {
+        None
+    }
+    fn route_for(&self, vm_id: &str) -> Option<crate::contracts::AgentRoute> {
+        let addr = self.0.lock().expect("l").parse().expect("addr");
+        (vm_id == "agent-1").then(|| crate::contracts::AgentRoute::direct(addr))
+    }
+}
+
+#[tokio::test]
+async fn a_vm_agent_away_from_its_openclaw_is_answered_on_permission_only_at_its_paired_address() {
+    let dir = tempfile::tempdir().expect("dir");
+    let app = testing::app(dir.path());
+    let ids = Arc::new(Split(Mutex::new("127.0.0.1:3102".into())));
+    app.contracts.identities.set(ids.clone());
+    let perms = Arc::new(Perms {
+        on: AtomicBool::new(true),
+        seen: Mutex::new(Vec::new()),
+    });
+    app.contracts.agent_permissions.set(perms.clone());
+    let g = ToolsGate::new(&app, String::new(), None, Arc::new(|_| false), None, None);
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let base = format!("http://127.0.0.1:{}", l.local_addr().expect("addr").port());
+    tokio::spawn(cc_http::serve(l, Arc::new(g.permission_router())));
+    let raise = json!({"permission_id": "oc:1", "kind": "exec", "title": "ls"}).to_string();
+    assert_eq!(post(&base, "/permission", &raise, &[]).await.status(), 200);
+    assert_eq!(perms.seen.lock().expect("l")[0].1, "agent-1");
+    // Nothing else is served there.
+    assert_eq!(post(&base, "/mcp", "{}", &[]).await.status(), 404);
+    // The agents' own gate does not take the vm-agent's address as the agent.
+    let main = listen(&g).await;
+    assert_eq!(post(&main, "/permission", &raise, &[]).await.status(), 403);
+    // Another vm-agent address: refused.
+    *ids.0.lock().expect("l") = "10.0.0.8:3102".into();
+    assert_eq!(post(&base, "/permission", &raise, &[]).await.status(), 403);
+}
+
+/// Two agents whose vm-agents are at one host address.
+struct Shared;
+
+impl crate::contracts::IdentityMap for Shared {
+    fn agents(&self) -> Vec<crate::contracts::AgentIdentity> {
+        ["agent-1", "agent-2"]
+            .iter()
+            .map(|v| crate::contracts::AgentIdentity {
+                vm_id: v.to_string(),
+                private_ip: "10.0.0.9".into(),
+                hostname: None,
+                name: None,
+            })
+            .collect()
+    }
+    fn agent(&self, vm_id: &str) -> Option<crate::contracts::AgentIdentity> {
+        self.agents().into_iter().find(|a| a.vm_id == vm_id)
+    }
+    fn host_for(&self, _: &str) -> Option<String> {
+        None
+    }
+    fn route_for(&self, vm_id: &str) -> Option<crate::contracts::AgentRoute> {
+        let port = if vm_id == "agent-1" { 3100 } else { 3101 };
+        Some(crate::contracts::AgentRoute::direct(
+            format!("127.0.0.1:{port}").parse().expect("addr"),
+        ))
+    }
+}
+
+#[tokio::test]
+async fn two_vm_agents_at_one_address_cannot_be_told_apart_so_neither_is_answered() {
+    let dir = tempfile::tempdir().expect("dir");
+    let app = testing::app(dir.path());
+    app.contracts.identities.set(Arc::new(Shared));
+    let perms = Arc::new(Perms {
+        on: AtomicBool::new(true),
+        seen: Mutex::new(Vec::new()),
+    });
+    app.contracts.agent_permissions.set(perms.clone());
+    let g = ToolsGate::new(&app, String::new(), None, Arc::new(|_| false), None, None);
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let base = format!("http://127.0.0.1:{}", l.local_addr().expect("addr").port());
+    tokio::spawn(cc_http::serve(l, Arc::new(g.permission_router())));
+    let raise = json!({"permission_id": "oc:1", "kind": "exec", "title": "ls"}).to_string();
+    assert_eq!(post(&base, "/permission", &raise, &[]).await.status(), 403);
+    assert!(perms.seen.lock().expect("l").is_empty());
+}
+
+#[tokio::test]
+async fn permission_has_a_budget_of_its_own() {
+    let dir = tempfile::tempdir().expect("dir");
+    let app = testing::app(dir.path());
+    app.contracts
+        .identities
+        .set(Identities::of(&[("agent-1", "127.0.0.1", "One")]));
+    let perms = Arc::new(Perms {
+        on: AtomicBool::new(true),
+        seen: Mutex::new(Vec::new()),
+    });
+    app.contracts.agent_permissions.set(perms);
+    let g = gate(None, Some(app)).await;
+    let get = || async {
+        reqwest::get(format!("{}/permission?permission_id=oc%3A1", g.base))
+            .await
+            .expect("get")
+            .status()
+    };
+    // More than the gate's own budget for /mcp, all answered.
+    for _ in 0..(GATE_CALLS_PER_MINUTE + 5) {
+        assert_eq!(get().await, 200);
+    }
+}

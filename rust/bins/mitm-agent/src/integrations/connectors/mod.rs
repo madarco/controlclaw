@@ -89,6 +89,10 @@ pub fn register(reg: &mut Registry, app: &Arc<App>, env: &Env, shared: &Shared) 
             return;
         }
     };
+    let calls_log = env.get(
+        "CONNECTOR_CALLS_PATH",
+        "/opt/controlclaw/mitm/logs/connector-calls.jsonl",
+    );
     let resolver = fw.clone();
     let gate = gate::Gate::new(gate::GateOptions {
         target,
@@ -97,10 +101,7 @@ pub fn register(reg: &mut Registry, app: &Arc<App>, env: &Env, shared: &Shared) 
         content: shared.content.clone(),
         asks: shared.asks.clone(),
         locked: shared.locked.clone(),
-        log_path: Some(PathBuf::from(env.get(
-            "CONNECTOR_CALLS_PATH",
-            "/opt/controlclaw/mitm/logs/connector-calls.jsonl",
-        ))),
+        log_path: Some(PathBuf::from(&calls_log)),
         ask_state_path: Some(PathBuf::from(
             env.get("CONNECTOR_ASKS_PATH", "/opt/controlclaw/state/connector-asks.json"),
         )),
@@ -114,6 +115,9 @@ pub fn register(reg: &mut Registry, app: &Arc<App>, env: &Env, shared: &Shared) 
     }
     let line = format!("[mitm-agent] connector gate listening on {bind}:{port} (the execution routes only)");
     super::serve_gate(app, bind, port, router, line, "[connectors] gate:", None);
+
+    // The gate's own line per call, merged in the console with the run log's row for the same run.
+    crate::core::activity::ship_log(&calls_log, Arc::new(crate::core::activity::connector_call_activity));
 
     let activity = env.get("ACTIVITY_URL", "");
     if !activity.is_empty() {

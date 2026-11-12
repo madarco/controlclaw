@@ -658,6 +658,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/security/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Auto approve rules, first match wins (`autoapprove.read`) */
+        get: operations["getSecurityRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/security/rules/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add or change an Auto approve rule (`{op: put, rule, at?}`), delete one (`{op: delete, id}`), or move one (`{op: move, id, to}`) */
+        post: operations["postSecurityRulesChange"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rule-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How often each Auto approve rule, and Every other request, matched in a range: by agent with `agentId` */
+        get: operations["getRule_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kill": {
         parameters: {
             query?: never;
@@ -1839,6 +1890,11 @@ export interface components {
             expiresAt?: string | null;
             createdAt: string;
             updatedAt: string;
+            /** @description Who settled it: `user` (the panel), `rule` (an Auto approve rule), `openclaw`, `firewall`. */
+            resolvedBy?: string | null;
+            /** @description The Auto approve rule that decided it, or that asked about it. */
+            ruleId?: string | null;
+            ruleName?: string | null;
         };
         Resolve: {
             decision: components["schemas"]["Decision"];
@@ -1858,6 +1914,40 @@ export interface components {
             channel: string;
             /** @description The rule being edited, tried as if saved. */
             draft?: unknown;
+        };
+        RuleMetrics: {
+            items: components["schemas"]["RuleActivity"][];
+            generatedAt: string;
+        };
+        /** @description One rule's matches in the range, as the console's `RuleActivityItem`. */
+        RuleActivity: {
+            /** @description Always `auto` here. */
+            type: string;
+            /** @description The rule's id, or `default` for Every other request. */
+            key: string;
+            ruleId?: string | null;
+            name: string;
+            builtin: boolean;
+            /** @description The panel tells a deleted rule by the list it read; always false here. */
+            deleted: boolean;
+            counts: components["schemas"]["RuleCounts"];
+            /** Format: int64 */
+            total: number;
+            /** @description The newest match in the range. */
+            lastAt: string;
+        };
+        /** @description What happened each time, as the console's `RuleCounts`. */
+        RuleCounts: {
+            /** Format: int64 */
+            allowed: number;
+            /** Format: int64 */
+            asked: number;
+            /** Format: int64 */
+            held: number;
+            /** Format: int64 */
+            blocked: number;
+            /** Format: int64 */
+            recorded: number;
         };
         KillView: {
             /** @description The firewall's own account: `{org, agents: [{vmId, ...}]}`; null when it has none. */
@@ -3663,6 +3753,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommandAnswer"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getSecurityRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    postSecurityRulesChange: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandAnswer"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getRule_metrics: {
+        parameters: {
+            query?: {
+                range?: "24h" | "7d" | "30d";
+                /** @description One agent's matches only. */
+                agentId?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleMetrics"];
                 };
             };
             /** @description Refused: `{error}` */

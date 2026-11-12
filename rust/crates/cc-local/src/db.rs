@@ -7,7 +7,7 @@ use std::sync::{Mutex, MutexGuard};
 use rusqlite::Connection;
 
 /// Version 1, then each later one (2: the panel's API; 3 and 4: pairing; 5: WireGuard; 6: the agent's
-/// address; 7: "Every other site"; 8: routine traffic). Later versions append to
+/// address; 7: "Every other site"; 8: routine traffic; 9: Auto approve counts). Later versions append to
 /// [`MIGRATIONS`]; a migration that ran is never edited.
 pub(crate) const MIGRATIONS: &[&str] = &[
     r#"
@@ -150,6 +150,23 @@ UPDATE egress_rules SET id = 'r_' || lower(hex(randomblob(9)))
     // leaves it out unless asked. Records from before are not.
     r#"
 ALTER TABLE activity_raw ADD COLUMN routine INTEGER NOT NULL DEFAULT 0;
+"#,
+    // The Auto approve rule that decided a request (the rules are on the firewall), and the per-rule
+    // counts the Security rules tab shows ("12 in 7 days"), as the SaaS's `rule_hourly`.
+    r#"
+ALTER TABLE permission_requests ADD COLUMN rule_id TEXT;
+ALTER TABLE permission_requests ADD COLUMN rule_name TEXT;
+CREATE TABLE rule_hourly (
+    hour INTEGER NOT NULL,           -- epoch seconds at the top of the hour
+    vm_id TEXT NOT NULL,             -- '' for none
+    rule_type TEXT NOT NULL,         -- auto
+    rule_key TEXT NOT NULL,          -- the rule's id, or 'default' (no rule matched)
+    outcome TEXT NOT NULL,           -- allowed, asked, blocked
+    count INTEGER NOT NULL,
+    last_at INTEGER NOT NULL,
+    name TEXT,                       -- the rule's name when it was counted
+    PRIMARY KEY (hour, vm_id, rule_type, rule_key, outcome)
+);
 "#,
 ];
 

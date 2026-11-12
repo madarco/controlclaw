@@ -23,6 +23,7 @@ import type { RecoveryChallengeView } from "./recovery-confirm-schema";
 import type { CatalogResult } from "../firewall/integrations/CatalogBrowser";
 import type { RuleActivityItem, RuleMetricRange, RuleOverviewItem } from "./rule-metrics";
 import type { SecurityRuleListItem, createSecurityRuleInputSchema, updateSecurityRuleInputSchema } from "./security-schema";
+import type { AutoApproveChange, AutoApproveSnapshot } from "./auto-approve-schema";
 
 /**
  * What the shared views read and change, by area. The console passes its oRPC client (whose
@@ -124,6 +125,15 @@ export interface ConsoleApi {
     updateSecurityRule(input: z.input<typeof updateSecurityRuleInputSchema>): Promise<SecurityRuleListItem>;
     deleteSecurityRule(input: { id: string }): Promise<unknown>;
     cycleSecurityRuleEffect(input: { id: string }): Promise<SecurityRuleListItem>;
+  };
+  /**
+   * Auto approve rules on a firewall that keeps them: read from it and changed like the Integrations
+   * rules (a change that lets more through waits for its code). Left out where nothing keeps them there.
+   */
+  autoApprove?: RulesChangeRpc<AutoApproveChange, AutoApproveSnapshot> & {
+    get(): Promise<AutoApproveSnapshot>;
+    /** A change waiting for its code that was started elsewhere (a template's step), if any. */
+    waiting?(): Promise<{ changeId: string; sentVia: string | null } | null>;
   };
   contentRules: RulesChangeRpc<ContentChange, ContentRulesSnapshot> & {
     /** The rules and whether the AI check is on. */

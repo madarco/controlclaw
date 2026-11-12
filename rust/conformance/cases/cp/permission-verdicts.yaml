@@ -1,0 +1,78 @@
+name: cp /permission (the firewall's Auto approve verdicts, approvals carried for an agent)
+agent: control-plane
+endpoint: /permission
+scope: both
+seed:
+  vms:
+    - {id: cppv_fw, role: mitm, name: fw, private_ip: 10.0.0.2}
+    - {id: cppv_a1, role: openclaw, name: cppv-a1, private_ip: 10.0.0.3}
+steps:
+  - name: an Allow the firewall decided is stored approved, as the agent's
+    request:
+      method: POST
+      path: /api/vm-agent/permission
+      as: cppv_fw
+      json: {permission_id: "oc:v1", kind: exec, title: "git status", agent_vm_id: cppv_a1, decided: {effect: allow, rule_id: r_git, rule_name: "Allow git status"}}
+    expect: {status: 200, json_subset: {ok: true, status: approved}}
+  - name: the console's request names the command
+    request: {method: POST, path: /__conformance/read, json: {org_id: "${org_id}", what: permission, id: "oc:v1"}}
+    expect: {status: 200, json_subset: {status: approved, kind: exec, title: "git status"}}
+  - name: the agent reads its own request
+    request: {method: GET, path: "/api/vm-agent/permission?permission_id=oc:v1", as: cppv_a1}
+    expect: {status: 200, json_subset: {status: approved, kind: exec}}
+  - name: a Block the firewall decided is stored denied
+    request:
+      method: POST
+      path: /api/vm-agent/permission
+      as: cppv_fw
+      json: {permission_id: "oc:v2", kind: exec, title: "rm -rf /", agent_vm_id: cppv_a1, decided: {effect: block, rule_id: r_rm, rule_name: "Block rm"}}
+    expect: {status: 200, json_subset: {ok: true, status: denied}}
+  - name: an Ask the firewall checked waits for a person
+    request:
+      method: POST
+      path: /api/vm-agent/permission
+      as: cppv_fw
+      json: {permission_id: "oc:v3", kind: plugin, title: "pay 10 EUR", agent_vm_id: cppv_a1, checked: {rule_id: null, rule_name: null}}
+    expect: {status: 200, json_subset: {ok: true, status: pending}}
+  - name: the firewall polls it for the agent
+    request: {method: GET, path: "/api/vm-agent/permission?permission_id=oc:v3&agent_vm_id=cppv_a1", as: cppv_fw}
+    expect: {status: 200, json_subset: {status: pending, kind: plugin}}
+  - name: the firewall never settles for an agent
+    request: {method: POST, path: /api/vm-agent/permission, as: cppv_fw, json: {permission_id: "oc:v3", resolution: approved, resolved_by: openclaw, agent_vm_id: cppv_a1}}
+    expect: {status: 403, json: {error: $string}}
+  - name: the agent settles it itself (with its own token, which the firewall carries from its gate)
+    request: {method: POST, path: /api/vm-agent/permission, as: cppv_a1, json: {permission_id: "oc:v3", resolution: denied, resolved_by: openclaw}}
+    expect: {status: 200, json_subset: {ok: true, status: denied}}
+  - name: an agent box may not give a verdict
+    request:
+      method: POST
+      path: /api/vm-agent/permission
+      as: cppv_a1
+      json: {permission_id: "oc:v4", kind: exec, title: "whoami", decided: {effect: allow, rule_id: x, rule_name: x}}
+    expect: {status: 403, json: {error: $string}}
+  - name: a firewall carries an approval only with a verdict
+    request: {method: POST, path: /api/vm-agent/permission, as: cppv_fw, json: {permission_id: "oc:v5", kind: exec, title: "whoami", agent_vm_id: cppv_a1}}
+    expect: {status: 403, json: {error: $string}}
+  - name: a firewall carries an approval only for an agent behind it
+    request:
+      method: POST
+      path: /api/vm-agent/permission
+      as: cppv_fw
+      json: {permission_id: "oc:v6", kind: exec, title: "whoami", agent_vm_id: nobody, checked: {rule_id: null, rule_name: null}}
+    expect: {status: 403, json: {error: $string}}
+  - name: one verdict per request
+    request:
+      method: POST
+      path: /api/vm-agent/permission
+      as: cppv_fw
+      json: {permission_id: "oc:v7", kind: exec, title: "whoami", agent_vm_id: cppv_a1, decided: {effect: allow, rule_id: null, rule_name: null}, checked: {rule_id: null, rule_name: null}}
+    expect: {status: 400, json: {error: $string}}
+  - name: an agent raises its own approval
+    request: {method: POST, path: /api/vm-agent/permission, as: cppv_a1, json: {permission_id: "oc:v8", kind: exec, title: "id"}}
+    expect: {status: 200, json_subset: {ok: true, status: pending}}
+  - name: the agent settles it as approved (answered in OpenClaw)
+    request: {method: POST, path: /api/vm-agent/permission, as: cppv_a1, json: {permission_id: "oc:v8", resolution: approved, resolved_by: openclaw}}
+    expect: {status: 200, json_subset: {ok: true}}
+  - name: it reads back as settled on the box, never as a person's approval
+    request: {method: GET, path: "/api/vm-agent/permission?permission_id=oc:v8", as: cppv_a1}
+    expect: {status: 200, json_subset: {status: approved_on_box}}

@@ -36,6 +36,7 @@ pub mod pairing;
 pub mod panel;
 pub mod requests;
 pub mod rules;
+pub mod security;
 
 pub use openapi::openapi;
 
@@ -428,6 +429,7 @@ pub fn routes() -> Vec<Route> {
         pairing::routes(),
         requests::routes(),
         rules::routes(),
+        security::routes(),
         controls::routes(),
         channels::routes(),
         integrations::routes(),

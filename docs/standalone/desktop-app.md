@@ -33,7 +33,7 @@ after a restart on either side, with no new approval.
 The firewall container publishes the gateway's port on this machine's loopback only
 (`127.0.0.1:18789`). OpenClaw itself is on an internal network with no other way in.
 
-- **The Mac that runs `up --all`:** in the app, choose Remote, Direct, `ws://127.0.0.1:18789`, and
+- **The machine that runs `up --all`:** in the app, choose Remote, Direct, `ws://127.0.0.1:18789`, and
   the token. For a headless node:
 
   ```bash

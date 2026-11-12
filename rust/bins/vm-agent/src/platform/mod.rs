@@ -393,7 +393,8 @@ fn start_audit(app: &Arc<App>) {
     });
 }
 
-/// The approvals bridge (`approvals.rs`): OpenClaw's approvals to the console's queue and back.
+/// The approvals bridge (`approvals.rs`): OpenClaw's approvals to the firewall's gate (or, on an
+/// older firewall, the console) and back.
 /// Events as they come, a reconcile on every connect, the console asked every `APPROVAL_POLL_MS`.
 fn start_approvals(app: &Arc<App>, base: String) {
     let Some(p) = app.contracts.platform.get() else { return };
@@ -402,14 +403,24 @@ fn start_approvals(app: &Arc<App>, base: String) {
     // The box's own secrets masked in what leaves it (`redact.ts`).
     let redaction = Arc::new(crate::boxside::logs::Redaction::load(&app.config.keys_dir));
     let log: Arc<dyn Fn(&str) + Send + Sync> = Arc::new(|l| tracing::info!("{l}"));
-    let (post, get_status) = approvals::permission_calls(base, app.keys.clone(), app.http.clone(), log);
+    let console = approvals::permission_calls(base, app.keys.clone(), app.http.clone(), log.clone());
+    // The firewall's gate first (it checks the Auto approve rules); an unsecured box has none.
+    let keys = app.keys.clone();
+    let firewall = Arc::new(move || {
+        keys.read("mitm_box_private_ip")
+            .map(|ip| ip.trim().to_string())
+            .filter(|ip| common::PRIVATE_IP.is_match(ip))
+    });
+    let keys = app.keys.clone();
+    let token: approvals::AgentToken = Arc::new(move || cc_auth::sign::box_token(&keys).ok());
+    let gate = approvals::gate_calls(firewall, token, app.http.clone(), log);
     let bridge = Arc::new(approvals::ApprovalsBridge::new(approvals::ApprovalsOptions {
         call: Box::new(move |method, params| {
             let (deps, method) = (deps.clone(), method.to_string());
             Box::pin(async move { deps.call(&method, params, std::time::Duration::from_secs(10)).await })
         }),
-        post,
-        get_status,
+        gate: Some(gate),
+        console: Some(console),
         redact: Box::new(move |t| redaction.redact(t)),
         log: Box::new(|l| tracing::info!("{l}")),
         now: Box::new(time::now_ms),
@@ -418,41 +429,12 @@ fn start_approvals(app: &Arc<App>, base: String) {
     let _ = p.approvals_open.set(Arc::new(move || b.pending_count()));
     let b = bridge.clone();
     let _ = p.approval_sessions.set(Arc::new(move || b.pending_sessions()));
-    let mut events = o.client.events();
-    let b = bridge.clone();
-    tokio::spawn(async move {
-        loop {
-            match events.recv().await {
-                Ok(ev) if ev.event.contains(".approval.") => {
-                    let b = b.clone();
-                    tokio::spawn(async move { b.on_event(&ev.event, &ev.payload).await });
-                }
-                Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
-            }
-        }
-    });
-    let b = bridge.clone();
-    on_connected(app, move || {
-        let b = b.clone();
-        Box::pin(async move { b.reconcile().await })
-    });
     let every_ms = std::env::var("APPROVAL_POLL_MS")
         .ok()
         .and_then(|v| v.trim().parse::<u64>().ok())
         .filter(|v| *v > 0)
         .unwrap_or(3000);
-    tokio::spawn(async move {
-        let mut every = tokio::time::interval(std::time::Duration::from_millis(every_ms));
-        every.tick().await;
-        loop {
-            every.tick().await;
-            let b = bridge.clone();
-            if tokio::spawn(async move { b.tick().await }).await.is_err() {
-                tracing::error!("[approvals] tick failed");
-            }
-        }
-    });
+    let _ = approvals::run_bridge(bridge, &o.client, std::time::Duration::from_millis(every_ms));
 }
 
 /// A run's trigger and title, which the ledger does not carry (index.ts `enrich`). A heartbeat runs

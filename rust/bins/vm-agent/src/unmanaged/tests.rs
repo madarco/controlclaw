@@ -558,3 +558,75 @@ async fn every_command_here_has_an_output_cap() {
     let caps: Vec<Option<usize>> = inner.calls().iter().map(|c| c.max_output).collect();
     assert_eq!(caps, [Some(super::MAX_OUTPUT), Some(10), Some(super::MAX_OUTPUT)]);
 }
+
+#[tokio::test]
+async fn the_gateway_token_is_read_as_written_and_an_env_reference_with_nothing_set_is_none() {
+    let d = tempfile::tempdir().expect("dir");
+    let f = d.path().join("openclaw.json");
+    std::fs::write(&f, r#"{"gateway":{"auth":{"mode":"token","token":"tok-1"}}}"#).expect("w");
+    let none = super::discover::Runs::NotFound;
+    assert_eq!(
+        super::gateway_token(f.to_str().expect("p"), &none).await.as_deref(),
+        Some("tok-1")
+    );
+    std::fs::write(
+        &f,
+        r#"{"gateway":{"auth":{"token":{"source":"env","id":"CC_TEST_GW_TOKEN_X"}}}}"#,
+    )
+    .expect("w");
+    assert_eq!(super::gateway_token(f.to_str().expect("p"), &none).await, None);
+    std::fs::write(&f, r#"{"gateway":{"auth":{"token":{"source":"file","id":"x"}}}}"#).expect("w");
+    assert_eq!(super::gateway_token(f.to_str().expect("p"), &none).await, None);
+}
+
+#[test]
+fn a_loopback_connection_is_known_by_its_owner() {
+    let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let c = std::net::TcpStream::connect(l.local_addr().expect("addr")).expect("connect");
+    let port = c.local_addr().expect("local").port();
+    assert_eq!(super::owner_of_loopback_port(port), super::own_uid());
+    assert!(super::own_uid().is_some());
+    assert_eq!(super::owner_of_loopback_port(1), None);
+}
+
+#[test]
+fn approvals_go_to_a_firewall_only_over_a_private_network() {
+    for a in [
+        "10.0.0.2",
+        "172.31.252.2",
+        "192.168.1.5",
+        "100.64.0.1",
+        "127.0.0.1",
+        "169.254.1.1",
+        "fd00::2",
+        "fe80::1",
+        "::1",
+    ] {
+        assert!(super::private_address(a.parse().expect("ip")), "{a}");
+    }
+    for a in ["203.0.113.4", "8.8.8.8", "100.128.0.1", "2001:db8::1"] {
+        assert!(!super::private_address(a.parse().expect("ip")), "{a}");
+    }
+}
+
+#[test]
+fn an_owner_that_cannot_be_read_is_nobodys() {
+    assert!(super::same_owner(Some(0), Some(0)));
+    assert!(!super::same_owner(Some(0), Some(1000)));
+    assert!(!super::same_owner(None, None));
+    assert!(!super::same_owner(None, Some(0)));
+    assert!(!super::same_owner(Some(0), None));
+}
+
+#[test]
+fn a_settles_token_names_this_agent_and_verifies_with_its_own_key() {
+    let d = tempfile::tempdir().expect("dir");
+    let public = cc_auth::keys::ensure_vm_keypair(d.path()).expect("pair");
+    let keys = cc_auth::keys::KeysDir::new(d.path());
+    let t = super::agent_token(&keys, "agent_1").expect("token");
+    let key = cc_auth::jwt::VerifyKey::ed25519_spki_pem(&public).expect("key");
+    let claims = cc_auth::jwt::verify(&t, &key, cc_auth::jwt::VerifyOptions::default()).expect("verifies");
+    assert_eq!(claims.get("vmId").and_then(|v| v.as_str()), Some("agent_1"));
+    let empty = tempfile::tempdir().expect("dir");
+    assert!(super::agent_token(&cc_auth::keys::KeysDir::new(empty.path()), "agent_1").is_none());
+}

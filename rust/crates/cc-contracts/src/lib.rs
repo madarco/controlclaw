@@ -17,6 +17,7 @@
 //! [`control_plane`] and [`commands`] are the other contract: between the firewall agent and its
 //! control plane (docs/standalone/control-plane-contract.md).
 
+pub mod auto_approve;
 pub mod commands;
 pub mod content;
 pub mod control_plane;

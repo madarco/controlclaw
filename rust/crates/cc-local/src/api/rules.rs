@@ -98,7 +98,7 @@ pub struct TryBody {
     pub draft: Option<Value>,
 }
 
-async fn change(c: &Ctx, ns: &str, change: Value) -> Result {
+pub(super) async fn change(c: &Ctx, ns: &str, change: Value) -> Result {
     let mut p = Map::new();
     p.insert("changeId".into(), json!(super::new_id("chg")));
     p.insert("change".into(), change);

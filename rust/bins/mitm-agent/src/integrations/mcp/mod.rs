@@ -50,6 +50,12 @@ pub fn register(
         "/opt/controlclaw/mitm/logs/mcp-server-calls.jsonl",
     ));
 
+    // One line per MCP tool call (the gate's and the proxy's), in Activity beside the app calls.
+    crate::core::activity::ship_log(
+        &calls_log.to_string_lossy(),
+        Arc::new(crate::core::activity::connector_call_activity),
+    );
+
     // MCP tool calls: the catalog of tools, and the one checker the gate and the proxy share.
     let catalog = catalog::McpCatalog::new(
         app,
@@ -189,6 +195,9 @@ pub fn register(
             let _ = gate
                 .ca
                 .set(ca_answer(app, std::env::var("CA_CERT_PATH").unwrap_or_default()));
+            if standalone {
+                vm_agent_listeners(app, gate.clone(), cp_gate_port, bind.clone(), also.clone());
+            }
             let router = Arc::new(gate.router());
             let to = if cp_url.is_empty() {
                 "no ControlClaw MCP (/mcp answers 404)".to_string()
@@ -205,6 +214,58 @@ pub fn register(
         }
         None => tracing::info!("[mitm-agent] ControlClaw tools gate off (no private address or no control plane URL)"),
     }
+}
+
+/// A standalone firewall's agent can run in a container whose network its vm-agent is not on (`up
+/// --all`): the vm-agent then reaches this firewall at another address, the one the firewall calls it
+/// from. `/permission` is also served there, every 30 s for the agents paired since, and only to the
+/// paired vm-agent's own address (`ToolsGate::permission_router`).
+fn vm_agent_listeners(app: &Arc<App>, gate: Arc<tools_gate::ToolsGate>, port: u16, bind: String, also: Option<String>) {
+    let app = app.clone();
+    tokio::spawn(async move {
+        let router = Arc::new(gate.permission_router());
+        let mut bound: std::collections::HashSet<String> = [Some(bind), also].into_iter().flatten().collect();
+        let mut every = tokio::time::interval(std::time::Duration::from_secs(30));
+        loop {
+            every.tick().await;
+            let Ok(ids) = app.contracts.identities.require() else {
+                continue;
+            };
+            for a in ids.agents() {
+                let Some(route) = ids.route_for(&a.vm_id) else { continue };
+                let Some(local) = local_address_toward(&route.host) else {
+                    continue;
+                };
+                if bound.insert(local.clone()) {
+                    let line = format!("[mitm-agent] approvals from vm-agents also on {local}:{port}");
+                    crate::integrations::serve_gate(
+                        &app,
+                        local,
+                        port,
+                        router.clone(),
+                        line,
+                        "[auto-approve] gate:",
+                        None,
+                    );
+                }
+            }
+        }
+    });
+}
+
+/// This machine's address on the way to `host` (a UDP socket's local address after `connect`; no
+/// packet is sent). None for a loopback or unspecified answer.
+fn local_address_toward(host: &str) -> Option<String> {
+    let ip: std::net::IpAddr = host.parse().ok()?;
+    let any: std::net::IpAddr = if ip.is_ipv4() {
+        [0, 0, 0, 0].into()
+    } else {
+        std::net::Ipv6Addr::UNSPECIFIED.into()
+    };
+    let s = std::net::UdpSocket::bind((any, 0)).ok()?;
+    s.connect((ip, 9)).ok()?;
+    let local = s.local_addr().ok()?.ip();
+    (!local.is_loopback() && !local.is_unspecified()).then(|| local.to_string())
 }
 
 /// `GET /ca` on the 3940 gate (`index.ts` `ca:`, main #564): this firewall's CA and its detached

@@ -33,6 +33,8 @@ import { RulesCodePanel } from "./RulesCodePanel";
 import { Acts, ActionPill, Cell, EmptyLine, Hits, Main, Ord, TRow } from "./RulesTable";
 import { byRuleKey, foldNamedApps, outcomeLine, type RuleActivityItem } from "../../lib/rule-metrics";
 import { SecurityRuleEditor } from "./SecurityRuleEditor";
+import { useAutoRules, type AutoDemo, type AutoKept } from "./AutoRules";
+import { patchAutoRule } from "../../lib/auto-approve-schema";
 import { useRoutes } from "../../lib/routes";
 
 /**
@@ -43,7 +45,8 @@ import { useRoutes } from "../../lib/routes";
  * - Email (senders and recipients, on the firewall): adding someone waits for a code.
  * - Websites (`egress_rule`, the Internet access rules): no code.
  * - Integrations (on the firewall, read on every app and MCP tool call): a change that lets more through waits for a code.
- * - Auto approve (`security_rule`, answers the agents' permission requests): no code.
+ * - Auto approve (answers the agents' permission requests): on a firewall that keeps them, a change
+ *   that lets more through waits for a code; where ControlClaw keeps them (`security_rule`), no code.
  *
  * Then Settings: the AI Firewall and AI Log Review, which every type's AI checks use. It has no rows.
  *
@@ -59,7 +62,7 @@ const TYPE_LINE: Record<SecurityTab, { line: string; code?: string; add?: string
   email: { line: "Mail from anyone not listed is held back.", code: "Adding someone needs a code" },
   websites: { line: "Read top to bottom. The first match decides.", add: "New site rule" },
   apps: { line: "What your agents may do in your connected apps and MCP servers, on sites the Websites rules allow. The first match decides.", code: "Loosening needs a code", add: "New integration rule" },
-  auto: { line: "Answers your agents' permission requests for you. The first match decides.", add: "New rule" },
+  auto: { line: "Answers your agents' permission requests for you. The first match decides.", code: "Loosening needs a code", add: "New rule" },
   settings: { line: "The AI that checks requests and messages as they happen, and the AI that reviews your agents' traffic afterwards." },
 };
 
@@ -83,7 +86,10 @@ type Dialogs =
   | { kind: "try" };
 
 export interface SecurityRulesViewProps {
+  /** The Auto approve rules ControlClaw keeps; empty where the firewall keeps them (read by the page). */
   auto: SecurityRuleListItem[];
+  /** Where the Auto approve rules are kept (`console` when left out). */
+  autoKept?: AutoKept;
   websites: EgressRuleListItem[];
   /** Every box a rule can be for: the agents, and the brain when there is one. */
   boxes: EgressBoxOption[];
@@ -111,6 +117,8 @@ export interface SecurityRulesViewProps {
     content?: ContentDemo;
     email?: EmailDemo;
     apps?: AppsDemo;
+    /** Auto approve on a firewall that keeps them. */
+    auto?: AutoDemo;
     /** What each rule matched in 7 days, in place of the RPC. */
     activity?: RuleActivityItem[];
     activityNow?: number;
@@ -121,7 +129,7 @@ export interface SecurityRulesViewProps {
   };
 }
 
-export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxes, apps: appOptions = [], canManage, canManageWebsites, exit, ai, initialType, initialAgent, initialRule, initialNew, codes = true, contentChannels = CONTENT_CHANNELS, demo }: SecurityRulesViewProps) {
+export function SecurityRulesView({ auto: initialAuto, autoKept = "console", websites, boxes, mailboxes, apps: appOptions = [], canManage, canManageWebsites, exit, ai, initialType, initialAgent, initialRule, initialNew, codes = true, contentChannels = CONTENT_CHANNELS, demo }: SecurityRulesViewProps) {
   const rulesOptions = useMemo(() => ({ codes, channels: contentChannels }), [codes, contentChannels]);
   const api = useApi();
   const routes = useRoutes();
@@ -131,23 +139,27 @@ export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxe
   const closeMessages = useCallback(() => setDialog((d) => (d?.kind === "messages" ? null : d)), []);
   const closeEmail = useCallback(() => setDialog((d) => (d?.kind === "email" ? null : d)), []);
   const closeApps = useCallback(() => setDialog((d) => (d?.kind === "apps" ? null : d)), []);
+  const closeAuto = useCallback(() => setDialog((d) => (d?.kind === "auto" ? null : d)), []);
+  const autoOnFirewall = autoKept === "firewall" && !!api.autoApprove;
   const content = useContentRules(demo ? (demo.content ?? { snapshot: null, error: "The firewall didn’t answer." }) : undefined, closeMessages);
   const email = useEmailRules(mailboxes.length > 0, demo ? (demo.email ?? { snapshot: null }) : undefined, closeEmail);
   const web = useEgressRules(api.egressRules, websites, boxes, canManageWebsites, !!demo);
 
-  const [autoRules, setAutoRules] = useState(initialAuto);
+  const [consoleAutoRules, setAutoRules] = useState(initialAuto);
   // What each rule matched in the last 7 days (docs/plans/rule-metrics.md), every type, by `type:id`.
   const [activity, setActivity] = useState<{ items: Map<string, RuleActivityItem>; now: number }>({ items: byRuleKey(demo?.activity ?? []), now: demo?.activityNow ?? 0 });
   const record = useOpenContentRecord(!!demo, content.setError);
   const [emailSettingsOpen, setEmailSettingsOpen] = useState(!!demo?.emailSettingsOpen);
 
   // A control plane with no auto approve rules (the firewall's own panel) has no Auto approve tab.
-  const tabs = useMemo(() => SECURITY_TABS.filter((t) => t !== "auto" || !!api.security), [api]);
+  const tabs = useMemo(() => SECURITY_TABS.filter((t) => t !== "auto" || !!api.security || autoOnFirewall), [api, autoOnFirewall]);
   const [type, setTypeState] = useState<SecurityTab>(() => {
     const t = demo?.type ?? initialType ?? "messages";
     return tabs.includes(t) ? t : "messages";
   });
   const appRules = useAppRules(canManage && type === "apps", demo ? (demo.apps ?? { snapshot: null }) : undefined, closeApps);
+  const autoFw = useAutoRules(autoOnFirewall && canManage && type === "auto", demo && autoOnFirewall ? (demo.auto ?? { snapshot: null }) : undefined, closeAuto);
+  const autoRules = autoOnFirewall ? autoFw.items : consoleAutoRules;
   const [box, setBoxState] = useState<string>(demo?.agent ?? (initialAgent && boxes.some((b) => b.id === initialAgent) ? initialAgent : ""));
   const agents = useMemo(() => boxes.filter((b) => b.kind === "agent"), [boxes]);
   // The brain is a choice on Websites only: it sends no messages and asks for nothing.
@@ -238,12 +250,20 @@ export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxe
   const contentDisabled = !canManage || content.busy || !!content.pending;
   const emailDisabled = !canManage || email.busy || !!email.pending;
   const appsDisabled = !canManage || appRules.busy || !!appRules.pending;
+  const autoFwDisabled = autoOnFirewall && (autoFw.busy || !!autoFw.pending || !autoFw.snapshot);
   // The always-on rules too: "Try a message" names the rule that would act, Leaking secrets included.
   const names = Object.fromEntries([...(content.snapshot?.core ?? []), ...(content.snapshot?.rules ?? [])].map((r) => [r.id, r.name]));
 
   // --- Auto approve ---
   const patchAuto = (id: string, patch: Partial<SecurityRuleListItem>) => setAutoRules((p) => p.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  /** On a firewall that keeps the rules: the rule with a change, sent to it (it may want its code). */
+  function sendAuto(rule: SecurityRuleListItem, patch: { effect?: SecurityRuleListItem["effect"]; enabled?: boolean }) {
+    const held = autoFw.snapshot?.rules.find((r) => r.id === rule.id);
+    if (!held || autoFwDisabled) return;
+    void autoFw.send({ op: "put", rule: patchAutoRule(held, patch) });
+  }
   async function cycleAuto(rule: SecurityRuleListItem) {
+    if (autoOnFirewall) return sendAuto(rule, { effect: NEXT_EFFECT[rule.effect] });
     if (demo || rule.locked || !canManage || !api.security) return;
     patchAuto(rule.id, { effect: NEXT_EFFECT[rule.effect] });
     try {
@@ -255,6 +275,7 @@ export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxe
     }
   }
   async function toggleAuto(rule: SecurityRuleListItem) {
+    if (autoOnFirewall) return sendAuto(rule, { enabled: !rule.enabled });
     if (demo || rule.locked || !canManage || !api.security) return;
     patchAuto(rule.id, { enabled: !rule.enabled });
     try {
@@ -273,15 +294,15 @@ export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxe
     setDialog(null);
   }
 
-  const codePanel = (which: "messages" | "email" | "apps", where: "page" | "dialog") => {
-    const c = which === "messages" ? content : which === "email" ? email : appRules;
+  const codePanel = (which: "messages" | "email" | "apps" | "auto", where: "page" | "dialog") => {
+    const c = which === "messages" ? content : which === "email" ? email : which === "apps" ? appRules : autoFw;
     if (!c.pending) return null;
     // While that type's dialog is open, the code is asked for there.
     if ((where === "page") === (dialog?.kind === which)) return null;
     return (
       <RulesCodePanel
         id={`${which === "messages" ? "content" : which}-code`}
-        label={which === "messages" ? "Messages rules" : which === "email" ? "Email rules" : "Integrations rules"}
+        label={which === "messages" ? "Messages rules" : which === "email" ? "Email rules" : which === "apps" ? "Integrations rules" : "Auto approve rules"}
         className={where === "page" ? "mb-3" : ""}
         pending={c.pending}
         code={c.code}
@@ -313,7 +334,10 @@ export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxe
               }
             : null
           : type === "auto" && canManage
-            ? { onClick: () => setDialog({ kind: "auto", rule: null }) }
+            ? {
+                onClick: () => setDialog({ kind: "auto", rule: null }),
+                off: !autoOnFirewall ? undefined : !autoFw.snapshot ? "Your firewall must be running to hold Auto approve rules." : autoFw.pending ? "An Auto approve change is waiting for its code." : undefined,
+              }
             : null;
   const T = TYPE_LINE[type];
 
@@ -405,13 +429,18 @@ export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxe
         <div className="mb-3 flex flex-wrap items-center gap-2.5" data-testid="security-bar">
           <p className="m-0 flex min-w-[220px] flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-ink-2">
             {T.line}
-            {T.code && codes ? (
+            {T.code && codes && (type !== "auto" || autoOnFirewall) ? (
               <span className="inline-flex items-center gap-[5px] text-[12px]" data-testid="needs-code" data-tour="needs-code">
                 <Lock className="h-3 w-3" />
                 {T.code}
               </span>
             ) : null}
-            {(type === "messages" ? content.loading : type === "email" ? email.loading : type === "apps" ? appRules.loading : false) ? (
+            {type === "auto" && autoKept === "old" ? (
+              <span className="text-[12px]" data-testid="auto-kept-console">
+                Kept by ControlClaw until your firewall updates
+              </span>
+            ) : null}
+            {(type === "messages" ? content.loading : type === "email" ? email.loading : type === "apps" ? appRules.loading : type === "auto" ? autoFw.loading : false) ? (
               <span className="inline-flex items-center gap-[5px] text-[12px]" role="status">
                 <RefreshCw className="h-3 w-3 animate-spin" />
                 Reading your firewall…
@@ -467,9 +496,12 @@ export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxe
         {content.notice && <Notice>{content.notice}</Notice>}
         {email.notice && <Notice>{email.notice}</Notice>}
         {appRules.notice && type === "apps" && <Notice>{appRules.notice}</Notice>}
+        {autoFw.error && type === "auto" && dialog?.kind !== "auto" && <Alert>{autoFw.error}</Alert>}
+        {autoFw.notice && type === "auto" && <Notice>{autoFw.notice}</Notice>}
         {codePanel("messages", "page")}
         {codePanel("email", "page")}
         {codePanel("apps", "page")}
+        {codePanel("auto", "page")}
 
         {type === "messages" && (
           <>
@@ -720,7 +752,7 @@ export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxe
             </TRow>
             {shown.map((r, i) =>
               r.type === "auto" ? (
-                <AutoRow key={r.key} row={r} order={i + 1} hits={<Hits item={hits("auto", r.rule.id)} now={activity.now} type="auto" testId={`auto-rule-hits-${r.rule.id}`} />} canManage={canManage} onCycle={() => void cycleAuto(r.rule)} onToggle={() => void toggleAuto(r.rule)} onEdit={() => setDialog({ kind: "auto", rule: r.rule })} />
+                <AutoRow key={r.key} row={r} order={i + 1} hits={<Hits item={hits("auto", r.rule.id)} now={activity.now} type="auto" testId={`auto-rule-hits-${r.rule.id}`} />} canManage={canManage} disabled={autoFwDisabled} onCycle={() => void cycleAuto(r.rule)} onToggle={() => void toggleAuto(r.rule)} onEdit={() => setDialog({ kind: "auto", rule: r.rule })} />
               ) : null,
             )}
             <TRow cols="auto" builtin data-testid="security-builtin-auto">
@@ -816,7 +848,16 @@ export function SecurityRulesView({ auto: initialAuto, websites, boxes, mailboxe
             initial={dialog.rule}
             vmOptions={agents}
             onClose={closeDialog}
-            demo={!!demo}
+            demo={!!demo && !autoOnFirewall}
+            {...(autoOnFirewall
+              ? {
+                  ruleCount: autoFw.items.length,
+                  onPropose: (change) => {
+                    setDialog(null);
+                    void autoFw.send(change);
+                  },
+                }
+              : {})}
             onSaved={savedAuto}
             onDeleted={(id) => {
               setAutoRules((p) => p.filter((r) => r.id !== id));
@@ -1051,6 +1092,7 @@ function AutoRow({
   order,
   hits,
   canManage,
+  disabled,
   onCycle,
   onToggle,
   onEdit,
@@ -1060,12 +1102,14 @@ function AutoRow({
   /** How often it matched in 7 days. */
   hits: ReactNode;
   canManage: boolean;
+  /** A change on the firewall is waiting, or its rules are not read yet. */
+  disabled?: boolean;
   onCycle: () => void;
   onToggle: () => void;
   onEdit: () => void;
 }) {
   const { rule } = row;
-  const editable = canManage && !rule.locked;
+  const editable = canManage && !rule.locked && !disabled;
   return (
     <TRow cols="auto" off={!rule.enabled} data-testid={`auto-rule-${rule.id}`}>
       <Ord>{order}</Ord>

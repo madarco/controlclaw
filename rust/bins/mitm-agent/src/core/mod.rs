@@ -25,6 +25,7 @@ pub mod apply;
 // Also used by later groups (C3-C6), W4 and W5.
 #[allow(dead_code)]
 pub mod agent_client;
+pub mod auto_approve;
 pub mod auto_update;
 pub mod backup;
 pub mod backup_manifest;
@@ -132,6 +133,8 @@ pub struct Core {
     pub grants: Arc<GrantStore>,
     /// Set once the bridge runs (`revokeEmailGrants`).
     pub bridge: OnceLock<Arc<PermissionBridge>>,
+    /// The Auto approve rules (`auto_approve`).
+    pub auto_approve: Arc<auto_approve::AutoApproveFirewall>,
     /// Called with each traffic batch the console took (`onShipped`: the exit's bytes, W4's
     /// included credit). Added in `register`, read when the shipper starts.
     pub traffic_watchers: Mutex<Vec<OnShipped>>,
@@ -244,6 +247,7 @@ impl Core {
             uses_http,
             agents,
             bridge: OnceLock::new(),
+            auto_approve: auto_approve::AutoApproveFirewall::from_env(app),
             traffic_watchers: Mutex::new(Vec::new()),
             ca_extra: OnceLock::new(),
         })
@@ -300,6 +304,28 @@ pub fn register(reg: &mut Registry, app: &Arc<App>) {
     });
     // Every token this firewall signs for an agent is for one request (agent-client.ts).
     core.beat.feature("bound_tokens", || true);
+    // The Auto approve rules, kept and checked here once seeded (`auto_approve.rs`).
+    for action in ["read", "propose", "confirm", "cancel"] {
+        let rules = core.auto_approve.clone();
+        reg.commands.handle(&format!("autoapprove.{action}"), move |p| {
+            let rules = rules.clone();
+            async move { rules.handle(action, p).await }
+        });
+    }
+    let rules = core.auto_approve.clone();
+    core.beat.feature("auto_approve", move || rules.active());
+    let rules = core.auto_approve.clone();
+    let _ = core
+        .sync
+        .hooks
+        .auto_approve
+        .set(Arc::new(move |sent: Option<&serde_json::Value>| rules.synced(sent)));
+    let rules = core.auto_approve.clone();
+    let _ = core
+        .sync
+        .hooks
+        .auto_approve_seeded
+        .set(Arc::new(move || rules.active()));
     let c = core.clone();
     reg.commands.status(
         &[
@@ -309,9 +335,18 @@ pub fn register(reg: &mut Registry, app: &Arc<App>) {
             "agents_reach",
             "agents_moved",
             "software",
+            "auto_approve",
         ],
         move || {
             let mut m = serde_json::Map::new();
+            if c.auto_approve.active() {
+                let (rules, ask) = c.auto_approve.counts();
+                let version = c.auto_approve.list_version();
+                m.insert(
+                    "auto_approve".into(),
+                    serde_json::json!({"rules": rules, "ask": ask, "version": version}),
+                );
+            }
             let features = c.beat.features();
             if !features.is_empty() {
                 m.insert("features".into(), serde_json::json!(features));
@@ -945,11 +980,10 @@ fn register_updates(reg: &mut Registry, app: &Arc<App>, core: &Arc<Core>) {
     handle(reg, "update.confirm", &u, |u, p| async move { u.confirm(p).await });
     handle(reg, "update.cancel", &u, |u, p| async move { u.cancel(p) });
 
-    let a = Arc::new(apply::Apply::new(
-        core.agent.clone(),
-        core.kit("apply"),
-        core.agents.clone(),
-    ));
+    let a = Arc::new(
+        apply::Apply::new(core.agent.clone(), core.kit("apply"), core.agents.clone())
+            .with_auto(core.auto_approve.clone()),
+    );
     let _ = core.apply.set(a.clone());
     app.contracts.mcp_grants.set(Arc::new(apply::McpGrants(a.clone())));
     handle(reg, "apply.propose", &a, |a, p| async move { a.propose(p).await });
@@ -1350,6 +1384,14 @@ pub async fn start(app: &Arc<App>) {
             core.sync.client.clone(),
         ));
         let _ = core.bridge.set(bridge.clone());
+        bridge.with_auto(core.auto_approve.clone(), app.keys.vm_id());
+        // OpenClaw's own approvals from the agents, on the 3940 gate.
+        app.contracts
+            .agent_permissions
+            .set(Arc::new(auto_approve::AgentApprovals {
+                store: core.auto_approve.clone(),
+                bridge: bridge.clone(),
+            }));
         tracing::info!("[mitm-agent] permission bridge enabled");
         every(Duration::from_millis(env.permission_poll_ms), move || {
             let b = bridge.clone();

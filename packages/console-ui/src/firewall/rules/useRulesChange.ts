@@ -115,5 +115,8 @@ export function useRulesChange<C, S>({
     }
   }
 
-  return { pending, code, setCode, busy, error, setError, notice, setNotice, send, confirm };
+  /** A change that was started elsewhere (a template's step) and waits for its code here. */
+  const adopt = (p: RulesPending) => setPending((cur) => cur ?? p);
+
+  return { pending, code, setCode, busy, error, setError, notice, setNotice, send, confirm, adopt };
 }

@@ -28,6 +28,11 @@ steps:
           - {id: $string, name: Allow example, match_domain: example.com, effect: allow, priority: 10}
           - {id: $string, name: Ask before posting, match_domain: api.example.com, match_path: /v1/*, match_method: POST, effect: require_permission, priority: 20}
         ai: $any
+        auto_approve: $optional
+  - name: the SaaS hands its Auto approve rules to a firewall that does not keep them yet, once
+    scope: saas-only
+    request: {method: GET, path: /api/vm-agent/egress-rules, as: cper_fw}
+    expect: {status: 200, json_subset: {auto_approve: {app_names: {}, seed: []}}}
   - name: POST answers the same
     request: {method: POST, path: /api/vm-agent/egress-rules, as: cper_fw}
     expect: {status: 200, json_subset: {rules: [{name: Block bad}, {name: Allow example}, {name: Ask before posting}]}}

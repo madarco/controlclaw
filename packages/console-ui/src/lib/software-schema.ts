@@ -54,13 +54,15 @@ export const boxSoftwareSchema = z.object({
  * The box features the control plane acts on, or keeps for operators. Anything else a box says is
  * dropped, so a feature the console reads and this list lacks is never seen, whatever the box
  * reports: a name is added here in the same change that first reads it. `software.test.ts` reads the
- * code for every such read and fails when one is missing. Three are kept with no reader yet, for
+ * code for every such read and fails when one is missing. Four are kept with no reader yet, for
  * operators: `rust_runtime` (a Rust build), `runtime_fallback` (a Rust build crash-looped or could not
  * be switched to, and the Node build runs; docs/plans/rust-rewrite.md §5.1), and `agent_port_3102` (the
  * vm-agent runs on 3102: the count of boxes without it says when 3100 can be dropped,
- * docs/ops/t-vmagent-port-3102.md).
+ * docs/ops/t-vmagent-port-3102.md), and `approvals_via_firewall` (the vm-agent sends OpenClaw's
+ * approvals to its firewall, whose Auto approve rules answer them; the count of boxes without it says
+ * how many still ask the console directly).
  */
-const KNOWN_FEATURES = new Set(["templates", "templates_apply", "templates_org", "templates_review", "templates_capture", "templates_steps2", "templates_bundles", "templates_check", "templates_repair", "templates_capture_ai", "open_v1", "logs_page", "whatsapp_page", "meetings_page", "phone_page", "doctor_v1", "console_mcp", "speech_realtime", "speech_live", "speech_wake", "speech_wake_local", "speech_always", "meeting_full_agent", "phone_voice_edit", "meeting_followup", "meetings_autojoin", "fw_tokens_bound", "skills_start", "skills_remove", "skills_capture", "notes_start", "disk_partners", "templates_code", "storage_grow", "skills_apply", "notes_apply", "llm_blocks", "meeting_present", "meeting_consult_model", "meeting_instructions", "rust_runtime", "runtime_fallback", "agent_port_3102"]);
+const KNOWN_FEATURES = new Set(["templates", "templates_apply", "templates_org", "templates_review", "templates_capture", "templates_steps2", "templates_bundles", "templates_check", "templates_repair", "templates_capture_ai", "open_v1", "logs_page", "whatsapp_page", "meetings_page", "phone_page", "doctor_v1", "console_mcp", "speech_realtime", "speech_live", "speech_wake", "speech_wake_local", "speech_always", "meeting_full_agent", "phone_voice_edit", "meeting_followup", "meetings_autojoin", "fw_tokens_bound", "skills_start", "skills_remove", "skills_capture", "notes_start", "disk_partners", "templates_code", "storage_grow", "skills_apply", "notes_apply", "llm_blocks", "meeting_present", "meeting_consult_model", "meeting_instructions", "rust_runtime", "runtime_fallback", "agent_port_3102", "approvals_via_firewall"]);
 
 /** `null` when the box sent nothing usable — which reads as "not reported" everywhere. */
 export function parseBoxSoftware(input: unknown): VmSoftware | null {

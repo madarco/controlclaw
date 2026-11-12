@@ -1,7 +1,7 @@
 //! Permission requests: what an agent or the firewall asked a person, listed and answered as the
 //! SaaS's `requests.listPermissionRequests` and `resolvePermissionRequest` do. The box that asked
-//! learns the answer on its next poll of `/permission`. "Always allow" is the SaaS's (its auto
-//! approve rules), not here.
+//! learns the answer on its next poll of `/permission`. A request the firewall's Auto approve rules
+//! answered is here too, with the rule (`resolvedBy: rule`). There is no "Always allow" here.
 
 use http::Method;
 use rusqlite::params;
@@ -78,6 +78,11 @@ pub struct PermissionRequest {
     pub expires_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// Who settled it: `user` (the panel), `rule` (an Auto approve rule), `openclaw`, `firewall`.
+    pub resolved_by: Option<String>,
+    /// The Auto approve rule that decided it, or that asked about it.
+    pub rule_id: Option<String>,
+    pub rule_name: Option<String>,
 }
 
 /// `[[label, value]]` from what the box sent: pairs, or an object's entries.
@@ -94,7 +99,7 @@ fn pairs(detail: &str) -> Vec<(String, String)> {
 }
 
 const SELECT: &str = "SELECT p.id, p.kind, p.title, p.detail, p.external_id, p.status, p.vm_id, a.name, p.expires_at,
-                             p.created_at, p.updated_at
+                             p.created_at, p.updated_at, p.resolved_by, p.rule_id, p.rule_name
                       FROM permission_requests p LEFT JOIN agents a ON a.vm_id = p.vm_id";
 
 fn row(r: &rusqlite::Row) -> rusqlite::Result<PermissionRequest> {
@@ -110,6 +115,9 @@ fn row(r: &rusqlite::Row) -> rusqlite::Result<PermissionRequest> {
         expires_at: r.get::<_, Option<i64>>(8)?.map(iso),
         created_at: iso(r.get(9)?),
         updated_at: iso(r.get(10)?),
+        resolved_by: r.get(11)?,
+        rule_id: r.get(12)?,
+        rule_name: r.get(13)?,
     })
 }
 

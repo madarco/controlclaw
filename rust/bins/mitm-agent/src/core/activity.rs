@@ -245,6 +245,40 @@ impl ActivityShipper {
     }
 }
 
+/// `connectorCallActivity`: an app or MCP call line as it is, if it is one (`connector_call` with
+/// its `id`, `ts` and `vm_id`); the console merges it with the run's row on the same key.
+pub fn connector_call_activity(line: &Value) -> Option<Value> {
+    let ok = line.get("source").and_then(Value::as_str) == Some("connector_call")
+        && line.get("id").is_some_and(Value::is_string)
+        && line.get("ts").is_some_and(Value::is_number)
+        && line.get("vm_id").is_some_and(Value::is_string);
+    ok.then(|| line.clone())
+}
+
+/// Ships one of the firewall's own logs on its own cursor (`<log>.cursor`), every `ACTIVITY_POLL_MS`,
+/// when there is a control plane to post to (the console, or a standalone firewall's own).
+pub fn ship_log(log_path: &str, transform: Transform) {
+    let Some(core) = super::core() else { return };
+    if core.env.activity_url.is_empty() || !core.uses_http {
+        return;
+    }
+    let shipper = ActivityShipper::new(
+        log_path,
+        &std::path::PathBuf::from(format!("{log_path}.cursor")),
+        &core.env.activity_url,
+        core.sync.client.clone(),
+        Some(transform),
+        Vec::new(),
+    );
+    let every = Duration::from_millis(core.env.activity_poll_ms);
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(every).await;
+            shipper.tick().await;
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -261,6 +295,22 @@ mod tests {
             "bad: records[3].x too_big"
         );
         assert_eq!(describe_refusal(r#"{"issue":{"path":1}}"#), "refused: ? ?");
+    }
+
+    #[test]
+    fn only_call_lines_are_shipped() {
+        let line = json!({"source": "connector_call", "id": "a1", "ts": 1.5, "vm_id": "vm_1", "decision": "allowed"});
+        assert_eq!(connector_call_activity(&line), Some(line.clone()));
+        for bad in [
+            json!({"source": "content_rule", "id": "a1", "ts": 1, "vm_id": "vm_1"}),
+            json!({"source": "connector_call", "ts": 1, "vm_id": "vm_1"}),
+            json!({"source": "connector_call", "id": 7, "ts": 1, "vm_id": "vm_1"}),
+            json!({"source": "connector_call", "id": "a1", "ts": "1", "vm_id": "vm_1"}),
+            json!({"source": "connector_call", "id": "a1", "ts": 1}),
+            json!("connector_call"),
+        ] {
+            assert_eq!(connector_call_activity(&bad), None, "{bad}");
+        }
     }
 }
 

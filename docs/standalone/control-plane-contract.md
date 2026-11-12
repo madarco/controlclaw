@@ -91,7 +91,7 @@ The firewall beats every 5 s (`FIREWALL_POLL_MS`), and again as soon as a comman
 
     | Scope | Fields |
     | --- | --- |
-    | both | `software`, `features`, `stores`, `kill`, `code_recipients`, `agents_reach`, `agents_moved`, `agentmail`, `residential` |
+    | both | `software`, `features`, `stores`, `kill`, `code_recipients`, `agents_reach`, `agents_moved`, `agentmail`, `residential`, `auto_approve` (`{rules, ask, version}`: the version of its Auto approve list, which the console compares with its copy) |
     | SaaS only | `access`, `auto_update`, `backup`, `disk_reseal`, `doctor_keys`, `included_ai`, `inventory`, `phone`, `team_chat`, `template_checks`, `update` |
 
 - **Response** (`HeartbeatReply`): `{command: {id, action, payload} | null}`.
@@ -113,6 +113,12 @@ The firewall beats every 5 s (`FIREWALL_POLL_MS`), and again as soon as a comman
     `{id, name, match_domain, match_path?, match_method?, match_port?, vm_id?, effect, exit?, exit_country?, priority, ai_review?, ai_policy?}`.
   - `ai`: the AI review settings (`AiSettings`), or `null` when it is off:
     `{credential_id, provider, model, checks, log_review, daily_call_cap, scan_interval_hours, auto_approve_per_hour, request_instructions, review_instructions}`.
+  - `auto_approve` (SaaS only): `{app_names, seed?}`. Its presence says the console wants the firewall to
+    keep and check the Auto approve rules. `app_names` maps app ids to the names the console shows, for
+    an app call's title. `seed` is the rules the console kept before (`cc_contracts::auto_approve::AutoRule`),
+    sent until the firewall's beat lists the feature `auto_approve`, or while its sync request says
+    `?auto_approve=unseeded`; a store never seeded takes it once, whole.
+    `cc-local` sends no `auto_approve`: a standalone firewall starts its own store, empty.
 - The firewall writes the rules to the proxy's `rules.json`.
 - **Errors**: 401.
 
@@ -133,15 +139,53 @@ The firewall beats every 5 s (`FIREWALL_POLL_MS`), and again as soon as a comman
   - It is idempotent on `permission_id`: a second raise answers `deduped: true`.
   - A firewall may raise `access`, `email_recipient` and `app_call`.
   - An agent may raise `exec`, `plugin`, `system` and `meeting_request`.
+  - A firewall may also raise `exec`, `plugin` and `system` for an agent behind it (`agent_vm_id`):
+    the agent's own approvals, which its vm-agent sent to the firewall's gate. Only with `decided` or
+    `checked`. The request is the agent's, as if the agent had raised it.
+  - Only a firewall may send what its Auto approve rules said:
+    - `decided: {effect: allow | block, rule_id, rule_name}`: the firewall answered it. The request is
+      stored approved or denied, settled by the rule.
+    - `checked: {rule_id, rule_name}`: a person answers it. `rule_id` is the Ask rule that matched, or
+      `null` for "Every other request". The control plane does not run rules of its own on it.
+    - Either is counted for that rule (the Security rules tab's counts).
 - **POST to settle** (`PermissionResolution`): `{permission_id, resolution, resolved_by?}`. This is a
   request the box settled itself. A request that is already settled keeps its status.
+  - A box settles only its own requests. A firewall never settles for an agent: an `agent_vm_id` on a
+    settle is a 403.
+  - An agent's settle that reaches the firewall's gate is sent on with the agent's own box token
+    (`Authorization: Bearer <the agent's token>`; to `cc-local`, in process, as that agent once the
+    token verifies with the key it paired with). The control plane sees the agent's own call.
+  - `decided` and `checked` are taken only for `exec`, `plugin`, `system` (an agent's, carried) and the
+    firewall's own `access`, `email_recipient`, `app_call`. `decided` needs a `rule_id`.
 - **Response to both POSTs** (`PermissionAck`): `{ok, status, deduped?}`.
 - **GET `?permission_id=`** (`PermissionStatus`):
   `{status, expiresAt, kind, alwaysAllowed, validUntil}`.
   - `status` is `unknown` for an id this box may not read.
+  - `status` is `approved_on_box` for an approval the agent settled itself (answered in OpenClaw):
+    it is never handed back to the box as an approval to carry out, since whatever runs on the box
+    could have sent it. A vm-agent does nothing with it.
   - An agent may read the asks raised for it.
+  - A firewall reads for an agent behind it with `&agent_vm_id=`: what that agent may read.
 - **GET with no id**: `{pending: [{permission_id, summary, created_at}]}`, this box's open requests.
-- **Errors**: 401, 403 (a kind the role may not raise; settling another box's request), 400.
+- **Errors**: 401, 403 (a kind the role may not raise; settling another box's request, or for an
+  agent; `decided` or `checked` from an agent; an `agent_vm_id` that is not an agent behind the
+  firewall), 400.
+
+### The gate's /permission (agent → firewall)
+
+Not a control-plane endpoint: what an agent's vm-agent sends to its firewall's 3940 gate, with the same
+bodies as above.
+
+- Every answer has `x-cc-gate: 1`.
+- 503 while the firewall agent is starting; 404 with `x-cc-auto-approve: off` while its Auto approve
+  store is not seeded (an older control plane). The vm-agent then asks its control plane itself. It
+  does that only for this 404, or for a 404 without `x-cc-gate` (an older firewall); anything else is
+  tried again, never around the firewall.
+- A settle must carry `x-cc-agent-token`, the vm-agent's own box token (403 without it).
+- Its own budget: 600 calls a minute from one address, apart from the gate's other routes.
+- On a standalone firewall the gate also answers `/permission` at the firewall's address toward each
+  paired vm-agent, only to that vm-agent's address; two agents whose vm-agents share an address are
+  not answered there.
 
 ### POST /activity
 
@@ -237,6 +281,10 @@ In the table below:
 | `apps.propose` | `{changeId, change: {op: put, rule, at?} \| {op: delete, id} \| {op: move, id, to}}` | `apps::Propose` | same |
 | `apps.confirm` | `Confirm` | `Confirm` | same |
 | `apps.cancel` | `{changeId}` | `ChangeRef` | same |
+| `autoapprove.read` | `{}` | `Empty` | `core/auto_approve.rs` |
+| `autoapprove.propose` | `{changeId, change: {op: put, rule, at?} \| {op: delete, id} \| {op: move, id, to}}` | `autoapprove::Propose` | same |
+| `autoapprove.confirm` | `Confirm` | `Confirm` | same |
+| `autoapprove.cancel` | `{changeId}` | `ChangeRef` | same |
 | `channels.propose` | `{changeId, kind, connectionId, type, hint?, label?, agent?, from?, pairing?, sender?, settings?, secret?}` | `channels::Propose` | `channels/chan/mod.rs` |
 | `channels.confirm` | `Confirm` | `Confirm` | same |
 | `channels.cancel` | `{changeId?}` | `Cancel` | same |

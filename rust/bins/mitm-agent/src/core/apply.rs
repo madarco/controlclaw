@@ -43,7 +43,13 @@ struct ApplyAgent {
     name: String,
     hostname: String,
     r#ref: String,
+    /// Auto approve rules the template adds for this agent (its `security_create_rule` steps),
+    /// put in this firewall's store under the same code.
+    auto: Vec<cc_contracts::auto_approve::AutoRule>,
 }
+
+/// The most Auto approve rules one apply adds for one agent.
+pub const APPLY_AUTO_MAX: usize = 20;
 
 impl ApplyAgent {
     fn target(&self) -> AgentTarget {
@@ -340,7 +346,13 @@ impl Proposal {
     fn to_json(&self) -> Value {
         json!({
             "changeId": self.change_id,
-            "agents": self.agents.iter().map(|a| json!({"vmId": a.vm_id, "name": a.name, "hostname": a.hostname, "ref": a.r#ref})).collect::<Vec<_>>(),
+            "agents": self.agents.iter().map(|a| {
+                let mut o = json!({"vmId": a.vm_id, "name": a.name, "hostname": a.hostname, "ref": a.r#ref});
+                if !a.auto.is_empty() {
+                    o["autoApprove"] = json!(a.auto);
+                }
+                o
+            }).collect::<Vec<_>>(),
             "facts": self.facts.iter().map(facts_json).collect::<Vec<_>>(),
         })
     }
@@ -351,11 +363,20 @@ impl Proposal {
             .iter()
             .map(|a| {
                 let s = |k: &str| a.get(k).and_then(Value::as_str).map(str::to_string);
+                let auto = match a.get("autoApprove") {
+                    None => Vec::new(),
+                    Some(v) => v
+                        .as_array()?
+                        .iter()
+                        .map(|r| super::auto_approve::parse_rule(r).ok())
+                        .collect::<Option<Vec<_>>>()?,
+                };
                 Some(ApplyAgent {
                     vm_id: s("vmId")?,
                     name: s("name")?,
                     hostname: s("hostname")?,
                     r#ref: s("ref")?,
+                    auto,
                 })
             })
             .collect::<Option<Vec<_>>>()?;
@@ -529,11 +550,23 @@ fn summarize(p: &Proposal) -> String {
             ..
         } => {
             let what = template_words(*org, *beside, name, hash);
-            let scripts = if *scripts > 0 {
-                format!(", {} a script", plural(*scripts, "runs", "run"))
-            } else {
-                String::new()
-            };
+            let rules: usize = p.agents.iter().map(|a| a.auto.len()).sum();
+            let scripts = format!(
+                "{}{}",
+                if *scripts > 0 {
+                    format!(", {} a script", plural(*scripts, "runs", "run"))
+                } else {
+                    String::new()
+                },
+                if rules > 0 {
+                    format!(
+                        ", and it adds {}",
+                        plural(rules as u64, "Auto approve rule", "Auto approve rules")
+                    )
+                } else {
+                    String::new()
+                }
+            );
             if one {
                 return format!(
                     "Apply {what} to {}: {change} of {} on the agent would change{scripts}",
@@ -609,6 +642,50 @@ fn typed_lines(p: &Proposal) -> Vec<TypedLine> {
                 text: note.clone(),
                 more: note_cut.then(|| "(and more: the agent gave only the start of it)".to_string()),
             });
+        }
+    }
+    lines
+}
+
+/// The Auto approve rules a template adds, in the firewall's words (part one): what each does, from
+/// its fields; its name and text are typed, so they are at the end ([`auto_lines`]).
+fn auto_words(p: &Proposal) -> String {
+    let all: Vec<(&ApplyAgent, &cc_contracts::auto_approve::AutoRule)> = p
+        .agents
+        .iter()
+        .flat_map(|a| a.auto.iter().map(move |r| (a, r)))
+        .collect();
+    if all.is_empty() {
+        return String::new();
+    }
+    let n = plural(all.len() as u64, "Auto approve rule", "Auto approve rules");
+    if all.len() > 3 {
+        return format!(" It adds {n} to your firewall; each is at the end of this message.");
+    }
+    let each: Vec<String> = all
+        .iter()
+        .map(|(a, r)| super::auto_approve::rule_words(r, &a.name))
+        .collect();
+    format!(" It adds {n} to your firewall: {}.", each.join("; "))
+}
+
+/// Each added rule's name and text, for the message's last part.
+fn auto_lines(p: &Proposal) -> Vec<TypedLine> {
+    let mut lines = Vec::new();
+    for a in &p.agents {
+        for r in &a.auto {
+            lines.push(TypedLine {
+                label: format!("Auto approve rule for {}", a.name),
+                text: r.name.clone(),
+                more: None,
+            });
+            if let Some(t) = r.title() {
+                lines.push(TypedLine {
+                    label: format!("Its text ({})", if r.exact() { "exactly" } else { "contains" }),
+                    text: t.to_string(),
+                    more: None,
+                });
+            }
         }
     }
     lines
@@ -762,9 +839,11 @@ fn message_parts(p: &Proposal) -> CodeParts {
             mcp,
             ..
         } => {
-            let typed = typed_lines(p);
+            let mut typed = typed_lines(p);
             let names = typed.iter().any(|l| l.label.starts_with("Name"));
             let notes = typed.iter().any(|l| l.label.starts_with("Note"));
+            typed.extend(auto_lines(p));
+            let rules = auto_words(p);
             let what = template_words(*org, *beside, name, hash);
             let scripts = if *scripts > 0 {
                 format!(", {} a script", plural(*scripts, "runs", "run"))
@@ -811,7 +890,7 @@ fn message_parts(p: &Proposal) -> CodeParts {
                 let change = *change;
                 let details = move |laid: Laid| {
                     Ok(format!(
-                        "{change} of {steps_text} on the agent would change{scripts}.{servers} {}",
+                        "{change} of {steps_text} on the agent would change{scripts}.{servers}{rules} {}",
                         filled(laid)
                     ))
                 };
@@ -844,7 +923,7 @@ fn message_parts(p: &Proposal) -> CodeParts {
             );
             let details = move |laid: Laid| {
                 Ok(format!(
-                    "The agents: {list}. {steps_text} on each agent{scripts}.{servers} {}",
+                    "The agents: {list}. {steps_text} on each agent{scripts}.{servers}{rules} {}",
                     filled(laid)
                 ))
             };
@@ -875,6 +954,8 @@ pub struct Apply {
     kit: Kit,
     agents: Arc<Agents>,
     st: Mutex<St>,
+    /// The Auto approve rules, which a confirmed template may add to.
+    auto: Option<Arc<super::auto_approve::AutoApproveFirewall>>,
 }
 
 impl Apply {
@@ -884,7 +965,14 @@ impl Apply {
             kit,
             agents,
             st: Mutex::new(St::default()),
+            auto: None,
         }
+    }
+
+    /// The Auto approve rules a confirmed template adds to.
+    pub fn with_auto(mut self, store: Arc<super::auto_approve::AutoApproveFirewall>) -> Self {
+        self.auto = Some(store);
+        self
     }
 
     fn st(&self) -> std::sync::MutexGuard<'_, St> {
@@ -1055,16 +1143,35 @@ impl Apply {
             ) else {
                 return malformed();
             };
-            if given.iter().any(|(v, _): &(String, String)| *v == vm_id) {
+            if given.iter().any(|(v, _, _): &(String, String, _)| *v == vm_id) {
                 return malformed();
             }
-            given.push((vm_id, r));
+            // A template's Auto approve rules for this agent: each one is for this agent only.
+            let auto = match a.get("autoApprove") {
+                None | Some(Value::Null) => Vec::new(),
+                Some(Value::Array(rules)) if rules.len() <= APPLY_AUTO_MAX => {
+                    let mut out = Vec::new();
+                    for r in rules {
+                        let Ok(mut rule) = super::auto_approve::parse_rule(r) else {
+                            return malformed();
+                        };
+                        if rule.vm_id.as_deref().is_some_and(|v| v != vm_id) {
+                            return malformed();
+                        }
+                        rule.vm_id = Some(vm_id.clone());
+                        out.push(rule);
+                    }
+                    out
+                }
+                Some(_) => return malformed(),
+            };
+            given.push((vm_id, r, auto));
         }
         let mut data = obj(&[("changeId", json!(change_id))]);
         self.purge();
         // Where each agent is and what it is called: this firewall's record, never the proposal's.
         let mut agents = Vec::new();
-        for (vm_id, r) in &given {
+        for (vm_id, r, auto) in &given {
             let Some(hostname) = self.agents.host_for(vm_id) else {
                 return fail(
                     "failed",
@@ -1087,6 +1194,7 @@ impl Apply {
                 r#ref: r.clone(),
                 hostname,
                 name: record_name(name.as_deref(), vm_id),
+                auto: auto.clone(),
             });
         }
         if !self.admit(&agents.iter().map(|a| a.vm_id.clone()).collect::<Vec<_>>()) {
@@ -1186,6 +1294,23 @@ impl Apply {
                 data,
             );
         }
+        if !matches!(first, Facts::Template { .. }) && agents.iter().any(|a| !a.auto.is_empty()) {
+            return malformed();
+        }
+        if agents.iter().any(|a| !a.auto.is_empty()) && self.auto.as_ref().is_none_or(|s| !s.active()) {
+            return fail(
+                "failed",
+                "Your firewall does not keep Auto approve rules yet, so it cannot add the template's. Update the firewall, then apply again.",
+                data,
+            );
+        }
+        // Checked now, so no code is sent for rules that could not be added (an id already there).
+        if let Some(store) = &self.auto {
+            let rules: Vec<_> = agents.iter().flat_map(|a| a.auto.iter().cloned()).collect();
+            if let Err(m) = store.fits(&rules) {
+                return fail("failed", &m, data);
+            }
+        }
         let p = Proposal {
             change_id: change_id.clone(),
             agents,
@@ -1233,7 +1358,7 @@ impl Apply {
             return fail("failed", m, data);
         }
         if routes.is_empty() {
-            return match self.ticket(&p).await {
+            return match self.ticket_and_rules(&p).await {
                 Ok(applied) => {
                     data.extend(applied);
                     data.insert("tofu".into(), json!(true));
@@ -1278,6 +1403,36 @@ impl Apply {
         awaiting(sent, data)
     }
 
+    /// The tickets, then the template's Auto approve rules: confirmed by the same code.
+    async fn ticket_and_rules(&self, p: &Proposal) -> Result<Map<String, Value>, String> {
+        let rules: Vec<_> = p.agents.iter().flat_map(|a| a.auto.iter().cloned()).collect();
+        // The rules are checked before any agent gets its ticket, so a template is never applied
+        // without them.
+        let store = match (&self.auto, rules.is_empty()) {
+            (_, true) => None,
+            (Some(store), false) => Some(store),
+            (None, false) => return Err("Your firewall does not keep Auto approve rules yet.".into()),
+        };
+        // The rule-change lock from the check to the add: a rule put meanwhile cannot make the add
+        // fail after the agents got their tickets.
+        let held = match store {
+            Some(s) => Some(s.template_lock().await),
+            None => None,
+        };
+        if let (Some(s), Some(_)) = (store, &held) {
+            s.fits(&rules)?;
+        }
+        let mut applied = self.ticket(p).await?;
+        if let (Some(store), Some(held)) = (store, &held) {
+            store.add_locked(held, &rules)?;
+            applied.insert(
+                "autoApprove".into(),
+                json!(rules.iter().map(|r| r.id.clone()).collect::<Vec<_>>()),
+            );
+        }
+        Ok(applied)
+    }
+
     pub async fn confirm(&self, payload: Map<String, Value>) -> CommandOutcome {
         let Some(change_id) = text(&payload, "changeId") else {
             return CommandOutcome::failed("failed", "malformed apply.confirm payload");
@@ -1303,7 +1458,7 @@ impl Apply {
                 let Some(p) = Proposal::from_json(&proposal) else {
                     return CommandOutcome::failed("failed", "That change could not be read.");
                 };
-                match self.ticket(&p).await {
+                match self.ticket_and_rules(&p).await {
                     Ok(applied) => {
                         let mut d = data;
                         d.extend(applied);
@@ -1352,6 +1507,7 @@ mod tests {
             name: name.into(),
             hostname: format!("{name}.example"),
             r#ref: "ref_12345".into(),
+            auto: vec![],
         }
     }
 
@@ -1383,5 +1539,50 @@ mod tests {
         // Ties round up, as `toFixed` does.
         assert_eq!(size_text(10752), "11 KB");
         assert_eq!(size_text(1280), "1.3 KB");
+    }
+
+    #[test]
+    fn a_templates_auto_approve_rules_are_in_the_message_and_kept_with_the_change() {
+        let t = json!({"kind": "template", "name": "sales", "hash": H, "org": true, "beside": false, "steps": 4, "change": 2, "scripts": 0, "filledName": "atlas", "note": "", "noteCut": false, "payload": H, "mcp": []});
+        let f = parse_facts(t.as_object().expect("o")).expect("template");
+        let rule = super::super::auto_approve::parse_rule(&json!({"id": "tpl_git", "name": "Let it run the tests", "kinds": ["exec"], "title_like": "npm test", "vm_id": "vm_atlas", "effect": "allow"})).expect("rule");
+        let mut a = agent("atlas");
+        a.auto = vec![rule];
+        let p = Proposal {
+            change_id: "c".into(),
+            agents: vec![a],
+            facts: vec![f],
+        };
+        assert!(summarize(&p).ends_with("2 of 4 steps on the agent would change, and it adds 1 Auto approve rule"));
+        let parts = message_parts(&p);
+        let Some(Details::Laid(details)) = &parts.details else {
+            panic!("details")
+        };
+        let text = details(Laid {
+            left_out: false,
+            long: false,
+        })
+        .expect("text");
+        assert!(
+            text.contains("It adds 1 Auto approve rule to your firewall: one that approves shell commands containing its text from atlas."),
+            "{text}"
+        );
+        assert!(
+            !text.contains("npm test") && !text.contains("Let it run"),
+            "typed text stays in the last part"
+        );
+        let typed: Vec<(String, String)> = parts.typed.iter().map(|l| (l.label.clone(), l.text.clone())).collect();
+        assert_eq!(
+            typed,
+            vec![
+                (
+                    "Auto approve rule for atlas".to_string(),
+                    "Let it run the tests".to_string()
+                ),
+                ("Its text (contains)".to_string(), "npm test".to_string())
+            ]
+        );
+        let back = Proposal::from_json(&p.to_json()).expect("back");
+        assert_eq!(back.agents[0].auto, p.agents[0].auto);
     }
 }

@@ -27,7 +27,7 @@ In standalone mode:
   | --- | --- |
   | `RULES_URL` | The egress rules and AI settings in its database. |
   | `IDENTITIES_URL` | The agents in its database: the ones the proxy recognises by source address. |
-  | `PERMISSION_URL` | Requests the proxy raises (`PENDING_PATH`, default `<PROXY_CONFIG_DIR>/pending.jsonl`) wait for an answer through the API. An approval becomes a grant for the proxy, as with the console. |
+  | `PERMISSION_URL` | Requests the proxy raises (`PENDING_PATH`, default `<PROXY_CONFIG_DIR>/pending.jsonl`), and an agent's own approvals (shell commands, plugin actions), which its vm-agent sends to the firewall's gate (3940). The firewall's Auto approve rules answer Allow and Block at once; the rest wait for an answer through the API. An approval becomes a grant for the proxy, as with the console. Each answer a rule gave is counted for the panel. |
   | `ACTIVITY_URL` | The traffic log (`TRAFFIC_LOG_PATH`) is shipped into its database. Raw rows are kept 30 days, the hourly rollup 13 months. |
   | `CA_URL` | The CA the firewall publishes is kept for the agents. |
 
@@ -67,13 +67,13 @@ In standalone mode:
   backups, the brain (gbrain), templates, Tailscale, devices, support SSH and updates are the SaaS's,
   so they are off as well.
 - **Modules that run.** With the local control plane as its control channel, a standalone firewall
-  runs the content rules, the emergency stop, web search, the exit proxy (your own account with a
+  runs the content rules, the Auto approve rules (kept in the firewall's own store, as the Integrations rules), the emergency stop, web search, the exit proxy (your own account with a
   proxy provider, not ControlClaw's relay) and the MCP servers (with `CONNECTOR_GATE_BIND` set); the
   panel's API sets them (`panel-api.md`). OAuth sign-ins come back to `LOCAL_PANEL_URL`, which
   Google takes only as `https://` or `http://localhost`: use an SSH tunnel to localhost, or set it
   to the panel's `https://` address. The tools
-  gate (3940) serves the MCP servers and the logins tools; the ControlClaw MCP behind its `/mcp` is
-  the SaaS's, so there it answers 404.
+  gate (3940) serves the MCP servers, the logins tools and the agents' approvals (`/permission`); the
+  ControlClaw MCP behind its `/mcp` is the SaaS's, so there it answers 404.
 - **Recovery routes** (`RECOVERY_ROUTES`, the backup restore on port 3100 over TLS) default to off.
 - **The proxy.** `cc-proxy` needs no change and no control plane: `MITM_CONTROL_PLANE_HOST` stays
   unset. It reads the files the agent writes in `PROXY_CONFIG_DIR` (`/run/mitm/config`), so its unit

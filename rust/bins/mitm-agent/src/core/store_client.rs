@@ -36,7 +36,42 @@ fn file_path(url: &str) -> Option<&str> {
     Some(rest.strip_prefix("//").unwrap_or(rest))
 }
 
+/// A `local:` call made as an agent: its own box token, checked by the local control plane.
+pub const AGENT_TOKEN_PARAM: &str = "cc_agent_token";
+
 impl StoreClient {
+    /// A JSON POST made as the agent whose box token this is (a settle this firewall carries): the
+    /// control plane checks the agent, as when the agent called it itself.
+    pub async fn post_as(&self, url: &str, body: &Value, agent_token: &str) -> Result<(u16, String), String> {
+        if cc_client::local::is_local(url) {
+            let sep = if url.contains('?') { '&' } else { '?' };
+            let with = format!(
+                "{url}{sep}{}",
+                url::form_urlencoded::Serializer::new(String::new())
+                    .append_pair(AGENT_TOKEN_PARAM, agent_token)
+                    .finish()
+            );
+            let r = local_response(&with, "POST", Some(body))
+                .await
+                .unwrap_or_else(|| Err("no local control plane".into()))?;
+            let status = r.status().as_u16();
+            return Ok((status, r.text().await.unwrap_or_default()));
+        }
+        let res = self
+            .http
+            .get()
+            .post(url)
+            .header("content-type", "application/json")
+            .body(serde_json::to_vec(body).unwrap_or_default())
+            .timeout(FETCH_TIMEOUT)
+            .bearer_auth(agent_token)
+            .send()
+            .await
+            .map_err(|_| "fetch failed".to_string())?;
+        let status = res.status().as_u16();
+        Ok((status, res.text().await.unwrap_or_default()))
+    }
+
     /// A GET to the control plane: the status and the body as text.
     pub async fn get_text(&self, url: &str) -> Result<(u16, String), String> {
         let res = self.get(url).await?;
@@ -139,23 +174,25 @@ impl StoreClient {
         under(&body, key)
     }
 
-    /// `fetchPolicy`: the egress rules, as they came, and the AI review settings (`null` when off).
-    pub async fn fetch_policy(&self, url: &str) -> Result<(Value, Value), String> {
+    /// `fetchPolicy`: the egress rules, as they came, the AI review settings (`null` when off), and
+    /// the Auto approve part (`auto_approve`; None when the control plane does not send it).
+    pub async fn fetch_policy(&self, url: &str) -> Result<(Value, Value, Option<Value>), String> {
         if let Some(path) = file_path(url) {
             let text = match std::fs::read_to_string(path) {
                 Ok(t) => t,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    return Ok((Value::Array(Vec::new()), Value::Null));
+                    return Ok((Value::Array(Vec::new()), Value::Null, None));
                 }
                 Err(e) => return Err(e.to_string()),
             };
             let parsed: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
             if let Value::Array(a) = parsed {
-                return Ok((Value::Array(a), Value::Null));
+                return Ok((Value::Array(a), Value::Null, None));
             }
             return Ok((
                 under(&parsed, "rules")?,
                 parsed.get("ai").cloned().unwrap_or(Value::Null),
+                parsed.get(cc_contracts::auto_approve::REPLY_KEY).cloned(),
             ));
         }
         let res = self.get(url).await?;
@@ -163,7 +200,11 @@ impl StoreClient {
             return Err(format!("rules GET failed: {}", res.status().as_u16()));
         }
         let body: Value = res.json().await.map_err(|e| e.without_url().to_string())?;
-        Ok((under(&body, "rules")?, body.get("ai").cloned().unwrap_or(Value::Null)))
+        Ok((
+            under(&body, "rules")?,
+            body.get("ai").cloned().unwrap_or(Value::Null),
+            body.get(cc_contracts::auto_approve::REPLY_KEY).cloned(),
+        ))
     }
 }
 

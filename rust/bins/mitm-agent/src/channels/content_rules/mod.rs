@@ -350,26 +350,11 @@ pub fn register(reg: &mut Registry, app: &Arc<App>, deps: ContentDeps) {
 
     // Which rule acted, where and when, for the console's counts and Activity: metadata only, its
     // own cursor. The texts stay here.
-    if !core.env.activity_url.is_empty() && core.uses_http {
-        let r = rules.clone();
-        let shipper = Arc::new(crate::core::activity::ActivityShipper::new(
-            CONTENT_AUDIT_PATH,
-            &PathBuf::from(format!("{CONTENT_AUDIT_PATH}.cursor")),
-            &core.env.activity_url,
-            core.sync.client.clone(),
-            Some(Arc::new(move |line: &Value| {
-                content_rule_activity(line, &|id| r.name_of(id))
-            })),
-            Vec::new(),
-        ));
-        let every = Duration::from_millis(core.env.activity_poll_ms);
-        tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(every).await;
-                shipper.tick().await;
-            }
-        });
-    }
+    let r = rules.clone();
+    crate::core::activity::ship_log(
+        CONTENT_AUDIT_PATH,
+        Arc::new(move |line: &Value| content_rule_activity(line, &|id| r.name_of(id))),
+    );
 
     // The firewall's own page of what was held or stopped.
     if let Some(access) = crate::core::pages::access() {

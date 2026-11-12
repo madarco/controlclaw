@@ -2,7 +2,8 @@
 
 The `controlclaw` CLI puts OpenClaw behind a ControlClaw firewall. It installs the firewall, installs
 OpenClaw, and connects the two. After `connect`, OpenClaw's traffic goes through the firewall, and the
-vm-agent lets the firewall manage OpenClaw's models and channels. It runs on Linux only for now.
+vm-agent lets the firewall manage OpenClaw's models and channels. The firewall runs in Docker on Linux
+and on macOS. `connect` needs Linux with systemd: the vm-agent is built for Linux only.
 
 ```bash
 npx controlclaw up      # a menu: pick one of the ways below

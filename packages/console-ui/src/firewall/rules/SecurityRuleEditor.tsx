@@ -51,6 +51,7 @@ import {
   type SecurityRuleListItem,
 } from "../../lib/security-schema";
 import { EFFECT_DISPLAY } from "./effect-display";
+import { itemToAutoRule, newAutoRuleId, type AutoApproveChange } from "../../lib/auto-approve-schema";
 
 const EFFECT_ORDER: RuleEffect[] = ["allow", "ask", "block"];
 
@@ -89,6 +90,13 @@ interface SecurityRuleEditorProps {
   onDeleted: (id: string) => void;
   /** The demo page: saving and deleting only close the dialog. */
   demo?: boolean;
+  /**
+   * The firewall keeps the rules: saving and deleting send it a change (which may wait for its code)
+   * and close the dialog. `priority` is then the rule's place in the firewall's list.
+   */
+  onPropose?: (change: AutoApproveChange) => void;
+  /** With `onPropose`: how many rules the firewall holds. */
+  ruleCount?: number;
 }
 
 export function SecurityRuleEditor({
@@ -99,7 +107,10 @@ export function SecurityRuleEditor({
   onSaved,
   onDeleted,
   demo,
+  onPropose,
+  ruleCount = 0,
 }: SecurityRuleEditorProps) {
+  const onFirewall = !!onPropose;
   const api = useApi();
   const [saving, setSaving] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -112,7 +123,8 @@ export function SecurityRuleEditor({
       description: initial?.description ?? "",
       condDisplay: initial?.condDisplay ?? "",
       enabled: initial?.enabled ?? true,
-      priority: initial?.priority ?? 100,
+      // On the firewall, the place in its list, from 1; a new rule goes last.
+      priority: onPropose ? (initial ? initial.priority + 1 : ruleCount + 1) : (initial?.priority ?? 100),
       kinds: (initial?.kinds ?? []) as PermissionKind[],
       titleLike: initial?.titleLike ?? "",
       titleMatch: initial?.titleMatch ?? "contains",
@@ -121,8 +133,33 @@ export function SecurityRuleEditor({
     },
   });
 
+  const propose = (values: FormValues) => {
+    const rule = itemToAutoRule(initial?.id ?? newAutoRuleId(), {
+      name: values.name,
+      description: values.description,
+      kinds: values.kinds,
+      titleLike: values.titleLike,
+      titleMatch: values.titleMatch,
+      vmId: values.vmId === ANY_VM ? null : values.vmId,
+      effect: values.effect,
+      enabled: values.enabled,
+    });
+    const place = Math.max(0, Math.min(values.priority - 1, initial ? ruleCount - 1 : ruleCount));
+    if (!initial) return onPropose!({ op: "put", rule, at: place });
+    const same = JSON.stringify(itemToAutoRule(initial.id, { ...initial, effect: initial.effect })) === JSON.stringify(rule);
+    if (place !== initial.priority && !same) {
+      form.setError("priority", { message: "Change the position on its own, then save the rest." });
+      return;
+    }
+    onPropose!(place !== initial.priority ? { op: "move", id: initial.id, to: place } : { op: "put", rule });
+  };
+
   const onSubmit = async (values: FormValues) => {
     if (demo) return onClose();
+    if (onFirewall) {
+      propose(values);
+      return;
+    }
     setSaving(true);
     try {
       const condDisplay = values.condDisplay.trim();
@@ -158,6 +195,11 @@ export function SecurityRuleEditor({
   const onConfirmDelete = async () => {
     if (demo) return onClose();
     if (!initial) return;
+    if (onFirewall) {
+      setPendingDelete(false);
+      onPropose!({ op: "delete", id: initial.id });
+      return;
+    }
     setDeleting(true);
     try {
       if (!api.security) throw new Error("No auto approve rules on this control plane");
@@ -180,7 +222,9 @@ export function SecurityRuleEditor({
           <DialogHeader>
             <DialogTitle>{mode === "create" ? "New Auto approve rule" : "Edit Auto approve rule"}</DialogTitle>
             <DialogDescription>
-              Answers your agents’ permission requests without you. Rules run in priority order, and the first match decides: allow, ask, or block. Changes apply at once.
+              {onFirewall
+                ? "Answers your agents’ permission requests without you. Your firewall reads the rules in order, and the first match decides: allow, ask, or block. A change that lets more through waits for the code your firewall sends."
+                : "Answers your agents’ permission requests without you. Rules run in priority order, and the first match decides: allow, ask, or block. Changes apply at once."}
             </DialogDescription>
           </DialogHeader>
 
@@ -349,11 +393,12 @@ export function SecurityRuleEditor({
                   name="priority"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Priority</FormLabel>
+                      <FormLabel>{onFirewall ? "Position" : "Priority"}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
-                          min={0}
+                          min={onFirewall ? 1 : 0}
+                          max={onFirewall ? Math.max(1, initial ? ruleCount : ruleCount + 1) : undefined}
                           step={1}
                           value={field.value}
                           onChange={(e) => field.onChange(Number.parseInt(e.target.value || "0", 10))}
@@ -365,6 +410,8 @@ export function SecurityRuleEditor({
                 />
               </div>
 
+              {/* The firewall builds the condition from the fields; it keeps no label of its own. */}
+              {!onFirewall && (
               <FormField
                 control={form.control}
                 name="condDisplay"
@@ -381,6 +428,7 @@ export function SecurityRuleEditor({
                   </FormItem>
                 )}
               />
+              )}
             </form>
           </Form>
 

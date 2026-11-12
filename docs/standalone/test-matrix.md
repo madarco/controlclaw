@@ -63,7 +63,7 @@ The Mac shapes are skipped for the first release:
 | Shape | Result |
 | --- | --- |
 | Docker Desktop on an Apple-silicon Mac ([quickstart-docker.md](quickstart-docker.md)) | skipped for the first release |
-| Mac, proxy only | skipped for the first release (the CLI is Linux only; `doctor` says so on macOS) |
+| Mac, proxy only | skipped for the first release (the CLI refuses macOS only in host mode, but `connect` runs the vm-agent in every mode, and it is built for Linux only) |
 
 What "✓" checked:
 

@@ -1,0 +1,67 @@
+name: "panel API: the app and MCP call logs are shipped into the standalone firewall's own Activity"
+agent: mitm-agent
+skip:
+  ts: "the panel API is in the Rust build only"
+ports:
+  panel: CC_PANEL_PORT
+  admission: MCP_ADMISSION_PORT
+  tools: CONTROLPLANE_MCP_GATE_PORT
+  connector: CONNECTOR_GATE_PORT
+env:
+  MITM_MODE: standalone
+  SYNC_INTERVAL_MS: "60000"
+  ACTIVITY_POLL_MS: "200"
+  FIREWALL_URL: ""
+  STORE_URL: ""
+  RULES_URL: ""
+  IDENTITIES_URL: ""
+  PERMISSION_URL: ""
+  CA_URL: ""
+  ACTIVITY_URL: ""
+  WEBHOOKS_URL: ""
+  ORG_ID: ""
+  BOX_ID: ""
+  LOCAL_PANEL_BIND: "127.0.0.1:$PORT_PANEL"
+  LOCAL_PANEL_SECURE_COOKIE: "0"
+  CONNECTOR_GATE_BIND: 127.0.0.1
+  CONNECTOR_URL: "http://127.0.0.1:9"
+  CONNECTOR_ADMIN_TOKEN: admin-token
+  CONNECTOR_STORE_PATH: "$ROOT/state/connectors.enc"
+  CONNECTOR_CALLS_PATH: "$ROOT/state/connector-calls.jsonl"
+  CONNECTOR_ASKS_PATH: "$ROOT/state/connector-asks.json"
+  CONNECTOR_RUNS_POLL_MS: "600000"
+  APPS_RULES_PATH: "$ROOT/state/apps-rules.enc"
+  MCP_SERVERS_STORE_PATH: "$ROOT/state/mcp-servers.enc"
+  MCP_CATALOG_PATH: "$ROOT/state/mcp-catalog.enc"
+  MCP_ASKS_PATH: "$ROOT/state/mcp-asks.json"
+  MCP_SERVER_CALLS_PATH: "$ROOT/state/mcp-server-calls.jsonl"
+  LLM_STORE_PATH: "$ROOT/state/llm.enc"
+  CHANNEL_STORE_PATH: "$ROOT/state/channels.enc"
+files:
+  keys/box_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+steps:
+  - name: the admin is set up
+    panel_login: panel
+    request: {method: GET, path: "/api/activity?source=connectors", port: panel, jar: true}
+    expect: {status: 200, json_subset: {total: 0}}
+  - name: an allowed and a blocked app call, and an MCP tool call, are shipped on their own cursors
+    # A time far ahead is taken as now + 5 minutes, inside the retention window.
+    write:
+      state/connector-calls.jsonl: |
+        {"source":"connector_call","id":"c1","ts":9999999999,"vm_id":"vm_a","route":"http","service":"github","action_id":"github.list-issues","decision":"allowed","by":"default","ok":true}
+        {"source":"connector_call","id":"c2","ts":9999999999,"vm_id":"vm_a","route":"http","service":"github","action_id":"github.delete-repo","decision":"blocked","by":"app_rule","rule":"No deletes","rule_id":"r1"}
+      state/mcp-server-calls.jsonl: |
+        {"source":"connector_call","id":"m1","ts":9999999999,"vm_id":"vm_a","route":"mcp_server","service":"mcp:notes","path":"search","decision":"allowed","by":"default","ok":true}
+    files:
+      state/connector-calls.jsonl.cursor: {json: {inode: $number, offset: $number}}
+      state/mcp-server-calls.jsonl.cursor: {json: {inode: $number, offset: $number}}
+  - name: the apps tab lists them with the gate's decision
+    request: {method: GET, path: "/api/activity?source=connectors", port: panel, jar: true}
+    expect:
+      status: 200
+      json_subset:
+        counts: {all: 3, allow: 2, ask: 0, block: 1}
+        total: 3
+  - name: the blocked one names its action
+    request: {method: GET, path: "/api/activity?source=connectors&verdict=block", port: panel, jar: true}
+    expect: {status: 200, json_subset: {total: 1, rows: [{verdict: blocked, source: connector_call, message: github.delete-repo}]}}

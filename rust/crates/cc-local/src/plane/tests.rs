@@ -256,3 +256,314 @@ fn a_new_database_lets_everything_through_and_the_managed_rules_come_and_go() {
         Some(1)
     );
 }
+
+/// The firewall's Auto approve rules: Allow and Block come decided, Ask comes checked; an agent's own
+/// approval is raised by the firewall for an agent paired here, and only such an agent.
+#[test]
+fn the_firewall_reports_what_its_auto_approve_rules_said() {
+    let p = plane();
+    let exec = |pid: &str, extra: Value| {
+        let mut b = json!({"permission_id": pid, "kind": "exec", "title": "git status", "agent_vm_id": "a1"});
+        for (k, v) in extra.as_object().expect("obj") {
+            b[k] = v.clone();
+        }
+        b
+    };
+    // Allowed on the firewall: the row is the agent's, approved by the rule, and counted.
+    let allowed = exec(
+        "oc:1",
+        json!({"decided": {"effect": "allow", "rule_id": "r1", "rule_name": "Allow git"}}),
+    );
+    assert_eq!(
+        call(&p, "fw", "POST", "/permission", "", Some(allowed.clone())).body,
+        json!({"ok": true, "status": "approved"})
+    );
+    let row: (String, String, Option<String>, Option<String>, Option<String>) = p
+        .db
+        .lock()
+        .query_row(
+            "SELECT vm_id, status, resolved_by, rule_id, rule_name FROM permission_requests WHERE external_id = 'oc:1'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+        )
+        .expect("row");
+    assert_eq!(
+        row,
+        (
+            "a1".into(),
+            "approved".into(),
+            Some("rule".into()),
+            Some("r1".into()),
+            Some("Allow git".into())
+        )
+    );
+    // A retry is the same request, counted once.
+    assert_eq!(
+        call(&p, "fw", "POST", "/permission", "", Some(allowed)).body["deduped"],
+        true
+    );
+    // Blocked, and asked with no rule (Every other request).
+    let blocked = exec(
+        "oc:2",
+        json!({"decided": {"effect": "block", "rule_id": "r2", "rule_name": "Block"}}),
+    );
+    assert_eq!(
+        call(&p, "fw", "POST", "/permission", "", Some(blocked)).body["status"],
+        "denied"
+    );
+    let asked = exec("oc:3", json!({"checked": {"rule_id": null}}));
+    assert_eq!(
+        call(&p, "fw", "POST", "/permission", "", Some(asked)).body["status"],
+        "pending"
+    );
+    // The firewall's own website ask, checked: counted for the firewall.
+    let web = json!({"permission_id": "w1", "kind": "access", "host": "example.com", "checked": {"rule_id": "r3", "rule_name": "Ask"}});
+    assert_eq!(
+        call(&p, "fw", "POST", "/permission", "", Some(web)).body["status"],
+        "pending"
+    );
+    let counts: Vec<(String, String, String, i64)> = {
+        let c = p.db.lock();
+        let mut q = c
+            .prepare("SELECT vm_id, rule_key, outcome, count FROM rule_hourly ORDER BY rule_key, vm_id")
+            .expect("q");
+        q.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .expect("rows")
+            .collect::<rusqlite::Result<_>>()
+            .expect("collect")
+    };
+    assert_eq!(
+        counts,
+        [
+            ("a1".into(), "default".into(), "asked".into(), 1),
+            ("a1".into(), "r1".into(), "allowed".into(), 1),
+            ("a1".into(), "r2".into(), "blocked".into(), 1),
+            ("fw".into(), "r3".into(), "asked".into(), 1),
+        ]
+    );
+    // The firewall reads and settles for the agent; the agent reads its own.
+    assert_eq!(
+        call(
+            &p,
+            "fw",
+            "GET",
+            "/permission",
+            "permission_id=oc:3&agent_vm_id=a1",
+            None
+        )
+        .body["status"],
+        "pending"
+    );
+    assert_eq!(
+        call(&p, "a1", "GET", "/permission", "permission_id=oc:3", None).body["status"],
+        "pending"
+    );
+    assert_eq!(
+        call(&p, "fw", "GET", "/permission", "permission_id=oc:3", None).body["status"],
+        "unknown"
+    );
+    // The firewall never settles for an agent: the agent settles as itself (its token, carried).
+    let settle = json!({"permission_id": "oc:3", "resolution": "denied", "agent_vm_id": "a1"});
+    assert_eq!(call(&p, "fw", "POST", "/permission", "", Some(settle)).status, 403);
+    // Through the gate, only OpenClaw's own approvals: a meeting ask stays a person's.
+    let meet = json!({"permission_id": "meet:1", "kind": "meeting_request", "title": "Add tickets"});
+    assert_eq!(call(&p, "a1", "POST", "/permission", "", Some(meet)).status, 200);
+    let via = json!({"permission_id": "meet:1", "resolution": "approved", "via_gate": true});
+    assert_eq!(call(&p, "a1", "POST", "/permission", "", Some(via)).status, 403);
+    // An approval the agent settled itself reads back as settled on the box, never as a person's.
+    let raise = json!({"permission_id": "oc:5", "kind": "exec", "title": "id"});
+    assert_eq!(call(&p, "a1", "POST", "/permission", "", Some(raise)).status, 200);
+    let ok = json!({"permission_id": "oc:5", "resolution": "approved", "via_gate": true});
+    assert_eq!(call(&p, "a1", "POST", "/permission", "", Some(ok)).status, 200);
+    assert_eq!(
+        call(&p, "a1", "GET", "/permission", "permission_id=oc:5", None).body["status"],
+        "approved_on_box"
+    );
+    let own = json!({"permission_id": "oc:3", "resolution": "denied", "via_gate": true});
+    assert_eq!(
+        call(&p, "a1", "POST", "/permission", "", Some(own)).body["status"],
+        "denied"
+    );
+}
+
+#[test]
+fn an_agents_token_names_it_only_when_it_verifies_with_its_own_key() {
+    let p = plane();
+    let dir = tempfile::tempdir().expect("dir");
+    let keys = cc_testkit::BoxKeys::write(dir.path(), "a1", "a1.example").expect("keys");
+    let token = cc_auth::sign::box_token(&cc_auth::keys::KeysDir::new(dir.path())).expect("token");
+    // No key on record yet: nobody.
+    assert_eq!(p.agent_by_token(&token), None);
+    p.db.lock()
+        .execute(
+            "UPDATE agents SET public_key = ?1 WHERE vm_id = 'a1'",
+            [&keys.vm.public_pem],
+        )
+        .expect("key");
+    assert_eq!(p.agent_by_token(&token).as_deref(), Some("a1"));
+    // Another agent's key, or garbage: nobody.
+    let mut claims = serde_json::Map::new();
+    claims.insert("vmId".into(), json!("a1"));
+    let forged = cc_auth::jwt::sign(claims, &cc_testkit::Pair::generate().sign_key(), Some(30), None).expect("token");
+    assert_eq!(p.agent_by_token(&forged), None);
+    assert_eq!(p.agent_by_token("x.y.z"), None);
+    // The firewall's own token never names an agent.
+    let fw_dir = tempfile::tempdir().expect("dir");
+    let fw = cc_testkit::BoxKeys::write(fw_dir.path(), "fw", "fw.example").expect("keys");
+    p.db.lock()
+        .execute(
+            "UPDATE agents SET public_key = ?1 WHERE vm_id = 'fw'",
+            [&fw.vm.public_pem],
+        )
+        .expect("key");
+    let fw_token = cc_auth::sign::box_token(&cc_auth::keys::KeysDir::new(fw_dir.path())).expect("token");
+    assert_eq!(p.agent_by_token(&fw_token), None);
+}
+
+#[test]
+fn only_the_firewall_says_what_its_rules_decided_and_only_for_its_agents() {
+    let p = plane();
+    let decided = json!({"effect": "allow", "rule_id": "r1"});
+    // An agent cannot claim a rule allowed it.
+    let own = json!({"permission_id": "oc:9", "kind": "exec", "title": "x", "decided": decided});
+    assert_eq!(call(&p, "a1", "POST", "/permission", "", Some(own)).status, 403);
+    // The firewall raises an agent's approval only with what its rules said...
+    let bare = json!({"permission_id": "oc:9", "kind": "exec", "title": "x", "agent_vm_id": "a1"});
+    assert_eq!(call(&p, "fw", "POST", "/permission", "", Some(bare)).status, 403);
+    // ...and only for an agent paired here.
+    let stranger =
+        json!({"permission_id": "oc:9", "kind": "exec", "title": "x", "agent_vm_id": "zz", "decided": decided});
+    assert_eq!(call(&p, "fw", "POST", "/permission", "", Some(stranger)).status, 403);
+    assert_eq!(
+        call(
+            &p,
+            "fw",
+            "GET",
+            "/permission",
+            "permission_id=oc:9&agent_vm_id=zz",
+            None
+        )
+        .status,
+        403
+    );
+    let settle = json!({"permission_id": "oc:9", "resolution": "denied", "agent_vm_id": "zz"});
+    assert_eq!(call(&p, "fw", "POST", "/permission", "", Some(settle)).status, 403);
+    // Both, or a decided that is not Allow or Block, does not read.
+    let both = json!({"permission_id": "oc:9", "kind": "exec", "title": "x", "agent_vm_id": "a1", "decided": decided, "checked": {}});
+    assert_eq!(call(&p, "fw", "POST", "/permission", "", Some(both)).status, 400);
+    let ask = json!({"permission_id": "oc:9", "kind": "exec", "title": "x", "agent_vm_id": "a1", "decided": {"effect": "ask"}});
+    assert_eq!(call(&p, "fw", "POST", "/permission", "", Some(ask)).status, 400);
+    // An Allow or Block with no rule is not a decision.
+    let ruleless = json!({"permission_id": "oc:9", "kind": "exec", "title": "x", "agent_vm_id": "a1", "decided": {"effect": "allow", "rule_id": null}});
+    assert_eq!(call(&p, "fw", "POST", "/permission", "", Some(ruleless)).status, 400);
+    // A meeting ask is still the agent's alone.
+    let meet =
+        json!({"permission_id": "m1", "kind": "meeting_request", "title": "x", "agent_vm_id": "a1", "checked": {}});
+    assert_eq!(call(&p, "fw", "POST", "/permission", "", Some(meet)).status, 403);
+}
+
+#[test]
+fn an_app_call_and_its_run_are_one_row_and_a_follow_up_replaces_the_ask() {
+    let p = plane();
+    let hour = now_s() - now_s().rem_euclid(3600) - 3600;
+    let ts = (hour + 10) as f64;
+    let post = |recs: Value| call(&p, "fw", "POST", "/activity", "", Some(json!({"records": recs}))).body;
+    let rows = || -> Vec<(String, String, String, i64)> {
+        let c = p.db.lock();
+        let mut q = c
+            .prepare("SELECT dedupe_key, status, summary, occurred_at FROM activity_raw ORDER BY dedupe_key")
+            .expect("q");
+        q.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .expect("rows")
+            .collect::<rusqlite::Result<_>>()
+            .expect("rows")
+    };
+    let hourly = || -> Vec<(String, i64)> {
+        let c = p.db.lock();
+        let mut q = c
+            .prepare("SELECT status, count FROM activity_hourly WHERE count > 0 ORDER BY status")
+            .expect("q");
+        q.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .expect("rows")
+            .collect::<rusqlite::Result<_>>()
+            .expect("rows")
+    };
+    let gate = json!({"source": "connector_call", "id": "c1", "ts": ts, "vm_id": "a1", "run_id": "r1", "route": "http", "action_id": "github.list_issues", "decision": "allowed", "by": "default"});
+    let run = json!({"source": "connector_run", "run_id": "r1", "ts": ts - 1.0, "vm_id": "a1", "action_id": "github.list_issues", "ok": true, "duration_ms": 80});
+    assert_eq!(post(json!([gate])), json!({"accepted": 1, "duplicates": 0}));
+    assert_eq!(
+        post(json!([run])),
+        json!({"accepted": 1, "duplicates": 0}),
+        "the run merges into the call's row"
+    );
+    assert_eq!(
+        post(json!([gate, run])),
+        json!({"accepted": 0, "duplicates": 2}),
+        "sent again: nothing changes"
+    );
+    let blocked = json!({"source": "connector_call", "id": "c2", "ts": ts, "vm_id": "a1", "route": "mcp_server", "service": "mcp:notes", "path": "delete_note", "decision": "blocked", "by": "app_rule"});
+    let asked = json!({"source": "connector_call", "id": "c3", "ts": ts, "vm_id": "a1", "route": "proxy", "service": "github", "method": "POST", "path": "/user/repos", "decision": "asked", "by": "app_rule"});
+    let went_on = json!({"source": "connector_call", "id": "c4", "ts": ts + 5.0, "vm_id": "a1", "run_id": "r2", "route": "proxy", "service": "github", "method": "POST", "path": "/user/repos", "decision": "allowed", "by": "grant", "follows": "c3", "ok": true});
+    assert_eq!(post(json!([blocked, asked])), json!({"accepted": 2, "duplicates": 0}));
+    assert_eq!(post(json!([went_on])), json!({"accepted": 1, "duplicates": 0}));
+    assert_eq!(
+        post(json!([asked])),
+        json!({"accepted": 0, "duplicates": 1}),
+        "the ask that went on is not filed again"
+    );
+    assert_eq!(
+        rows(),
+        vec![
+            (
+                "fw:connector-call:c2".into(),
+                "blocked".into(),
+                "delete_note".into(),
+                hour + 10
+            ),
+            (
+                "fw:connector:r1".into(),
+                "succeeded".into(),
+                "github.list_issues".into(),
+                hour + 9
+            ),
+            (
+                "fw:connector:r2".into(),
+                "succeeded".into(),
+                "POST /user/repos".into(),
+                hour + 15
+            ),
+        ]
+    );
+    assert_eq!(
+        hourly(),
+        vec![("blocked".into(), 1), ("succeeded".into(), 2)],
+        "each call counted once, under what it says now"
+    );
+}
+
+#[test]
+fn a_proxy_call_keeps_its_line_when_its_run_comes_with_empty_fields() {
+    let p = plane();
+    let ts = (now_s() - now_s().rem_euclid(3600) - 3600 + 10) as f64;
+    let post = |recs: Value| call(&p, "fw", "POST", "/activity", "", Some(json!({"records": recs}))).body;
+    let gate = json!({"source": "connector_call", "id": "c1", "ts": ts, "vm_id": "a1", "run_id": "r1", "route": "proxy", "service": "github", "method": "GET", "path": "/user/repos", "decision": "allowed", "by": "default"});
+    let run = json!({"source": "connector_run", "run_id": "r1", "ts": ts, "vm_id": "a1", "service": "", "action_id": "", "ok": true});
+    assert_eq!(post(json!([gate])), json!({"accepted": 1, "duplicates": 0}));
+    assert_eq!(
+        post(json!([run])),
+        json!({"accepted": 1, "duplicates": 0}),
+        "the run adds how it ended"
+    );
+    let (status, summary, record): (String, String, String) =
+        p.db.lock()
+            .query_row(
+                "SELECT status, summary, record FROM activity_raw WHERE dedupe_key = 'fw:connector:r1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .expect("row");
+    assert_eq!((status.as_str(), summary.as_str()), ("succeeded", "GET /user/repos"));
+    let record: Value = serde_json::from_str(&record).expect("json");
+    assert_eq!(record["service"], "github", "an empty string does not wipe the app");
+    assert_eq!(record["ok"], true);
+}

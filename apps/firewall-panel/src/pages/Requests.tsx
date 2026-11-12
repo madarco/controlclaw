@@ -128,6 +128,11 @@ function RequestRow({ r, busy, error, onAnswer }: { r: Request; busy: boolean; e
           ))}
         </dl>
       ) : null}
+      {r.ruleName ? (
+        <p className="mt-2 text-[12.5px] text-ink-2" data-testid="request-rule">
+          {r.resolvedBy === "rule" ? "Answered by the Auto approve rule" : "Asked by the Auto approve rule"} <span className="text-ink">{r.ruleName}</span>
+        </p>
+      ) : null}
       {error ? <p className="mt-2 text-[13px] text-block">{error}</p> : null}
       {r.status === "pending" ? (
         <div className="mt-3 flex gap-2">

@@ -37,13 +37,36 @@ pub fn open(app_config: &crate::app::Config) -> Result<Arc<LocalControlPlane>, S
     // Every client of the agent (StoreClient, ConsoleClient) answers `local:` URLs with it.
     let (p, caller) = (plane.clone(), app_config.box_id.clone());
     cc_client::local::set_handler(Arc::new(move |method, url, body| {
-        let (p, caller) = (p.clone(), caller.clone());
+        let (p, mut caller) = (p.clone(), caller.clone());
         let rest = url.strip_prefix("local:").unwrap_or(url);
         let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
+        // A call this firewall carries for an agent (its settle): made as that agent, when the
+        // agent's own token verifies. In process only; never on the network.
+        let mut agent_token = None;
+        let query: Vec<String> = url::form_urlencoded::parse(query.as_bytes())
+            .filter_map(|(k, v)| {
+                if k == super::store_client::AGENT_TOKEN_PARAM {
+                    agent_token = Some(v.into_owned());
+                    None
+                } else {
+                    Some(
+                        url::form_urlencoded::Serializer::new(String::new())
+                            .append_pair(&k, &v)
+                            .finish(),
+                    )
+                }
+            })
+            .collect();
+        if let Some(t) = agent_token {
+            match p.agent_by_token(&t) {
+                Some(vm) => caller = vm,
+                None => return Box::pin(async { (401, serde_json::json!({"error": "Unauthorized"})) }),
+            }
+        }
         let call = cc_local::Call {
             method: method.to_string(),
             path: path.to_string(),
-            query: query.to_string(),
+            query: query.join("&"),
             body,
         };
         Box::pin(async move {

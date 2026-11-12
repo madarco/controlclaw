@@ -34,6 +34,8 @@ pub trait KillLocks: Send + Sync {
 type Hook<T> = OnceLock<Arc<T>>;
 type WebhookSync = dyn Fn(Value) -> BoxFuture<Result<(), String>> + Send + Sync;
 type Rows = Result<Vec<Value>, String>;
+/// The reply's `auto_approve`, for the Auto approve rules (`auto_approve.rs`).
+type AutoApproveSync = dyn Fn(Option<&Value>) + Send + Sync;
 
 /// What the later parts of the core put into the config. Each is set once, when its module starts.
 ///
@@ -51,6 +53,11 @@ pub struct SyncHooks {
     pub exit_config: Hook<dyn Fn() -> Value + Send + Sync>,
     /// `webhook.sync` with the control plane's half of the registrations.
     pub webhook_sync: Hook<WebhookSync>,
+    /// The reply's `auto_approve` (None when the control plane does not send it).
+    pub auto_approve: Hook<AutoApproveSync>,
+    /// Whether the Auto approve store was seeded: the rules request says so, and a firewall whose
+    /// store was lost or never seeded gets the console's copy again.
+    pub auto_approve_seeded: Hook<dyn Fn() -> bool + Send + Sync>,
 }
 
 pub struct Syncer {
@@ -138,6 +145,22 @@ impl Syncer {
         }
     }
 
+    /// `RULES_URL`, with `auto_approve=seeded|unseeded` on a console firewall (a standalone one seeds
+    /// itself).
+    fn rules_request_url(&self) -> String {
+        let url = &self.env.rules_url;
+        match self.hooks.auto_approve_seeded.get() {
+            Some(seeded) if self.app.config.mode.saas() && (url.starts_with("http") || url.starts_with("local:")) => {
+                let sep = if url.contains('?') { '&' } else { '?' };
+                format!(
+                    "{url}{sep}auto_approve={}",
+                    if seeded() { "seeded" } else { "unseeded" }
+                )
+            }
+            _ => url.clone(),
+        }
+    }
+
     /// The AI review settings the last sync read (`aiSettings`), parsed.
     pub fn ai_settings(&self) -> Option<cc_llm::AiSettings> {
         cc_llm::AiSettings::parse(&self.ai.read().map(|a| a.clone()).unwrap_or(Value::Null))
@@ -186,11 +209,14 @@ impl Syncer {
                 .strip_prefix("file:")
                 .filter(|_| self.app.config.mode.standalone());
             // Written as it came, a list or not (`cfg.rules = policy.rules`).
-            let (rules, ai) = match standalone_file {
+            let (rules, ai, auto) = match standalone_file {
                 Some(path) => read_rules_file(path.strip_prefix("//").unwrap_or(path))?,
-                None => self.client.fetch_policy(&self.env.rules_url).await?,
+                None => self.client.fetch_policy(&self.rules_request_url()).await?,
             };
             cfg.insert("rules".into(), rules);
+            if let Some(f) = self.hooks.auto_approve.get() {
+                f(auto.as_ref());
+            }
             if let Ok(mut a) = self.ai.write() {
                 *a = ai;
             }
@@ -603,17 +629,19 @@ pub fn write_proxy_config(dir: &std::path::Path, cfg: &ProxyConfig) -> std::io::
 
 /// A standalone firewall's own rules file, read once: a list of rules, or `{"rules": [...], "ai"?}`.
 /// Anything else (missing, not JSON, `{}`, `{"rules": null}`, a misspelled key) is the reason the
-/// sync fails; an empty list is the way to allow every host. The rules and the AI settings.
-pub fn read_rules_file(path: &str) -> Result<(Value, Value), String> {
+/// sync fails; an empty list is the way to allow every host. The rules, the AI settings and the
+/// Auto approve part, which a file does not need (a standalone firewall keeps those itself).
+pub fn read_rules_file(path: &str) -> Result<(Value, Value, Option<Value>), String> {
     let keep = "the proxy keeps its last rules, or with none refuses every request";
     let text = std::fs::read_to_string(path).map_err(|e| format!("the rules file {path}: {e}: {keep}"))?;
     let v: Value =
         serde_json::from_str(&text).map_err(|e| format!("the rules file {path} is not JSON ({e}): {keep}"))?;
     match v {
-        Value::Array(_) => Ok((v, Value::Null)),
+        Value::Array(_) => Ok((v, Value::Null, None)),
         Value::Object(mut o) if o.get("rules").is_some_and(Value::is_array) => {
             let rules = o.remove("rules").unwrap_or_default();
-            Ok((rules, o.remove("ai").unwrap_or(Value::Null)))
+            let auto = o.remove(cc_contracts::auto_approve::REPLY_KEY);
+            Ok((rules, o.remove("ai").unwrap_or(Value::Null), auto))
         }
         _ => Err(format!(
             "the rules file {path} has no list of rules (a list, or {{\"rules\": [...]}}): {keep}"

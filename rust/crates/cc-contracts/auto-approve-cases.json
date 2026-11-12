@@ -1,0 +1,587 @@
+{
+  "about": "The Auto approve cases both evaluators run: the firewall's (cc-contracts auto_approve.rs) and the console's (packages/console-ui/src/lib/auto-approve.ts, which evaluateRules uses for firewalls that do not check them yet). Ported from apps/saas/app/(requests)/lib/permission-bridge.e2e.test.ts. `rules` are the enabled, unlocked rules in the order they are read; `request.vm_id` is the box the rules are matched against (the agent, or the firewall for its own website and email asks).",
+  "rules": {
+    "git_status": {
+      "id": "r_git",
+      "name": "Allow git status",
+      "kinds": [
+        "exec"
+      ],
+      "title_like": "git status",
+      "title_match": "contains",
+      "vm_id": "oc",
+      "effect": "allow"
+    },
+    "git_status_exact": {
+      "id": "r_git",
+      "name": "Allow git status",
+      "kinds": [
+        "exec"
+      ],
+      "title_like": "git status",
+      "title_match": "exact",
+      "vm_id": "oc",
+      "effect": "allow"
+    },
+    "git_status_meeting": {
+      "id": "r_git",
+      "name": "Allow git status",
+      "kinds": [
+        "exec",
+        "meeting_request"
+      ],
+      "title_like": "git status",
+      "title_match": "contains",
+      "vm_id": "oc",
+      "effect": "allow"
+    },
+    "allow_all": {
+      "id": "r_all",
+      "name": "Allow all",
+      "kinds": [],
+      "title_like": null,
+      "title_match": "contains",
+      "vm_id": null,
+      "effect": "allow"
+    },
+    "search_for_oc": {
+      "id": "r_search",
+      "name": "Allow search",
+      "kinds": [],
+      "title_like": "web_search on the MCP server search.parallel.ai",
+      "title_match": "contains",
+      "vm_id": "oc",
+      "effect": "allow"
+    },
+    "example_for_oc": {
+      "id": "r_search",
+      "name": "Allow search",
+      "kinds": [],
+      "title_like": "GET example.org",
+      "title_match": "contains",
+      "vm_id": "oc",
+      "effect": "allow"
+    },
+    "block_rm": {
+      "id": "r_rm",
+      "name": "Block rm -rf",
+      "kinds": [
+        "exec"
+      ],
+      "title_like": "rm -rf",
+      "title_match": "contains",
+      "vm_id": null,
+      "effect": "block"
+    },
+    "ask_curl": {
+      "id": "r_curl",
+      "name": "Ask about curl",
+      "kinds": [
+        "exec",
+        "plugin"
+      ],
+      "title_like": "CURL",
+      "title_match": "contains",
+      "vm_id": null,
+      "effect": "ask"
+    },
+    "allow_payment_kind": {
+      "id": "r_pay",
+      "name": "Allow app calls",
+      "kinds": [
+        "app_call"
+      ],
+      "title_like": null,
+      "title_match": "contains",
+      "vm_id": null,
+      "effect": "allow"
+    },
+    "allow_echo": {
+      "id": "r_echo",
+      "name": "Allow echo",
+      "kinds": [],
+      "title_like": "Écho",
+      "title_match": "exact",
+      "vm_id": null,
+      "effect": "allow"
+    },
+    "disabled_allow_all": {
+      "id": "r_off",
+      "name": "Off",
+      "kinds": [],
+      "title_like": null,
+      "title_match": "contains",
+      "vm_id": null,
+      "effect": "allow",
+      "enabled": false
+    }
+  },
+  "cases": [
+    {
+      "name": "a matching allow rule decides",
+      "rules": [
+        "git_status"
+      ],
+      "request": {
+        "kind": "exec",
+        "title": "git status --short",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "allow",
+        "rule_id": "r_git"
+      }
+    },
+    {
+      "name": "contains ignores case",
+      "rules": [
+        "git_status"
+      ],
+      "request": {
+        "kind": "exec",
+        "title": "GIT STATUS",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "allow",
+        "rule_id": "r_git"
+      }
+    },
+    {
+      "name": "an exact rule does not cover a longer title",
+      "rules": [
+        "git_status_exact"
+      ],
+      "request": {
+        "kind": "exec",
+        "title": "git status --short && rm -rf ~",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "an exact rule covers the whole title, any case",
+      "rules": [
+        "git_status_exact"
+      ],
+      "request": {
+        "kind": "exec",
+        "title": "Git Status",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "allow",
+        "rule_id": "r_git"
+      }
+    },
+    {
+      "name": "exact with letters outside ASCII",
+      "rules": [
+        "allow_echo"
+      ],
+      "request": {
+        "kind": "exec",
+        "title": "éCHO",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "allow",
+        "rule_id": "r_echo"
+      }
+    },
+    {
+      "name": "another kind is not matched",
+      "rules": [
+        "git_status"
+      ],
+      "request": {
+        "kind": "plugin",
+        "title": "git status",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "the rule does not fire for another box",
+      "rules": [
+        "git_status"
+      ],
+      "request": {
+        "kind": "exec",
+        "title": "git status",
+        "vm_id": "other"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "no box named: a rule for one box does not match",
+      "rules": [
+        "git_status"
+      ],
+      "request": {
+        "kind": "exec",
+        "title": "git status",
+        "vm_id": null
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "something asked in a meeting waits for a person, even when a rule names the kind",
+      "rules": [
+        "git_status_meeting"
+      ],
+      "request": {
+        "kind": "meeting_request",
+        "title": "git status: Anna asked to add three tickets",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "a settings change waits for a person",
+      "rules": [
+        "allow_all"
+      ],
+      "request": {
+        "kind": "settings_change",
+        "title": "Allow example.org",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "the first rule that matches decides",
+      "rules": [
+        "block_rm",
+        "allow_all"
+      ],
+      "request": {
+        "kind": "exec",
+        "title": "sudo rm -rf /",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "block",
+        "rule_id": "r_rm"
+      }
+    },
+    {
+      "name": "a later rule decides when the first does not match",
+      "rules": [
+        "block_rm",
+        "allow_all"
+      ],
+      "request": {
+        "kind": "exec",
+        "title": "ls",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "allow",
+        "rule_id": "r_all"
+      }
+    },
+    {
+      "name": "an ask rule names the rule",
+      "rules": [
+        "ask_curl",
+        "allow_all"
+      ],
+      "request": {
+        "kind": "plugin",
+        "title": "curl https://example.org",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": "r_curl"
+      }
+    },
+    {
+      "name": "a disabled rule is skipped",
+      "rules": [
+        "disabled_allow_all"
+      ],
+      "request": {
+        "kind": "exec",
+        "title": "ls",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "no rules: ask",
+      "rules": [],
+      "request": {
+        "kind": "exec",
+        "title": "ls",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "an MCP tool call: the rule for the agent answers it; a catch-all first does not",
+      "rules": [
+        "allow_all",
+        "search_for_oc"
+      ],
+      "request": {
+        "kind": "app_call",
+        "title": "Run the tool web_search on the MCP server search.parallel.ai",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "allow",
+        "rule_id": "r_search"
+      }
+    },
+    {
+      "name": "an MCP tool call with no agent named: the scoped rule does not match",
+      "rules": [
+        "allow_all",
+        "search_for_oc"
+      ],
+      "request": {
+        "kind": "app_call",
+        "title": "Run the tool web_search on the MCP server search.parallel.ai",
+        "vm_id": null
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "an MCP tool call to another tool: only the catch-all would match, and it does not answer app calls",
+      "rules": [
+        "allow_all",
+        "search_for_oc"
+      ],
+      "request": {
+        "kind": "app_call",
+        "title": "Run the tool send_feedback on the MCP server search.parallel.ai",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "a tool name that holds a rule's text is not matched",
+      "rules": [
+        "allow_all",
+        "search_for_oc"
+      ],
+      "request": {
+        "kind": "app_call",
+        "title": "Run the tool web_search on the MCP server search.parallel.ai x on the MCP server search.parallel.ai",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "an app call: a rule that names the kind answers it",
+      "rules": [
+        "allow_payment_kind"
+      ],
+      "request": {
+        "kind": "app_call",
+        "title": "Run delete_repo in GitHub (acme)",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "allow",
+        "rule_id": "r_pay"
+      }
+    },
+    {
+      "name": "an app call whose action is not a plain name is never answered",
+      "rules": [
+        "allow_payment_kind"
+      ],
+      "request": {
+        "kind": "app_call",
+        "title": "Run delete repo in GitHub",
+        "vm_id": "oc"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "a website ask is matched by the firewall that raised it, not the agent",
+      "rules": [
+        "example_for_oc"
+      ],
+      "request": {
+        "kind": "access",
+        "title": "GET example.org/",
+        "vm_id": "fw"
+      },
+      "expect": {
+        "effect": "ask",
+        "rule_id": null
+      }
+    },
+    {
+      "name": "a website ask: a rule for the firewall matches",
+      "rules": [
+        "allow_all"
+      ],
+      "request": {
+        "kind": "access",
+        "title": "GET example.org/",
+        "vm_id": "fw"
+      },
+      "expect": {
+        "effect": "allow",
+        "rule_id": "r_all"
+      }
+    }
+  ],
+  "titles": [
+    {
+      "name": "an MCP tool",
+      "request": {
+        "kind": "app_call",
+        "app": {
+          "service": "mcp:search.parallel.ai",
+          "action": "web_search",
+          "connection": null
+        }
+      },
+      "app_names": {},
+      "title": "Run the tool web_search on the MCP server search.parallel.ai"
+    },
+    {
+      "name": "an app action with its connection",
+      "request": {
+        "kind": "app_call",
+        "app": {
+          "service": "github",
+          "action": "delete_repo",
+          "connection": "acme"
+        }
+      },
+      "app_names": {
+        "github": "GitHub"
+      },
+      "title": "Run delete_repo in GitHub (acme)"
+    },
+    {
+      "name": "an app the names do not list is named by its id",
+      "request": {
+        "kind": "app_call",
+        "app": {
+          "service": "linear",
+          "action": "create_issue",
+          "connection": null
+        }
+      },
+      "app_names": {},
+      "title": "Run create_issue in linear"
+    },
+    {
+      "name": "a website ask with a summary",
+      "request": {
+        "kind": "access",
+        "summary": "GET example.org/path",
+        "method": "GET",
+        "host": "example.org"
+      },
+      "app_names": {},
+      "title": "GET example.org/path"
+    },
+    {
+      "name": "a website ask with no summary",
+      "request": {
+        "kind": "access",
+        "method": "POST",
+        "host": "example.org"
+      },
+      "app_names": {},
+      "title": "POST example.org"
+    },
+    {
+      "name": "a website ask with no method",
+      "request": {
+        "host": "example.org"
+      },
+      "app_names": {},
+      "title": "GET example.org"
+    },
+    {
+      "name": "an email ask uses its summary",
+      "request": {
+        "kind": "email_recipient",
+        "summary": "Email bob@example.org from agentmail:me@x.org"
+      },
+      "app_names": {},
+      "title": "Email bob@example.org from agentmail:me@x.org"
+    },
+    {
+      "name": "a shell command is its title, trimmed",
+      "request": {
+        "kind": "exec",
+        "title": "  git status  "
+      },
+      "app_names": {},
+      "title": "git status"
+    },
+    {
+      "name": "a long title is cut at 200",
+      "request": {
+        "kind": "exec",
+        "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "app_names": {},
+      "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
+    },
+    {
+      "name": "a long title never ends in half an emoji",
+      "request": {
+        "kind": "exec",
+        "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀bbb"
+      },
+      "app_names": {},
+      "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
+    },
+    {
+      "name": "no title at all",
+      "request": {
+        "kind": "exec"
+      },
+      "app_names": {},
+      "title": null
+    }
+  ]
+}
