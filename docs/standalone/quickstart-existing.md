@@ -51,7 +51,7 @@ install script's systemd units, which also serve NTP on port 123. It runs the re
 You can also download and run that script yourself:
 
 ```bash
-VERSION=0.11.0  # the latest: https://github.com/madarco/controlclaw/releases
+VERSION=0.11.1  # the latest: https://github.com/madarco/controlclaw/releases
 curl -fsSLO https://github.com/madarco/controlclaw/releases/download/v$VERSION/controlclaw-install-$VERSION.tar.gz
 tar xzf controlclaw-install-$VERSION.tar.gz
 sudo ./controlclaw-install-$VERSION/install.sh --version $VERSION --listen 10.0.1.2   # installs systemd units

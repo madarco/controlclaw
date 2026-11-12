@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { captureNft, captureUnit, loopbackPorts, nftablesDropin, profilePorts, redsocksConf, resolvedDropin } from "./capture/host.js";
-import { BUNDLE, composeAtLeast, escapesOf, OVERRIDE, overrideYaml, parseInspect } from "./capture/docker.js";
+import { BUNDLE, composeAtLeast, escapesOf, gateRelayScript, OVERRIDE, overrideYaml, parseInspect } from "./capture/docker.js";
 import { currentProxy, proxyPatch, validateChecks } from "./capture/proxy.js";
 import { wgConf } from "./capture/remote.js";
 import { wgKeypair } from "./pair.js";
@@ -111,14 +111,34 @@ test("docker: the override moves the gateway to the internal network and the por
   assert.match(y, /OPENCLAW_PROXY_URL: "http:\/\/172.31.250.2:8080"/);
   assert.match(y, /TCP:172.17.0.1:8080/);
   assert.match(y, /UDP:172.17.0.1:53/);
-  // The firewall's gates, relayed where the proxy is; dialled directly, not through the proxy.
+  // The firewall's gates, relayed where the proxy is, then onto the gateway's own loopback: OpenClaw's
+  // proxy setting lets only loopback past the proxy, and the proxy refuses the gate's address.
   assert.match(y, /TCP-LISTEN:3900,fork,reuseaddr TCP:172.17.0.1:3900/);
   assert.match(y, /TCP-LISTEN:3940,fork,reuseaddr TCP:172.17.0.1:3940/);
   assert.match(y, /NO_PROXY: "localhost,127.0.0.1,::1,172.31.250.2"/);
+  assert.match(y, /entrypoint: !override \["\/bin\/sh", "-c", "node \/etc\/controlclaw\/gate-relay.mjs & exec \\"\$\$@\\"", "controlclaw-gate-relay", "tini", "-s", "--", "node", "\/app\/docker-entrypoint.mjs"\]/);
+  assert.match(y, /command: !override \["node", "dist\/index.js", "gateway", "--bind", "lan", "--port", "18789"\]/);
+  assert.match(y, /- "\/etc\/controlclaw\/docker\/gate-relay.mjs:\/etc\/controlclaw\/gate-relay.mjs:ro"/);
+  assert.throws(() => overrideYaml({ ...info, entrypoint: [], command: [] }, { host: "172.17.0.1", port: 8080 }, null), /no entrypoint or command/);
+  // A gateway still wrapped by an earlier override (its undo never ran) is wrapped once, not twice.
+  const again = parseInspect(fixture("inspect-compose.json").replace('"Entrypoint": [', '"Entrypoint": ["/bin/sh", "-c", "node /etc/controlclaw/gate-relay.mjs & exec \\"$@\\"", "controlclaw-gate-relay", '))!;
+  assert.equal(again.entrypoint[0], "/bin/sh");
+  const y2 = overrideYaml(again, { host: "172.17.0.1", port: 8080 }, "172.17.0.1");
+  assert.equal(y2.match(/controlclaw-gate-relay/g)?.length, 1);
+  assert.match(y2, /"controlclaw-gate-relay", "tini", "-s"/);
   assert.throws(() => overrideYaml({ ...info, ports: [{ host: "3940", container: 3940 }] }, { host: "fw", port: 8080 }, null), /port 3940/);
   assert.match(y, /- "127.0.0.1:18790:18790"/);
   assert.match(y, /internal: true\n    enable_ipv6: false\n    driver_opts:\n      com.docker.network.bridge.gateway_mode_ipv4: isolated/);
   assert.throws(() => overrideYaml({ ...info, ports: [{ host: "8080", container: 8080 }] }, { host: "fw", port: 8080 }, null), /port 8080/);
+});
+
+test("docker: the gates' relay listens on loopback and connects to the gate", () => {
+  const r = gateRelayScript("172.31.250.2");
+  assert.match(r, /for \(const port of \[3900,3940\]\)/);
+  assert.match(r, /net.connect\(port, "172.31.250.2"\)/);
+  assert.match(r, /listen\(port, "127.0.0.1"\)/);
+  assert.match(r, /server.on\("error", .*setTimeout\(listen, 5000\)/);
+  assert.match(r, /process.on\("uncaughtException"/);
 });
 
 test("docker: the override is valid Compose on top of a gateway service", { skip: !hasDocker() && "no docker compose here" }, () => {
@@ -127,13 +147,15 @@ test("docker: the override is valid Compose on top of a gateway service", { skip
   const info = { ...parseInspect(fixture("inspect-compose.json"))!, files: [join(dir, "base.yml")] };
   writeFileSync(join(dir, "over.yml"), overrideYaml(info, { host: "203.0.113.5", port: 8080 }, "203.0.113.5"));
   const out = execFileSync("docker", ["compose", "-p", "cctest", "-f", join(dir, "base.yml"), "-f", join(dir, "over.yml"), "config", "--format", "json"], { encoding: "utf8" });
-  const c = JSON.parse(out) as { services: Record<string, { ports?: unknown[]; networks: Record<string, unknown>; environment: Record<string, string> }>; networks: Record<string, { internal?: boolean }> };
+  const c = JSON.parse(out) as { services: Record<string, { ports?: unknown[]; networks: Record<string, unknown>; environment: Record<string, string>; entrypoint?: string[] }>; networks: Record<string, { internal?: boolean }> };
   const gw = c.services["openclaw-gateway"]!;
   assert.deepEqual(Object.keys(gw.networks), ["controlclaw"]);
   assert.equal(gw.ports, undefined);
   assert.equal(gw.environment.HOME, "/home/node", "their environment is kept");
   assert.equal(gw.environment.NODE_EXTRA_CA_CERTS, "/etc/controlclaw/ca.crt");
   assert.equal(c.networks.controlclaw!.internal, true);
+  // `config` prints `$` escaped again; a container is given `$@` (run on Docker 28).
+  assert.equal(gw.entrypoint![2], 'node /etc/controlclaw/gate-relay.mjs & exec "$$@"');
   assert.deepEqual(Object.keys(c.services["controlclaw-gate"]!.networks).sort(), ["controlclaw", "default"]);
 });
 

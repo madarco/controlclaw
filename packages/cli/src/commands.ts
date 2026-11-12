@@ -3,7 +3,7 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 import { AGENT_PORT, agentPaths, installAgent, keepAfterLogout, REMOTE_AGENT_PORT, UNIT } from "./agent.js";
 import { checkPem } from "./ca.js";
-import { GATE_IP } from "./capture/docker.js";
+import { GATE_ADDR } from "./capture/docker.js";
 import type { Ctx } from "./capture/mode.js";
 import { doctorJson, gatherFacts, MODES, renderDoctor, runsText } from "./doctor.js";
 import { backupConfig, backupText, restoreConfig } from "./openclaw-config.js";
@@ -322,10 +322,10 @@ async function connectWith(sys: Sys, io: Io, o: ConnectOpts, net: PairNet, tmp: 
       io.out("Installing the vm-agent");
       const paths = await installAgent(sys, rec, { binary, user: agentUser, firewallUrl: url.toString(), firewallKey: key, container, agentId: paired?.agentId, keypair,
         ...(reach ?? {}),
-        // Where OpenClaw reaches the firewall's gates: the gate container in docker mode, else the
-        // proxy's address (the tunnel's in remote mode). Not in proxy mode: everything OpenClaw sends
-        // goes through the proxy there, which never connects to the firewall itself.
-        ...(mode.name === "proxy" ? {} : { gate: mode.name === "docker" ? GATE_IP : await ipv4Of(splitHostPort(proxyAddr, 8080).host) }),
+        // Where OpenClaw reaches the firewall's gates: its own loopback in docker mode (relayed to the
+        // gate container), else the proxy's address (the tunnel's in remote mode). Not in proxy mode:
+        // everything OpenClaw sends goes through the proxy there, which never connects to the firewall itself.
+        ...(mode.name === "proxy" ? {} : { gate: mode.name === "docker" ? GATE_ADDR : await ipv4Of(splitHostPort(proxyAddr, 8080).host) }),
         // Remote: once the tunnel is up.
         ...(paired?.wg ? { after: WG_UNIT } : {}) });
       log(`${paths.bin}, config ${paths.config}`);

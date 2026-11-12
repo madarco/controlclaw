@@ -22,6 +22,11 @@ The three main ways:
 
 `up` only runs the commands below, in order. You can run each one on its own.
 
+After a successful `up` at a terminal, it asks once whether you want to star the project on GitHub.
+Yes stars it with `gh` when `gh` is signed in, and otherwise prints the link. It never asks without a
+terminal or with `CI` set, and asks on at most two runs. The answer is kept in
+`~/.local/state/controlclaw/star-prompt.json` (under sudo, in your own home).
+
 ## Commands
 
 | Command | What it does |
@@ -212,6 +217,11 @@ For an OpenClaw started with Docker Compose, for example OpenClaw's own `docker-
   - `NODE_EXTRA_CA_CERTS`;
   - a CA bundle mounted over `/etc/ssl/certs/ca-certificates.crt`: the image's own bundle plus the
     firewall's CA.
+- The firewall's gates (3900 app connections, 3940 MCP servers) are on the gateway's own
+  `127.0.0.1`: OpenClaw's proxy setting sends everything but loopback to the proxy, which refuses
+  the firewall's own address. A small relay (`gate-relay.mjs`, mounted read-only) starts in the
+  gateway's container before its own entrypoint and command, which the override repeats as they
+  were at `connect`. If you change them in your compose file later, run `connect` again.
 - Anything that ignores the proxy (a direct IP, another DNS server, UDP) has nowhere to go.
 - After a reboot, Docker brings both containers back the same way.
 - `docker compose up -d` in the project's folder (an OpenClaw update, say) keeps the capture:

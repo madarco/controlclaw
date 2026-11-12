@@ -65,6 +65,7 @@ function upMachine(kind: "docker" | "systemd-user", dir = "/etc/controlclaw/fire
   sys.on("com.docker.network.bridge.gateway_mode_ipv4", { stdout: "isolated\n" });
   sys.on("{{json .NetworkSettings.Networks}}", { stdout: '{"controlclaw-firewall_agents":{}}' });
   sys.on("node -e", { stdout: "HTTP 403\n" });
+  sys.on("node:net", { stdout: "ok\n" });
   sys.on(`compose -p controlclaw-firewall --project-directory ${dir} -f ${dir}/compose.yaml logs`, {
     stdout: "firewall-1  | [cc-local] no admin yet: set the password with this one-time setup token (POST /api/setup): 0a1d11\nfirewall-1  | [cc-local] no admin yet: set the password with this one-time setup token (POST /api/setup): beef22\n",
   });
@@ -106,7 +107,7 @@ test("install: the Compose files are valid, the gateway's override on the firewa
   assert.equal(fw.networks.agents.internal, true);
   writeFileSync(join(dir, "base.yml"), "services:\n  openclaw-gateway:\n    image: alpine:3.20\n    ports: [\"18789:18789\"]\n");
   const info = { ...parseInspect(fixture("inspect-compose.json"))!, files: [join(dir, "base.yml")] };
-  writeFileSync(join(dir, "over.yml"), overrideOnFirewallNet(info, { network: "controlclaw-firewall_agents", firewall: "172.31.251.2", gateway: UP_GATEWAY_IP }, { ca: "/etc/controlclaw/ca.crt", bundle: "/b" }));
+  writeFileSync(join(dir, "over.yml"), overrideOnFirewallNet(info, { network: "controlclaw-firewall_agents", firewall: "172.31.251.2", gateway: UP_GATEWAY_IP, gate: "172.31.251.2" }, { ca: "/etc/controlclaw/ca.crt", bundle: "/b", relay: "/r.mjs" }));
   const c = JSON.parse(execFileSync("docker", ["compose", "-p", "cctest", "-f", join(dir, "base.yml"), "-f", join(dir, "over.yml"), "config", "--format", "json"], { encoding: "utf8" }));
   const gw = c.services["openclaw-gateway"];
   assert.deepEqual(Object.keys(gw.networks), ["controlclaw"]);
@@ -114,6 +115,11 @@ test("install: the Compose files are valid, the gateway's override on the firewa
   assert.equal(gw.ports, undefined);
   assert.equal(c.networks.controlclaw.name, "controlclaw-firewall_agents");
   assert.equal(c.networks.controlclaw.external, true);
+  // The gates' relay in front of the container's own entrypoint and command (`config` prints `$` escaped).
+  assert.deepEqual(gw.entrypoint, ["/bin/sh", "-c", 'node /etc/controlclaw/gate-relay.mjs & exec "$$@"', "controlclaw-gate-relay", "tini", "-s", "--", "node", "/app/docker-entrypoint.mjs"]);
+  assert.deepEqual(gw.command, ["node", "dist/index.js", "gateway", "--bind", "lan", "--port", "18789"]);
+  assert.ok(gw.volumes.some((v: { source: string; target: string; read_only?: boolean }) => v.source === "/r.mjs" && v.target === "/etc/controlclaw/gate-relay.mjs" && v.read_only));
+  assert.equal(gw.environment.NO_PROXY, "localhost,127.0.0.1,::1,172.31.251.2");
 });
 
 test("install: starts the firewall, opens the panel and prints a code for other machines; again, it only checks; uninstall --purge removes it and its volume", async () => {
@@ -186,6 +192,7 @@ test("connect here, docker mode: paired with no code typed, the gateway on the f
   assert.match(text, /Mode: docker/);
   assert.match(text, /✓ firewall container: running/);
   assert.match(text, /✓ request from the gateway: HTTP 403/);
+  assert.match(text, /✓ the firewall's gates on its loopback: listening on 127.0.0.1, ports 3900, 3940/);
   assert.equal(loadRecord(sys)?.up?.done, true);
 
   // Again: checks only, never a second pairing.
@@ -279,9 +286,11 @@ test("up --all: install, openclaw install, connect in docker mode, then the pane
   assert.equal(loadRecord(sys)?.mode, "docker");
   const agent = JSON.parse(sys.files.get("/etc/controlclaw/agent.json")!);
   assert.equal(agent.openclaw.container, "openclaw-openclaw-gateway-1");
-  // The gateway is on `agents` alone: the gates are there too.
-  assert.equal(agent.firewall.gate, "172.31.251.2");
+  // The gateway is on `agents` alone: the gates are there too, relayed onto its loopback (OpenClaw's
+  // proxy setting sends anything else to the proxy, which refuses the firewall's own address).
+  assert.equal(agent.firewall.gate, "127.0.0.1");
   assert.match(sys.files.get("/etc/controlclaw/firewall/compose.yaml")!, /CONNECTOR_GATE_BIND: "172.31.251.2"/);
+  assert.match(sys.files.get("/etc/controlclaw/docker/gate-relay.mjs")!, /net.connect\(port, "172.31.251.2"\)/);
 
   // Again: nothing installed twice, the checks.
   sys.calls = [];

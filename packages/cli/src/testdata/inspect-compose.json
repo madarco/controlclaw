@@ -3,6 +3,8 @@
     "Name": "/openclaw-openclaw-gateway-1",
     "Config": {
       "Image": "ghcr.io/openclaw/openclaw:2026.10.9",
+      "Entrypoint": ["tini", "-s", "--", "node", "/app/docker-entrypoint.mjs"],
+      "Cmd": ["node", "dist/index.js", "gateway", "--bind", "lan", "--port", "18789"],
       "Labels": {
         "com.docker.compose.project": "openclaw",
         "com.docker.compose.project.working_dir": "/root/openclaw",

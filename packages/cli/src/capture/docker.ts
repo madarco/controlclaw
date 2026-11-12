@@ -12,7 +12,8 @@ import type { CaptureMode, Ctx } from "./mode.js";
  * has no route out, so the only way to the internet is the gate container, which sits on that
  * network and the normal one and relays to the firewall: its proxy port and its DNS. OpenClaw and
  * every Node child are pointed at the proxy (OPENCLAW_PROXY_URL, HTTP(S)_PROXY); anything that
- * ignores it (a direct IP, another DNS server, a raw socket) has nowhere to go.
+ * ignores it (a direct IP, another DNS server, a raw socket) has nowhere to go. The firewall's gates
+ * are relayed onto the gateway's own loopback (gateRelayScript).
  *
  * Docker publishes no ports for a container that is only on an internal network, so the gate also
  * publishes the gateway's old ports and relays them in. Later (`up --local`) the firewall container
@@ -24,11 +25,12 @@ import type { CaptureMode, Ctx } from "./mode.js";
 export const DIR = "/etc/controlclaw/docker";
 export const OVERRIDE = `${DIR}/compose.controlclaw.yml`;
 export const BUNDLE = `${DIR}/ca-bundle.crt`;
-/** The override and the CA bundle: in /etc as root, else (`up` by a user who can use Docker) in its config folder. */
-export function dockerFiles(sys: Sys): { override: string; bundle: string } {
-  if (sys.euid === 0) return { override: OVERRIDE, bundle: BUNDLE };
+export const RELAY = `${DIR}/gate-relay.mjs`;
+/** The override, the CA bundle and the gates' relay: in /etc as root, else (`up` by a user who can use Docker) in its config folder. */
+export function dockerFiles(sys: Sys): { override: string; bundle: string; relay: string } {
+  if (sys.euid === 0) return { override: OVERRIDE, bundle: BUNDLE, relay: RELAY };
   const dir = join(stateDir(sys), "docker");
-  return { override: join(dir, "compose.controlclaw.yml"), bundle: join(dir, "ca-bundle.crt") };
+  return { override: join(dir, "compose.controlclaw.yml"), bundle: join(dir, "ca-bundle.crt"), relay: join(dir, "gate-relay.mjs") };
 }
 export const SUBNET = "172.31.250.0/24";
 export const GATE_IP = "172.31.250.2";
@@ -37,6 +39,19 @@ export const GATE_SERVICE = "controlclaw-gate";
 export const GATE_IMAGE = "alpine/socat:1.8.0.3";
 /** Where the CA is inside the gateway container. */
 export const CONTAINER_CA = "/etc/controlclaw/ca.crt";
+/** Where the gates' relay is inside the gateway container. */
+export const CONTAINER_RELAY = "/etc/controlclaw/gate-relay.mjs";
+/**
+ * Where OpenClaw reaches the firewall's gates: its own loopback. OpenClaw's proxy setting
+ * (OPENCLAW_PROXY_URL) sends everything but loopback to the proxy and resets NO_PROXY to loopback
+ * only, and the proxy refuses the firewall's own address (`non_routable_target`). A relay in the
+ * gateway's container puts the gates there; the gate still sees the container's address. In the
+ * container itself, not a sidecar sharing its network: a restart of the gateway leaves a sidecar on
+ * a network that is gone.
+ */
+export const GATE_ADDR = "127.0.0.1";
+/** Run in the gateway container: prints "ok" when the gates' relay takes connections on every port. */
+export const RELAY_PROBE = `const net = require("node:net"); Promise.all(${JSON.stringify(GATE_PORTS)}.map((p) => new Promise((ok, no) => { const s = net.connect(p, "127.0.0.1", () => { s.destroy(); ok(); }); s.on("error", (e) => no(new Error(p + ": " + e.code))); s.setTimeout(5000, () => { s.destroy(); no(new Error(p + ": timeout")); }); }))).then(() => console.log("ok"), (e) => console.log(e.message))`;
 /** Run in the gateway container (NODE_USE_ENV_PROXY is set there): prints "HTTP <status>". */
 export const PROBE = `fetch("https://example.com/").then(r => console.log("HTTP " + r.status), e => console.log("failed: " + (e.cause?.code ?? e.message)))`;
 
@@ -49,10 +64,13 @@ export interface ComposeInfo {
   ports: { host: string; container: number }[];
   /** What would let the gateway out of the internal network: a socket, privileges, capabilities. */
   escapes: string[];
+  /** How the container starts, as it runs now (the image's, or the compose file's when it sets them). */
+  entrypoint: string[];
+  command: string[];
 }
 
 interface Inspected {
-  Config?: { Labels?: Record<string, string> };
+  Config?: { Labels?: Record<string, string>; Entrypoint?: string[] | null; Cmd?: string[] | null };
   Mounts?: { Source?: string; Destination?: string }[];
   HostConfig?: {
     PortBindings?: Record<string, { HostIp?: string; HostPort?: string }[] | null>;
@@ -111,7 +129,9 @@ export function parseInspect(raw: string): ComposeInfo | null {
       ports.push({ host: ip ? `${ip}:${b.HostPort}` : b.HostPort, container: Number(port) });
     }
   }
-  return { project, workingDir, files: files.split(","), service, ports, escapes: escapesOf(c) };
+  const entrypoint = c.Config?.Entrypoint ?? [];
+  const command = c.Config?.Cmd ?? [];
+  return { project, workingDir, files: files.split(","), service, ports, escapes: escapesOf(c), entrypoint, command };
 }
 
 /** A loopback address means the gate itself, not this machine. */
@@ -137,9 +157,11 @@ export function gateScript(proxy: { host: string; port: number }, dns: string | 
 /**
  * What a captured OpenClaw container gets: the firewall's proxy for OpenClaw's own proxy setting,
  * for Node (`NODE_USE_ENV_PROXY`) and for other programs, and the CA for Node and the system store.
+ * OpenClaw's proxy setting is kept: its web fetch ignores HTTP(S)_PROXY and would dial directly.
  */
 export function proxyEnv(proxyUrl: string, gate?: string): [string, string][] {
-  // The firewall's gates are dialled directly: the proxy never connects to the firewall itself.
+  // The firewall's own address is dialled directly by programs that read NO_PROXY: the proxy never
+  // connects to the firewall itself. OpenClaw resets it to loopback, hence the relay (GATE_ADDR).
   const direct = ["localhost", "127.0.0.1", "::1", ...(gate ? [gate] : [])].join(",");
   return [
     ["OPENCLAW_PROXY_URL", proxyUrl],
@@ -159,9 +181,63 @@ export interface HostFiles {
   /** The CA on this machine, mounted at CONTAINER_CA. */
   ca: string;
   bundle: string;
+  /** The gates' relay (gateRelayScript), mounted at CONTAINER_RELAY. */
+  relay: string;
 }
 
-const ROOT_FILES: HostFiles = { ca: CONTAINER_CA, bundle: BUNDLE };
+const ROOT_FILES: HostFiles = { ca: CONTAINER_CA, bundle: BUNDLE, relay: RELAY };
+
+/**
+ * The relay the gateway's container runs next to its gateway: each gate port, from the container's
+ * loopback to `target` (the gate container, or the firewall's container). A failure is written to
+ * the container's log (`docker logs`), and a port it cannot listen on is tried again every 5 s: it
+ * never dies quietly while the gateway runs on.
+ */
+export function gateRelayScript(target: string): string {
+  return [
+    "// Written by controlclaw: the firewall's gates on OpenClaw's loopback.",
+    'import net from "node:net";',
+    'const say = (m) => process.stderr.write(`[controlclaw gate-relay] ${m}\\n`);',
+    'process.on("uncaughtException", (e) => say(`error: ${e?.message ?? e}`));',
+    `for (const port of ${JSON.stringify(GATE_PORTS)}) {`,
+    "  const server = net.createServer((c) => {",
+    `    const u = net.connect(port, ${q(target)});`,
+    "    const end = () => { c.destroy(); u.destroy(); };",
+    '    u.on("error", (e) => { say(`${port}: the firewall: ${e.code ?? e.message}`); end(); });',
+    '    c.on("error", end); c.on("close", end); u.on("close", end);',
+    "    c.pipe(u).pipe(c);",
+    "  });",
+    `  const listen = () => server.listen(port, ${q(GATE_ADDR)});`,
+    '  server.on("error", (e) => { say(`${port}: cannot listen (${e.code ?? e.message}); trying again in 5 s`); setTimeout(listen, 5000); });',
+    '  server.on("listening", () => say(`${port}: listening`));',
+    "  listen();",
+    "}",
+    "",
+  ].join("\n");
+}
+
+/** A YAML list of strings for Compose: `$` doubled, so Compose does not read it as a variable. */
+function argvYaml(argv: string[]): string {
+  return `[${argv.map((a) => q(a.replaceAll("$", "$$$$"))).join(", ")}]`;
+}
+
+/**
+ * The gateway's start, with the relay in front: a shell starts it, then runs the container's own
+ * entrypoint and command (the image's entrypoint does OpenClaw's own setup first). Fixed at the
+ * time of `connect`: a later change to them in the compose file needs `connect` again.
+ */
+const RELAY_NAME = "controlclaw-gate-relay";
+function relayStart(info: ComposeInfo): string[] {
+  const head = ["/bin/sh", "-c", `node ${CONTAINER_RELAY} & exec "$@"`, RELAY_NAME];
+  // Still wrapped by an earlier connect whose override stayed (its undo did not run): unwrapped once.
+  const wrapped = info.entrypoint.length > head.length && head.every((a, i) => info.entrypoint[i] === a);
+  const entrypoint = wrapped ? info.entrypoint.slice(head.length) : info.entrypoint;
+  if (!entrypoint.length && !info.command.length) throw new Error(`${info.service} has no entrypoint or command to start the gates' relay in front of`);
+  return [
+    `    entrypoint: !override ${argvYaml([...head, ...entrypoint])}`,
+    `    command: !override ${argvYaml(info.command)}`,
+  ];
+}
 
 export function overrideYaml(info: ComposeInfo, proxy: { host: string; port: number }, dns: string | null, files: HostFiles = ROOT_FILES): string {
   const env = proxyEnv(`http://${GATE_IP}:8080`, GATE_IP);
@@ -181,6 +257,7 @@ export function overrideYaml(info: ComposeInfo, proxy: { host: string; port: num
     "      controlclaw:",
     `        ipv4_address: ${GATEWAY_IP}`,
     `    dns: [${q(GATE_IP)}]`,
+    ...relayStart(info),
     "    environment:",
     ...env.map(([k, v]) => `      ${k}: ${q(v)}`),
     ...caVolumes(files),
@@ -210,6 +287,7 @@ function caVolumes(files: HostFiles): string[] {
     "    volumes:",
     `      - ${q(`${files.ca}:${CONTAINER_CA}:ro`)}`,
     `      - ${q(`${files.bundle}:/etc/ssl/certs/ca-certificates.crt:ro`)}`,
+    `      - ${q(`${files.relay}:${CONTAINER_RELAY}:ro`)}`,
   ];
 }
 
@@ -225,6 +303,8 @@ export interface FirewallNet {
   firewall: string;
   /** The gateway's address on it, the one the firewall knows it by. */
   gateway: string;
+  /** Where the firewall's gates listen, for the relay (the firewall's address on it, unless --listen). */
+  gate: string;
 }
 
 export function overrideOnFirewallNet(info: ComposeInfo, net: FirewallNet, files: HostFiles): string {
@@ -239,6 +319,7 @@ export function overrideOnFirewallNet(info: ComposeInfo, net: FirewallNet, files
     "      controlclaw:",
     `        ipv4_address: ${net.gateway}`,
     `    dns: [${q(net.firewall)}]`,
+    ...relayStart(info),
     "    environment:",
     ...env.map(([k, v]) => `      ${k}: ${q(v)}`),
     ...caVolumes(files),
@@ -364,8 +445,8 @@ export const docker: CaptureMode = {
       const taken = await subnetTaken(sys, `${info.project}_controlclaw`);
       if (taken) throw new Error(`the Docker network ${taken} already uses ${SUBNET}`);
     }
-    const { override, bundle: bundlePath } = dockerFiles(sys);
-    const files: HostFiles = { ca: ctx.caPath, bundle: bundlePath };
+    const { override, bundle: bundlePath, relay } = dockerFiles(sys);
+    const files: HostFiles = { ca: ctx.caPath, bundle: bundlePath, relay };
 
     // The image's own CA bundle plus ours, mounted over the system store: no root needed inside.
     const bundle = await sys.run(["docker", "exec", container, "cat", "/etc/ssl/certs/ca-certificates.crt"]);
@@ -373,6 +454,7 @@ export const docker: CaptureMode = {
       throw new Error(`could not read the CA bundle in ${container}: is it running?`);
     }
     await rec.file(bundlePath, `${bundle.stdout.trimEnd()}\n${ctx.caPem.trim()}\n`);
+    await rec.file(relay, gateRelayScript(net ? net.gate : GATE_IP));
     await rec.file(override, net ? overrideOnFirewallNet(info, net, files) : overrideYaml(info, splitHostPort(ctx.firewall.proxy, 8080), ctx.firewall.dns, files));
 
     // Only the gateway (and the gate) are touched. The gate goes first, while the override that
@@ -430,6 +512,13 @@ export const docker: CaptureMode = {
     const probe = await sys.run(["docker", "exec", c, "node", "-e", PROBE], { timeoutMs: 30_000 });
     const answer = probe.stdout.trim();
     checks.push({ name: "request from the gateway", ok: /^HTTP \d+/.test(answer), detail: answer || "no answer" });
+    const relay = await sys.run(["docker", "exec", c, "node", "-e", RELAY_PROBE], { timeoutMs: 15_000 });
+    const listening = relay.stdout.trim();
+    checks.push({
+      name: "the firewall's gates on its loopback",
+      ok: listening === "ok",
+      detail: listening === "ok" ? `listening on ${GATE_ADDR}, ports ${GATE_PORTS.join(", ")}` : `${listening || "no answer"}: see docker logs ${c} (gate-relay), or connect again`,
+    });
     // The firewall's DNS on its own network is out of this machine's reach: the request above used it.
     if (!want && record.firewall.dns && isIPv4(record.firewall.dns)) checks.push(await dnsAnswers(record.firewall.dns));
     return checks;

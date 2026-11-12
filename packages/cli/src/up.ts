@@ -1,7 +1,7 @@
 import { isIPv4 } from "node:net";
 import { join } from "node:path";
 import { AGENT_PORT, installAgent, keepAfterLogout } from "./agent.js";
-import { type ComposeInfo, docker, dockerNeeds, type FirewallNet, gatewayProject, subnetTaken } from "./capture/docker.js";
+import { type ComposeInfo, docker, dockerNeeds, type FirewallNet, GATE_ADDR, gatewayProject, subnetTaken } from "./capture/docker.js";
 import { host } from "./capture/host.js";
 import type { Ctx } from "./capture/mode.js";
 import { disconnect, type Io, type PairNet, realNet } from "./commands.js";
@@ -402,11 +402,12 @@ async function connectHereWith(sys: Sys, io: Io, o: ConnectHereOpts, net: HereNe
 
   const dir = fwRec.dir!;
   const compose = composeIn(fwRec.project!, dir);
-  const fwNet: FirewallNet | undefined = mode === "docker" ? { network: `${fwRec.project}_agents`, firewall: FW_AGENTS_IP, gateway: UP_GATEWAY_IP } : undefined;
   const fwIp = mode === "docker" ? FW_AGENTS_IP : FW_OUTSIDE_IP;
   // Docker mode: the gateway is on `agents` alone, so the gates go there too. Not with --listen:
   // other machines reach the gates through ports Docker publishes on `outside`.
   const gateOnAgents = mode === "docker" && !fwRec.listen;
+  const fwGate = gateOnAgents ? FW_AGENTS_IP : FW_OUTSIDE_IP;
+  const fwNet: FirewallNet | undefined = mode === "docker" ? { network: `${fwRec.project}_agents`, firewall: FW_AGENTS_IP, gateway: UP_GATEWAY_IP, gate: fwGate } : undefined;
   const record: ConnectRecord = {
     version: 1,
     mode,
@@ -465,7 +466,9 @@ async function connectHereWith(sys: Sys, io: Io, o: ConnectHereOpts, net: HereNe
         // This machine's side of `outside`, where the firewall's container calls it, from its own address only.
         listen: AGENT_LISTEN,
         allowFrom: [FW_OUTSIDE_IP],
-        gate: gateOnAgents ? FW_AGENTS_IP : FW_OUTSIDE_IP,
+        // Docker mode: the gates relayed onto the gateway's loopback (OpenClaw's proxy setting sends
+        // anything else to the proxy).
+        gate: mode === "docker" ? GATE_ADDR : fwGate,
         // A system unit only: a user's own systemd does not know Docker's.
         ...(sys.euid === 0 ? { after: "docker.service" } : {}),
       });

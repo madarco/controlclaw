@@ -5,6 +5,7 @@ import { type Ask, terminalAsk } from "./menu.js";
 import { open } from "./open.js";
 import { openclawInstall } from "./openclaw-install.js";
 import { connectHere, type HereNet, installFirewall, uninstall, upAll, upHere } from "./up.js";
+import { starPrompt } from "./star.js";
 import { realSys, type Sys } from "./sys.js";
 
 declare const __CC_CLI_VERSION__: string;
@@ -151,18 +152,10 @@ export async function run(argv: string[], io: Io, sys: Sys = realSys(), ask: Ask
         captureOnly: b("capture-only"),
       }, net);
     case "up": {
-      const picked = [b("all") || b("local"), b("here")].filter(Boolean).length;
-      if (picked > 1) {
-        io.err("up --all or up --here, not both.");
-        return 2;
-      }
-      if (!picked) return upMenu(sys, io, ask, net, { firewallImage: s("firewall-image"), name: s("name"), vmAgent: s("vm-agent") });
-      if (b("here")) return upHere(sys, io, { mode: s("mode"), firewallImage: s("firewall-image"), name: s("name"), user: s("user"), vmAgent: s("vm-agent"), listen: s("listen") }, net);
-      if (s("mode")) {
-        io.err("up --all starts its own OpenClaw in Docker: leave out --mode.");
-        return 2;
-      }
-      return upAll(sys, io, { firewallImage: s("firewall-image"), openclawImage: s("openclaw-image"), dir: s("dir"), name: s("name"), vmAgent: s("vm-agent") }, net);
+      const code = await up(sys, io, ask, net, b, s);
+      // After a good up only, and only with a person at the terminal.
+      if (code === 0) await starPrompt(sys, io, ask);
+      return code;
     }
     case "disconnect":
       return disconnect(sys, io, { force: b("force"), restoreConfig: b("restore-config") }, net.post);
@@ -187,6 +180,22 @@ export async function run(argv: string[], io: Io, sys: Sys = realSys(), ask: Ask
       io.err(USAGE);
       return 2;
   }
+}
+
+/** `up`: the menu, or what --all or --here picked. */
+async function up(sys: Sys, io: Io, ask: Ask, net: HereNet, b: (k: string) => boolean, s: (k: string) => string | undefined): Promise<number> {
+  const picked = [b("all") || b("local"), b("here")].filter(Boolean).length;
+  if (picked > 1) {
+    io.err("up --all or up --here, not both.");
+    return 2;
+  }
+  if (!picked) return upMenu(sys, io, ask, net, { firewallImage: s("firewall-image"), name: s("name"), vmAgent: s("vm-agent") });
+  if (b("here")) return upHere(sys, io, { mode: s("mode"), firewallImage: s("firewall-image"), name: s("name"), user: s("user"), vmAgent: s("vm-agent"), listen: s("listen") }, net);
+  if (s("mode")) {
+    io.err("up --all starts its own OpenClaw in Docker: leave out --mode.");
+    return 2;
+  }
+  return upAll(sys, io, { firewallImage: s("firewall-image"), openclawImage: s("openclaw-image"), dir: s("dir"), name: s("name"), vmAgent: s("vm-agent") }, net);
 }
 
 /** `up` with no flag: the menu, then what was picked. Without a terminal, it asks for a flag. */

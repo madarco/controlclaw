@@ -39,6 +39,7 @@ function oldLocal(): { sys: FakeSys; before: string[] } {
   sys.on("{{.State.Status}}", { stdout: "running healthy\n" });
   sys.on("{{json .NetworkSettings.Networks}}", { stdout: '{"controlclaw-local_agents":{}}' });
   sys.on("node -e", { stdout: "HTTP 403\n" });
+  sys.on("node:net", { stdout: "ok\n" });
   sys.on(`${C} logs`, { stdout: "firewall-1  | [cc-local] no admin yet: set the password with this one-time setup token (POST /api/setup): abc123\n" });
   return { sys, before };
 }
