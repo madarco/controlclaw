@@ -22,7 +22,15 @@ import {
   Stack,
   StatusLine,
 } from "../../kit/console-ui";
-import { AI_INSTRUCTIONS_MAX, type EgressAiView, type LogReviewNotify, type LogReviewSeverity } from "../../lib/egress-ai-schema";
+import {
+  AI_CATEGORY_LABEL,
+  AI_FALSE_ALARMS_MAX,
+  AI_INSTRUCTIONS_MAX,
+  type AiFalseAlarmItem,
+  type EgressAiView,
+  type LogReviewNotify,
+  type LogReviewSeverity,
+} from "../../lib/egress-ai-schema";
 import { countLabel } from "../../lib/format";
 import { useRoutes } from "../../lib/routes";
 
@@ -561,6 +569,8 @@ export function AiLogReviewSection({ ai, showModel }: { ai: EgressAi; showModel:
             </Stack>
           </Disclosure>
 
+          {view.falseAlarms ? <FalseAlarms ai={ai} items={view.falseAlarms} /> : null}
+
           {view.local ? null : (
             <Disclosure title="Review history" data-testid="egress-ai-history-toggle" meta={<span>kept 7 days</span>}>
               <Stack className="gap-3">
@@ -596,6 +606,81 @@ export function AiLogReviewSection({ ai, showModel }: { ai: EgressAi; showModel:
         </>
       )}
     </Sec>
+  );
+}
+
+/**
+ * The findings people marked as false alarms (docs/features/ai-firewall-review.md#false-alarms),
+ * newest first, each with Remove. They are marked from Activity → Findings.
+ */
+function FalseAlarms({ ai, items }: { ai: EgressAi; items: AiFalseAlarmItem[] }) {
+  const api = useApi();
+  const routes = useRoutes();
+  const [removing, setRemoving] = useState<string | null>(null);
+  const remove = api.egress.removeAiFalseAlarm;
+
+  async function onRemove(item: AiFalseAlarmItem) {
+    if (!remove) return;
+    setRemoving(item.id);
+    try {
+      await remove({ id: item.id });
+      ai.setView(await api.egress.getEgressAiSettings());
+      toast.success(`Removed. The review judges ${item.host} as before.`);
+    } catch (err) {
+      toast.error(errorMessage(err, "Couldn’t remove the false alarm. Try again."));
+    } finally {
+      setRemoving(null);
+    }
+  }
+
+  return (
+    <Disclosure
+      title="False alarms"
+      data-testid="egress-ai-false-alarms-toggle"
+      meta={<span data-testid="egress-ai-false-alarms-count">{items.length === 0 ? "None" : `${items.length} of ${AI_FALSE_ALARMS_MAX}`}</span>}
+    >
+      <Stack className="gap-3">
+        <Hint>
+          Findings someone marked as a false alarm in{" "}
+          <Link href={routes.activity} className="font-medium text-brand hover:underline">
+            Activity
+          </Link>
+          . The review is told that the host and kind of finding are expected, so a repeat is less likely. It still checks these
+          hosts. Remove one to undo it.
+        </Hint>
+        {items.length === 0 ? (
+          <StatusLine data-testid="egress-ai-false-alarms-empty">None yet. Press False alarm on a finding in Activity → Findings.</StatusLine>
+        ) : (
+          <ul className="grid gap-0 overflow-hidden rounded-lg border border-line" data-testid="egress-ai-false-alarms">
+            {items.map((item) => (
+              <li key={item.id} className="flex flex-wrap items-start gap-x-3 gap-y-1.5 border-t border-line px-3 py-2.5 first:border-t-0" data-testid="egress-ai-false-alarm">
+                <div className="min-w-0 flex-1 basis-[220px]">
+                  <div className="text-[13px] font-medium break-words text-ink">
+                    {AI_CATEGORY_LABEL[item.category] ?? item.category} · <span className="font-mono text-[12.5px] break-all">{item.host}</span>
+                  </div>
+                  <div className="mt-0.5 text-[12px] text-ink-2">
+                    {item.vmId ? (item.agentName ?? "An agent") : "All agents"}
+                    {item.createdBy ? ` · marked by ${item.createdBy}` : ""} · <RelativeTime date={item.createdAt} />
+                  </div>
+                  {item.note ? <div className="mt-0.5 text-[12px] break-words text-ink-2">“{item.note}”</div> : null}
+                </div>
+                {ai.view.canManage && remove ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={removing !== null}
+                    onClick={() => void onRemove(item)}
+                    data-testid={`egress-ai-false-alarm-remove-${item.id}`}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Stack>
+    </Disclosure>
   );
 }
 

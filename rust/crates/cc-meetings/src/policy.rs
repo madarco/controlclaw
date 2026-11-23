@@ -414,8 +414,8 @@ pub fn default_meeting_policy() -> Value {
     json!({"enabled": false, "platforms": ["google-meet"], "defaultMode": "transcript", "invokers": "owner-browser", "speech": null})
 }
 
-pub const MEET_HOST_VERSION: &str = "2026.9.7";
-pub const MEET_PLUGIN_VERSION: &str = "2026.9.7";
+pub const MEET_HOST_VERSION: &str = "2026.11.5";
+pub const MEET_PLUGIN_VERSION: &str = "2026.11.5";
 
 /// `OP_ID`: a lowercase UUID.
 pub static OP_ID: LazyLock<Regex> =

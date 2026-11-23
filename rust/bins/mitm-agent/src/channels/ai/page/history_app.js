@@ -25,7 +25,7 @@ function renderTranscriptEvent(item, names) {
 
 const root = location.pathname.replace(/[/]$/, ""), el = (id) => document.getElementById(id);
 const NAMES = { user: "Your instructions", text: "Verdict", status: "Result", tool_call: "Questions", tool_result: "Answers" };
-const OUTCOME = { finding: "Finding", clear: "Clear", repeat: "Repeat", no_answer: "No answer", capped: "Capped" };
+const OUTCOME = { finding: "Finding", clear: "Clear", repeat: "Repeat", owner_marked: "False alarm", no_answer: "No answer", capped: "Capped" };
 let runs = [], oldest = null, current = null, loads = 0;
 const outcome = (o) => OUTCOME[o] || o;
 const fmt = (ms) => new Date(ms).toLocaleString();

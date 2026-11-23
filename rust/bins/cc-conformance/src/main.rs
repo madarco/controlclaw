@@ -1,6 +1,6 @@
-//! The conformance runner (docs/plans/rust-rewrite.md §4.2): the same HTTP-level cases against the
-//! TS build and the Rust build of an agent, so parity is measured. A case is only valid if it
-//! passes on TS; one that passes on TS and fails on Rust is a bug in the Rust build.
+//! The conformance runner (docs/plans/rust-rewrite.md §4.2): HTTP-level cases against the Rust
+//! build of each agent. They were written against the TS agents and held both builds to the same
+//! answers until the TS ones were retired; a case that fails now is a change in behaviour.
 //!
 //! `--target saas|local|cp` runs the control-plane cases instead (`cp.rs`): the same contract checked
 //! from the other side, against the SaaS routes and the standalone firewall's local control plane.
@@ -20,13 +20,11 @@ mod matcher;
 mod runner;
 mod shim;
 
-use runner::{Builds, Target};
+use runner::Builds;
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Which {
-    Ts,
     Rust,
-    Both,
     /// The control-plane cases against the SaaS routes.
     Saas,
     /// The control-plane cases against the local control plane.
@@ -36,12 +34,12 @@ enum Which {
 }
 
 #[derive(Parser)]
-#[command(about = "Run the conformance cases against the TS and the Rust agents")]
+#[command(about = "Run the conformance cases against the Rust agents")]
 struct Args {
     /// Case files or folders (searched for *.yaml).
     #[arg(default_value = "conformance/cases")]
     cases: Vec<PathBuf>,
-    #[arg(long, value_enum, default_value = "both")]
+    #[arg(long, value_enum, default_value = "rust")]
     target: Which,
     /// Only cases whose name contains this.
     #[arg(long)]
@@ -52,8 +50,6 @@ struct Args {
     /// Where the Rust binaries are.
     #[arg(long, env = "CC_RUST_BIN_DIR")]
     rust_bin_dir: Option<PathBuf>,
-    #[arg(long, env = "CC_NODE", default_value = "node")]
-    node: String,
 }
 
 fn find_repo() -> Option<PathBuf> {
@@ -104,18 +100,12 @@ async fn main() -> Result<()> {
         .or_else(find_repo)
         .context("could not find the repository root; pass --repo")?;
     let rust_bin_dir = args.rust_bin_dir.unwrap_or_else(|| repo.join("rust/target/debug"));
-    let builds = Builds {
-        repo,
-        rust_bin_dir,
-        node: args.node,
-    };
+    let builds = Builds { repo, rust_bin_dir };
     let mut files = Vec::new();
     collect(&args.cases, &mut files)?;
     let (cp_files, files) = cp::files(&files);
-    let targets: Vec<Target> = match args.target {
-        Which::Ts => vec![Target::Ts],
-        Which::Rust => vec![Target::Rust],
-        Which::Both => vec![Target::Ts, Target::Rust],
+    match args.target {
+        Which::Rust => {}
         Which::Saas => {
             return run_cp(
                 &cp_files,
@@ -146,43 +136,33 @@ async fn main() -> Result<()> {
             )
             .await;
         }
-    };
+    }
     let (mut passed, mut failed, mut skipped) = (0, 0, 0);
-    println!("{:<60} {:<12} {:<12}", "case", "ts", "rust");
+    println!("{:<60} {:<12}", "case", "rust");
     for f in files {
         let c = load(&f)?;
         if args.filter.as_ref().is_some_and(|x| !c.name.contains(x.as_str())) {
             continue;
         }
-        let mut cols = Vec::new();
-        let mut errors = Vec::new();
-        for t in [Target::Ts, Target::Rust] {
-            if !targets.contains(&t) {
-                cols.push("-".to_string());
-                continue;
-            }
-            if let Some(why) = c.skip.get(t.name()) {
-                skipped += 1;
-                cols.push(format!("skip ({why})"));
-                continue;
-            }
-            match runner::run(&c, t, &builds).await {
-                Ok(runner::Outcome::Pass) => {
-                    passed += 1;
-                    cols.push("pass".into());
-                }
-                Ok(runner::Outcome::Skip(why)) => {
-                    skipped += 1;
-                    cols.push(format!("skip ({why})"));
-                }
-                Err(e) => {
-                    failed += 1;
-                    cols.push("FAIL".into());
-                    errors.push(format!("[{}] {}: {e:#}", t.name(), c.name));
-                }
-            }
+        // `skip: {rust: "why"}`: a gap that is known and owned.
+        if let Some(why) = c.skip.get("rust") {
+            skipped += 1;
+            println!("{:<60} skip ({why})", c.name);
+            continue;
         }
-        println!("{:<60} {:<12} {:<12}", c.name, cols[0], cols[1]);
+        let mut errors = Vec::new();
+        let col = match runner::run(&c, &builds).await {
+            Ok(runner::Outcome::Pass) => {
+                passed += 1;
+                "pass"
+            }
+            Err(e) => {
+                failed += 1;
+                errors.push(format!("[rust] {}: {e:#}", c.name));
+                "FAIL"
+            }
+        };
+        println!("{:<60} {:<12}", c.name, col);
         for e in errors {
             eprintln!("{e}\n");
         }

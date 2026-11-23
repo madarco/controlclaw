@@ -480,7 +480,19 @@ fn follow_up_deps(
     followup::FollowUpDeps {
         archive,
         workspace: app.config.home.join(".openclaw").join("workspace"),
+        instructions: crate::platform::controlclaw_agents::Instructions::on_box(),
+        context_loaded: {
+            let config = app.config.home.join(".openclaw").join("openclaw.json");
+            let ours = crate::platform::controlclaw_agents::Instructions::on_box();
+            Arc::new(move || ours.available() && crate::platform::controlclaw_agents::context_loaded(&config))
+        },
         state_path: app.config.state_dir.join("meeting-orders.json"),
+        orders_copy: app
+            .config
+            .home
+            .join(".openclaw")
+            .join("controlclaw")
+            .join("meeting-orders.json"),
         hooks: Arc::new(move || {
             a.upgrade()
                 .and_then(|a| a.contracts.gmail_wake.get())

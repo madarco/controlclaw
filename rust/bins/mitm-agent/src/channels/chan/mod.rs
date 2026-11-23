@@ -42,6 +42,8 @@ use crate::channels::llm::CODE_ATTEMPTS;
 
 const PENDING_APPROVAL_TTL_MS: i64 = 15 * 60_000;
 pub const RECONCILE_INTERVAL_MS: i64 = 60_000;
+/// How often a connection whose agent holds the wrong form of the token is tried again.
+pub const MIGRATE_RETRY_MS: i64 = 10 * 60_000;
 pub const AGENT_ALLOWED_INTERVAL_MS: i64 = 5 * 60_000;
 const AGENT_ALLOWED_CAP: usize = 50;
 const APPROVED_CAP: usize = 200;
@@ -282,6 +284,69 @@ pub fn slack_placeholder(connection_id: &str, which: &str, token: &str) -> Strin
     }
 }
 
+/// Which channel types an agent gets a stand-in for instead of the token (`CHANNELS_PLACEHOLDER_SWAP`).
+/// WhatsApp has no token and is never swapped.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PlaceholderSwap {
+    pub telegram: bool,
+    pub slack: bool,
+}
+
+impl PlaceholderSwap {
+    pub const ALL: Self = Self {
+        telegram: true,
+        slack: true,
+    };
+
+    pub const DEFAULT: Self = Self {
+        telegram: true,
+        slack: false,
+    };
+
+    /// Unset or empty: Telegram only. `1` (`true`, `on`, `yes`, `all`): Telegram and Slack. `0`
+    /// (`false`, `off`, `no`, `none`): neither, the agents hold their tokens. Otherwise a
+    /// comma-separated list of types; one that names neither type is the default, with a warning.
+    pub fn parse(v: &str) -> Self {
+        let v = v.trim().to_ascii_lowercase();
+        match v.as_str() {
+            "" => Self::DEFAULT,
+            "1" | "true" | "on" | "yes" | "all" => Self::ALL,
+            "0" | "false" | "off" | "no" | "none" => Self::default(),
+            list => {
+                let has = |t: &str| list.split(',').any(|x| x.trim() == t);
+                let s = Self {
+                    telegram: has("telegram"),
+                    slack: has("slack"),
+                };
+                if s == Self::default() {
+                    tracing::warn!(
+                        "[channels] CHANNELS_PLACEHOLDER_SWAP={list} names no channel type; using the default"
+                    );
+                    return Self::DEFAULT;
+                }
+                s
+            }
+        }
+    }
+
+    pub fn on(&self, kind: &str) -> bool {
+        match kind {
+            "telegram" => self.telegram,
+            "slack" => self.slack,
+            _ => false,
+        }
+    }
+
+    pub fn describe(&self) -> &'static str {
+        match (self.telegram, self.slack) {
+            (true, true) => "on (Telegram, Slack)",
+            (true, false) => "on (Telegram)",
+            (false, true) => "on (Slack)",
+            (false, false) => "off",
+        }
+    }
+}
+
 /// One sender OpenClaw will talk to, as an agent says: type, sender id, label, when. A suggestion,
 /// never an approval.
 pub type AllowedSender = (String, String, Option<String>, Option<String>);
@@ -391,7 +456,9 @@ pub struct ChannelsOptions {
     pub agent: Arc<dyn AgentCalls>,
     /// The agents the identity map lists: `(vm_id, hostname)`.
     pub identities: Arc<dyn Fn() -> Vec<(String, Option<String>)> + Send + Sync>,
-    pub placeholder_swap: bool,
+    pub placeholder_swap: PlaceholderSwap,
+    /// A connection with no `appliedAs` holds a stand-in (a standalone firewall always swapped).
+    pub unrecorded_stand_in: bool,
     /// A firewall built from the test repo (`devConsentAllowed`): the dev route goes last, so a
     /// code with nobody approved goes back to the console instead of applying on first use.
     pub dev: bool,
@@ -419,6 +486,8 @@ pub struct ChannelsFirewall {
     reports: Mutex<Vec<CommandResult>>,
     agent_allowed: Mutex<HashMap<String, AgentAllowedRead>>,
     sent_via: Mutex<Option<(String, String)>>,
+    /// When each connection was last re-applied because its agent holds the wrong form of the token.
+    migrate_tries: Mutex<HashMap<String, i64>>,
     /// False when the store on disk would not parse: it is never written over.
     writable: bool,
     /// False when it would not decrypt or parse at load, until the process restarts. A save does not
@@ -445,6 +514,7 @@ impl ChannelsFirewall {
             reports: Mutex::new(Vec::new()),
             agent_allowed: Mutex::new(HashMap::new()),
             sent_via: Mutex::new(None),
+            migrate_tries: Mutex::new(HashMap::new()),
         })
     }
 
@@ -618,13 +688,15 @@ impl ChannelsFirewall {
 
     /// Proxy credential entries for placeholder-mode channels.
     pub fn credentials(&self) -> Vec<Value> {
-        if !self.opts.placeholder_swap {
-            return vec![];
-        }
         let st = self.snapshot();
         let mut out = Vec::new();
         for (id, c) in &st.connections {
             let Some(vm) = &c.assigned_vm_id else { continue };
+            // Also while the agent still holds a stand-in after the switch was turned off, until
+            // the tick gives it the token: without the swap its bot would be down until then.
+            if !self.opts.placeholder_swap.on(&c.kind) && self.holds(c) != "standIn" {
+                continue;
+            }
             if c.kind == "telegram"
                 && let Some(t) = c.secret("botToken")
             {
@@ -864,6 +936,7 @@ impl ChannelsFirewall {
     /// The agents are read without the store lock, so a slow box holds up no command; what they
     /// said is merged under it.
     pub async fn tick(&self) {
+        self.migrate().await;
         self.refresh_agent_allowed(false).await;
         let snapshot = self.snapshot().clone();
         let fetched = self.fetch_approvals(&snapshot, None).await;
@@ -1140,7 +1213,7 @@ impl ChannelsFirewall {
         let dl = Deadline::new(self.opts.now.clone());
         let (mut applied, mut unconfirmed, mut failed) = (Vec::new(), Vec::new(), Vec::new());
         for (id, c) in &mine {
-            match self.apply_on(&st, &vm_id, id, c, None, Some(&dl)).await {
+            match self.apply_on(&mut st, &vm_id, id, c, None, Some(&dl)).await {
                 Ok(ApplyOutcome::Applied) => applied.push(id.clone()),
                 Ok(ApplyOutcome::Unconfirmed) => unconfirmed.push(id.clone()),
                 Err(e) => failed.push(json!({"connectionId": id, "type": c.kind, "error": e})),
@@ -1197,7 +1270,7 @@ impl ChannelsFirewall {
         if c.kind == "whatsapp" {
             return json!({"type": c.kind, "settings": c.settings});
         }
-        if !self.opts.placeholder_swap {
+        if !self.opts.placeholder_swap.on(&c.kind) {
             return json!({"type": c.kind, "secrets": c.secrets});
         }
         let mut swapped = Map::new();
@@ -1215,9 +1288,39 @@ impl ChannelsFirewall {
         json!({"type": c.kind, "secrets": swapped})
     }
 
+    /// What an agent gets for a connection of this type: the token, or a stand-in for it.
+    fn give_as(&self, kind: &str) -> &'static str {
+        if self.opts.placeholder_swap.on(kind) {
+            "standIn"
+        } else {
+            "token"
+        }
+    }
+
+    /// What the agent holds, as far as the store knows. A connection written before `appliedAs`
+    /// was recorded holds what that firewall gave: a stand-in on a standalone firewall, which
+    /// always swapped, the token on the SaaS, where the switch was off.
+    fn holds<'a>(&self, c: &'a StoredConnection) -> &'a str {
+        c.applied_as.as_deref().unwrap_or(if self.opts.unrecorded_stand_in {
+            "standIn"
+        } else {
+            "token"
+        })
+    }
+
+    /// The connection is on an agent that holds the other form of its token than the switch says.
+    fn needs_migrating(&self, c: &StoredConnection) -> bool {
+        c.kind != "whatsapp"
+            && c.assigned_vm_id.is_some()
+            && c.secret("botToken").is_some()
+            && self.holds(c) != self.give_as(&c.kind)
+    }
+
+    /// Write a connection to an agent. Once the agent confirms it, the store records what it was
+    /// given (`applied_as`), so a change of the switch reaches agents that already have it.
     async fn apply_on(
         &self,
-        st: &ChannelStore,
+        st: &mut ChannelStore,
         vm_id: &str,
         id: &str,
         c: &StoredConnection,
@@ -1225,7 +1328,69 @@ impl ChannelsFirewall {
         dl: Option<&Deadline>,
     ) -> Result<ApplyOutcome, String> {
         let target = self.target_in(st, vm_id, hostname)?;
-        self.writer.write(&target, &c.kind, self.apply_body(id, c), dl).await
+        let o = self.writer.write(&target, &c.kind, self.apply_body(id, c), dl).await?;
+        if o == ApplyOutcome::Applied && c.kind != "whatsapp" {
+            let given = self.give_as(&c.kind);
+            if let Some(s) = st.connections.get_mut(id)
+                && s.assigned_vm_id.as_deref() == Some(vm_id)
+                && s.applied_as.as_deref() != Some(given)
+            {
+                s.applied_as = Some(given.to_string());
+                // Best effort: not saved, it is re-applied once more after `MIGRATE_RETRY_MS`.
+                let _ = self.save(st);
+            }
+        }
+        Ok(o)
+    }
+
+    /// Connections whose agent holds the token where the switch says a stand-in, or the other way
+    /// round (the switch was turned on or off): re-applied, at most once every
+    /// `MIGRATE_RETRY_MS` each. Applying needs no code: nothing changes but the form of the token.
+    async fn migrate(&self) {
+        let now = self.now();
+        let due: Vec<String> = {
+            let st = self.snapshot();
+            let mut tries = self.migrate_tries.lock().unwrap_or_else(|e| e.into_inner());
+            tries.retain(|id, _| st.connections.contains_key(id));
+            st.connections
+                .iter()
+                .filter(|(id, c)| self.needs_migrating(c) && tries.get(*id).is_none_or(|t| now - t >= MIGRATE_RETRY_MS))
+                .map(|(id, _)| id.clone())
+                .collect()
+        };
+        if due.is_empty() || !self.writable {
+            return;
+        }
+        // The lock is taken for one connection at a time, as a command holds it for its own write,
+        // so a slow agent holds up the commands for one write, not for the whole list.
+        for id in due {
+            let mut st = self.state.lock().await;
+            let Some(c) = st.connections.get(&id).cloned() else {
+                continue;
+            };
+            let Some(vm) = c.assigned_vm_id.clone() else { continue };
+            if !self.needs_migrating(&c) {
+                continue;
+            }
+            self.migrate_tries
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(id.clone(), now);
+            let dl = Deadline::new(self.opts.now.clone());
+            match self.apply_on(&mut st, &vm, &id, &c, None, Some(&dl)).await {
+                Ok(ApplyOutcome::Applied) => {
+                    tracing::info!(
+                        "[channels] {} {id} on {vm}: now holds the {}",
+                        c.kind,
+                        self.give_as(&c.kind)
+                    )
+                }
+                Ok(ApplyOutcome::Unconfirmed) => {
+                    tracing::info!("[channels] {} {id} on {vm}: re-applied, not confirmed yet", c.kind)
+                }
+                Err(e) => tracing::info!("[channels] {} {id} on {vm}: could not re-apply: {e}", c.kind),
+            }
+        }
     }
 
     /// Take a connection off the agent it is on; a box the identity map no longer lists is gone.
@@ -1260,7 +1425,7 @@ impl ChannelsFirewall {
     }
 
     async fn apply(&self, st: &mut ChannelStore, p: &Proposal, dl: &Deadline) -> Result<Map<String, Value>, String> {
-        let mode = if self.opts.placeholder_swap && p.ctype != "whatsapp" {
+        let mode = if self.opts.placeholder_swap.on(&p.ctype) {
             "placeholder"
         } else {
             "plain"
@@ -1304,6 +1469,7 @@ impl ChannelsFirewall {
                         .filter(|x| !x.is_empty()),
                     declined_senders: None,
                     assigned_vm_id: p.agent.as_ref().map(|a| a.vm_id.clone()),
+                    applied_as: None,
                     updated_at: stamp,
                     extra: Map::new(),
                 };
@@ -1398,6 +1564,7 @@ impl ChannelsFirewall {
                 let c = {
                     let c = st.connections.get_mut(&p.connection_id).ok_or_else(not_here)?;
                     c.assigned_vm_id = Some(agent.vm_id.clone());
+                    c.applied_as = None;
                     c.updated_at = stamp;
                     c.clone()
                 };
@@ -1425,6 +1592,7 @@ impl ChannelsFirewall {
                 };
                 if let Some(c) = st.connections.get_mut(&p.connection_id) {
                     c.assigned_vm_id = None;
+                    c.applied_as = None;
                     c.updated_at = stamp;
                 }
                 self.save(st)?;
@@ -1679,6 +1847,7 @@ impl ChannelsFirewall {
                             .filter(|x| !x.is_empty()),
                         declined_senders: None,
                         assigned_vm_id: Some(agent.vm_id.clone()),
+                        applied_as: None,
                         updated_at: stamp,
                         extra: Map::new(),
                     },

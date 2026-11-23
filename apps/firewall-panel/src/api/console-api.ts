@@ -5,6 +5,7 @@ import { exit } from "./exit";
 import { integrations, mcpServers } from "./integrations";
 import { appRules, autoApprove, contentRules, emailRules } from "./rules";
 import { firewallStats } from "./stats";
+import { brainSource } from "./brain";
 
 /**
  * The `ConsoleApi` the shared views read, on this firewall's REST API. An area whose API the
@@ -34,4 +35,5 @@ export const panelApi: ConsoleApi = {
   appRules,
   emailRules,
   autoApprove,
+  brain: brainSource.area,
 };

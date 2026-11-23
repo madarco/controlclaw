@@ -282,6 +282,7 @@ async fn the_brain_serves_the_login_routes_only_to_writers() {
             .boxed()
         })),
         steps: Some(("Signing you in to GBrain".into(), "Loading the brain".into())),
+        pages: Some(&[("files", "/__cc/brain")]),
     };
     let mut router = cc_http::Router::new(&["cc", "prefixed"]);
     crate::boxside::register_access(&mut router, &b.app, &access, opts, "cc", "prefixed");
@@ -347,6 +348,27 @@ async fn the_brain_serves_the_login_routes_only_to_writers() {
     assert_eq!(
         r.json::<Value>().await.expect("json"),
         json!({"next": "/admin/auth/abc123", "view": "direct", "paired": true})
+    );
+
+    // A ticket for the brain's pages lands on them, not on GBrain's admin.
+    let jti = format!("j{}", n.fetch_add(1, Ordering::SeqCst));
+    let t = b.keys.sign_with(
+        Signer::Firewall,
+        json!({"vmId": "vm_1", "purpose": "browser-login", "iss": "fw:x", "jti": jti, "c": c_claim,
+               "deviceId": "d1", "canWrite": true, "next": "files"}),
+        Some(60),
+    );
+    let r = c
+        .post(format!("{url}/__cc/session"))
+        .header("origin", "https://box.example")
+        .header("cookie", format!("__Host-cc_bind_a={bind}"))
+        .json(&json!({"token": t}))
+        .send()
+        .await
+        .expect("pages");
+    assert_eq!(
+        r.json::<Value>().await.expect("json"),
+        json!({"next": "/__cc/brain", "view": "files", "paired": true})
     );
 
     landing_ok.store(false, Ordering::SeqCst);

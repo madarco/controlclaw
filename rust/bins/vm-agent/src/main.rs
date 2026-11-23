@@ -95,6 +95,7 @@ fn startup(config: Config) -> Arc<App> {
         contracts: contracts::Contracts::default(),
         started: std::time::Instant::now(),
         unmanaged: None,
+        brain: None,
         config,
     })
 }
@@ -104,35 +105,89 @@ fn startup(config: Config) -> Arc<App> {
 /// the control plane). Without one yet, the console gate holds this agent's own key, whose private
 /// half nobody else has, and the firewall gate has none: every route is a 401 until pairing.
 fn startup_unmanaged(config: Config, um: unmanaged::Unmanaged, runner: Arc<dyn cc_proc::Runner>) -> Arc<App> {
-    let state = um.state_dir.clone();
+    let (file, path, state) = (um.file.clone(), um.path.clone(), um.state_dir.clone());
+    let app = startup_paired(config, &file, &path, state, runner);
+    tracing::info!(
+        "[unmanaged] OpenClaw: {}",
+        serde_json::to_string(&um.install()).unwrap_or_default()
+    );
+    with_mode(app, Some(Arc::new(um)), None)
+}
+
+/// [`startup_unmanaged`] for a standalone brain: the same keys and gates, GBrain instead of OpenClaw.
+fn startup_brain(config: Config, brain: gbrain::standalone::Standalone) -> Arc<App> {
+    let app = startup_paired(
+        config,
+        &brain.file,
+        &brain.path,
+        brain.state_dir.clone(),
+        Arc::new(cc_proc::SystemRunner),
+    );
+    if let Err(e) = brain.write_identity() {
+        die(&format!(
+            "Failed to write the brain's identity files in {}: {e}",
+            brain.state_dir.display()
+        ));
+    }
+    gbrain::set_helper_exec(brain.exec());
+    gbrain::set_gbrain_port(brain.gbrain_port());
+    tracing::info!(
+        "[brain] standalone brain: GBrain on 127.0.0.1:{}, helpers behind {:?}",
+        brain.gbrain_port(),
+        brain.exec()
+    );
+    with_mode(app, None, Some(Arc::new(brain)))
+}
+
+/// The app with its mode's part set: built once, before anything holds a clone of it.
+fn with_mode(
+    app: App,
+    unmanaged: Option<Arc<unmanaged::Unmanaged>>,
+    brain: Option<Arc<gbrain::standalone::Standalone>>,
+) -> Arc<App> {
+    Arc::new(App {
+        unmanaged,
+        brain,
+        ..app
+    })
+}
+
+/// What the unmanaged agent and the standalone brain share: the firewall's key from the config file
+/// opens both gates, the agent's own keypair and session secret in its state folder.
+fn startup_paired(
+    config: Config,
+    file: &unmanaged::config::AgentFile,
+    path: &std::path::Path,
+    state: std::path::PathBuf,
+    runner: Arc<dyn cc_proc::Runner>,
+) -> App {
     if let Err(e) = std::fs::create_dir_all(&state) {
         die(&format!("Failed to make the state dir {}: {e}", state.display()));
     }
     let Some(own) = cc_auth::keys::ensure_vm_keypair(&state) else {
         die("Failed to make the agent's keypair");
     };
-    let firewall_key = um.file.firewall_key().map(str::to_string);
+    let firewall_key = file.firewall_key().map(str::to_string);
     if firewall_key.is_none() {
         tracing::warn!(
             "[unmanaged] no firewall.public_key in {}: every route answers 401 until this agent is paired",
-            um.path.display()
+            path.display()
         );
     }
     let console_key = match VerifyKey::ed25519_spki_pem(firewall_key.as_deref().unwrap_or(&own)) {
         Ok(k) => k,
         Err(e) => die(&format!("firewall.public_key is not an Ed25519 public key: {e}")),
     };
-    let vm_id = um.file.agent_id.clone().filter(|v| !v.is_empty());
+    let vm_id = file.agent_id.clone().filter(|v| !v.is_empty());
     if firewall_key.is_some() && vm_id.is_none() {
         // Tokens are then checked by signature only: one firewall key opens every agent it signs for.
         tracing::warn!(
             "[unmanaged] no agent_id in {}: tokens are not tied to this agent",
-            um.path.display()
+            path.display()
         );
     }
     let latch = vm_id.as_ref().map(|_| state.join("firewall-tokens-bound"));
-    let hostnames: Vec<String> = um
-        .file
+    let hostnames: Vec<String> = file
         .firewall
         .hostnames
         .clone()
@@ -143,7 +198,7 @@ fn startup_unmanaged(config: Config, um: unmanaged::Unmanaged, runner: Arc<dyn c
     if hostnames.is_empty() {
         tracing::warn!(
             "[unmanaged] no firewall.hostnames in {}: the host a firewall token was signed for is not checked",
-            um.path.display()
+            path.display()
         );
     }
     let firewall_auth = FirewallAuth::new(
@@ -158,12 +213,8 @@ fn startup_unmanaged(config: Config, um: unmanaged::Unmanaged, runner: Arc<dyn c
     }
     let keys = KeysDir::new(&state);
     let http = HttpClient::new(true).unwrap_or_else(|e| die(&format!("http client: {e}")));
-    tracing::info!("[unmanaged] config {}, state {}", um.path.display(), state.display());
-    tracing::info!(
-        "[unmanaged] OpenClaw: {}",
-        serde_json::to_string(&um.install()).unwrap_or_default()
-    );
-    Arc::new(App {
+    tracing::info!("[unmanaged] config {}, state {}", path.display(), state.display());
+    App {
         console_auth: ConsoleAuth::new(console_key, vm_id, config.service.clone()),
         firewall_auth,
         runner,
@@ -174,13 +225,17 @@ fn startup_unmanaged(config: Config, um: unmanaged::Unmanaged, runner: Arc<dyn c
         bootstrap_ready: AtomicBool::new(false),
         contracts: contracts::Contracts::default(),
         started: std::time::Instant::now(),
-        unmanaged: Some(Arc::new(um)),
+        unmanaged: None,
+        brain: None,
         config,
-    })
+    }
 }
 
 /// The whole router for this box's service.
 pub fn router(app: &Arc<App>) -> Router {
+    if app.brain.is_some() {
+        return gbrain::standalone::router(app);
+    }
     let brain = app.config.service == "gbrain";
     let mut router = Router::new(if brain { stages::BRAIN_BOX } else { stages::AGENT_BOX });
     if app.unmanaged.is_some() {
@@ -235,6 +290,7 @@ pub fn router(app: &Arc<App>) -> Router {
         meetings::register(&mut router, app);
         phone::register(&mut router, app);
         gbrain::mcp::register(&mut router, app);
+        gbrain::capture::register(&mut router, app);
         boxside::register(&mut router, app);
         platform::register(&mut router, app);
     }
@@ -288,6 +344,11 @@ async fn main() {
             let config = Config::from_env();
             (config.clone(), None)
         }
+        Some(f) if f.is_brain() => {
+            let config = Config::brain(&f);
+            let brain = gbrain::standalone::Standalone::new(f, path, &config.home);
+            (config.clone(), Some(startup_brain(config, brain)))
+        }
         Some(f) => {
             let config = Config::unmanaged(&f);
             let state = f.state_dir(&config.home);
@@ -308,9 +369,10 @@ async fn main() {
     let addr = format!("{}:{}", config.bind, config.port);
     let app = app.unwrap_or_else(|| startup(config));
     let router = Arc::new(router(&app));
-    let listener = match &app.unmanaged {
-        Some(_) => unmanaged::listen(&addr).await,
-        None => match tokio::net::TcpListener::bind(&addr).await {
+    let standalone = app.unmanaged.is_some() || app.brain.is_some();
+    let listener = match standalone {
+        true => unmanaged::listen(&addr).await,
+        false => match tokio::net::TcpListener::bind(&addr).await {
             Ok(l) => l,
             Err(e) => die(&format!("listen {addr}: {e}")),
         },
@@ -318,7 +380,11 @@ async fn main() {
     tracing::info!("ControlClaw agent listening on {addr}");
     // The old port, for callers that still dial it. Best effort and retried: the main port is what
     // Caddy tries first, and a port someone else holds for a while must not stop the agent.
-    let allow = app.unmanaged.as_ref().map(|u| u.file.allow_from()).unwrap_or_default();
+    let allow = match (&app.unmanaged, &app.brain) {
+        (Some(u), _) => u.file.allow_from(),
+        (_, Some(b)) => b.file.allow_from(),
+        _ => Vec::new(),
+    };
     if let Some(legacy) = app.config.legacy_port {
         tokio::spawn(serve_legacy(
             format!("{}:{legacy}", app.config.bind),
@@ -329,6 +395,9 @@ async fn main() {
     // W6: the bootstrap (keys, CA, egress, gateway, HTTPS, ready) and the timers start from here.
     if app.unmanaged.is_some() {
         unmanaged::start(&app);
+    } else if app.brain.is_some() {
+        // No first boot: `brain install` / `brain connect` put it behind the firewall, and there is no
+        // console to report ready to.
     } else if app.config.service != "gbrain" {
         platform::start(&app);
     } else {

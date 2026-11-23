@@ -112,6 +112,110 @@ pub fn session_ids(db: &Connection, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// `agent:<id>:main`, the session heartbeats and (by default) direct messages share.
+pub fn is_main_key(key: &str) -> bool {
+    MAIN_KEY.is_match(key)
+}
+
+/// `session.started`'s trigger in one runtime event. None for any other event, and for a row cut
+/// at OpenClaw's field size limit.
+fn trigger_of(ev: &str) -> Option<String> {
+    let v = serde_json::from_str::<Value>(ev).ok()?;
+    if v.get("type").and_then(Value::as_str) != Some("session.started") {
+        return None;
+    }
+    Some(super::common::js_slice(v.pointer("/data/trigger")?.as_str()?, 32))
+}
+
+/// OpenClaw's largest compressed runtime event (`MAX_COMPRESSED_TRAJECTORY_EVENT_BYTES`).
+const RUNTIME_PAYLOAD_MAX: u64 = 262_144;
+/// How many compressed events of one run a lookup decodes. The events looked up are a run's first
+/// (`session.started`, `prompt.submitted`); a long run's later tool events are not read.
+const RUNTIME_PAYLOAD_LOOKUPS: usize = 8;
+
+/// One run's runtime events that may be of one kind (`session.started`, `prompt.submitted`), in the
+/// run's order, for `first_runtime_event`: the rows whose JSON names it and, from OpenClaw 2026.11.5,
+/// the rows it keeps brotli-compressed (an event of 1 KiB or more: `event_codec` `br`, the JSON in
+/// `event_payload` and `event_json` empty). A database from before has no `event_codec` column.
+/// With `cut`, only the start of an uncompressed row is read.
+pub fn runtime_event_sql(db: &Connection, kind: &str, cut: Option<usize>) -> String {
+    let compressed = db
+        .prepare("SELECT 1 FROM pragma_table_info('trajectory_runtime_events') WHERE name = 'event_codec'")
+        .and_then(|mut st| st.exists([]))
+        .unwrap_or(false);
+    let json = cut.map_or("event_json".to_string(), |n| format!("substr(event_json, 1, {n})"));
+    let (rest, or) = if compressed {
+        (
+            "event_payload, event_codec, event_utf8_bytes",
+            " OR event_codec IS NOT NULL",
+        )
+    } else {
+        ("NULL, NULL, NULL", "")
+    };
+    format!(
+        "SELECT {json}, {rest} FROM trajectory_runtime_events
+          WHERE session_id = ? AND run_id = ? AND (event_json LIKE '%\"{kind}\"%'{or}) ORDER BY seq"
+    )
+}
+
+/// The first event of `kind` of one run in one session, as text, with a statement prepared from
+/// `runtime_event_sql`. A row whose JSON names it is the one, as the `LIKE` alone found it before;
+/// a compressed row is decoded and is the one when its JSON names it (the same test, ASCII case
+/// ignored as `LIKE` does), among the run's first `RUNTIME_PAYLOAD_LOOKUPS` compressed rows. None
+/// when the session has none.
+pub fn first_runtime_event(
+    stmt: &mut rusqlite::Statement<'_>,
+    session_id: &str,
+    run_id: &str,
+    kind: &str,
+) -> rusqlite::Result<Option<String>> {
+    let named = format!("\"{kind}\"").to_ascii_lowercase();
+    let mut rows = stmt.query([session_id, run_id])?;
+    let mut decoded_rows = 0;
+    while let Some(r) = rows.next()? {
+        let Some(codec) = r.get::<_, Option<String>>(2)? else {
+            return Ok(Some(r.get::<_, Option<String>>(0)?.unwrap_or_default()));
+        };
+        if decoded_rows == RUNTIME_PAYLOAD_LOOKUPS {
+            continue;
+        }
+        decoded_rows += 1;
+        let decoded = runtime_payload(&codec, r.get::<_, Option<Vec<u8>>>(1)?, r.get::<_, Option<i64>>(3)?);
+        if let Some(text) = decoded.filter(|t| t.to_ascii_lowercase().contains(&named)) {
+            return Ok(Some(text));
+        }
+    }
+    Ok(None)
+}
+
+/// A compressed runtime event's JSON (`readTrajectoryPayload`): brotli, exactly its recorded UTF-8
+/// size and no more, at most OpenClaw's own limit. None for another codec or a bad row.
+fn runtime_payload(codec: &str, payload: Option<Vec<u8>>, bytes: Option<i64>) -> Option<String> {
+    use std::io::Read;
+    if codec != "br" {
+        return None;
+    }
+    let len = u64::try_from(bytes?)
+        .ok()
+        .filter(|n| (1..=RUNTIME_PAYLOAD_MAX).contains(n))?;
+    let payload = payload.filter(|p| !p.is_empty() && p.len() as u64 <= RUNTIME_PAYLOAD_MAX)?;
+    let mut out = Vec::new();
+    brotli_decompressor::Decompressor::new(&payload[..], 4096)
+        .take(len + 1)
+        .read_to_end(&mut out)
+        .ok()?;
+    if out.len() as u64 != len {
+        return None;
+    }
+    String::from_utf8(out).ok()
+}
+
+/// What started one run (`heartbeat`, `user`, ...), with a statement prepared from
+/// `runtime_event_sql(db, "session.started", None)`.
+pub fn run_trigger(stmt: &mut rusqlite::Statement<'_>, session_id: &str, run_id: &str) -> Option<String> {
+    trigger_of(&first_runtime_event(stmt, session_id, run_id, "session.started").ok()??)
+}
+
 /// What started each run of a main session (`session.started`'s `trigger`: `heartbeat`, `user`, ...).
 pub fn run_triggers(openclaw_home: &Path, runs: &[RunRef]) -> std::collections::HashMap<String, String> {
     let mut out = std::collections::HashMap::new();
@@ -150,25 +254,19 @@ pub fn run_triggers(openclaw_home: &Path, runs: &[RunRef]) -> std::collections::
             if !has_tables(&db, &["session_windows", "trajectory_runtime_events"]) {
                 return Ok(());
             }
-            let mut started = db.prepare(
-                "SELECT event_json FROM trajectory_runtime_events WHERE session_id = ? AND run_id = ? AND event_json LIKE '%\"session.started\"%' LIMIT 1",
-            )?;
+            let mut started = db.prepare(&runtime_event_sql(&db, "session.started", None))?;
             for (key, run_ids) in &keys {
                 let ids = session_ids(&db, key);
                 for run_id in run_ids {
                     for sid in &ids {
                         // The row found ends the search, whatever is in it (the TS's `break`).
-                        let ev = match started.query_row([sid, run_id], |r| r.get::<_, Option<String>>(0)) {
-                            Err(rusqlite::Error::QueryReturnedNoRows) => continue,
-                            Ok(ev) => ev.unwrap_or_default(),
+                        let ev = match first_runtime_event(&mut started, sid, run_id, "session.started") {
+                            Ok(None) => continue,
+                            Ok(Some(ev)) => ev,
                             Err(_) => String::new(),
                         };
-                        // A row cut at OpenClaw's field size limit: no trigger for this run.
-                        if let Ok(v) = serde_json::from_str::<Value>(&ev)
-                            && v.get("type").and_then(Value::as_str) == Some("session.started")
-                            && let Some(t) = v.pointer("/data/trigger").and_then(Value::as_str)
-                        {
-                            out.insert(run_id.clone(), super::common::js_slice(t, 32));
+                        if let Some(t) = trigger_of(&ev) {
+                            out.insert(run_id.clone(), t);
                         }
                         break;
                     }
@@ -416,7 +514,7 @@ fn mend_surrogates(text: &str) -> String {
 }
 
 /// A row's event: its JSON, or the zstd-compressed JSON. None when neither can be read.
-fn decode_event(json: Option<String>, zstd: Option<Vec<u8>>) -> Option<Map<String, Value>> {
+pub fn decode_event(json: Option<String>, zstd: Option<Vec<u8>>) -> Option<Map<String, Value>> {
     let text = match (json, zstd) {
         (Some(j), _) => j,
         (None, Some(z)) => String::from_utf8_lossy(&unzstd(&z)?).into_owned(),
@@ -685,6 +783,96 @@ pub mod tests {
         );
         assert_eq!(t.get("r1").map(String::as_str), Some("heartbeat"));
         assert!(!t.contains_key("r2"), "only a main session is looked up");
+    }
+
+    /// Runtime events as OpenClaw 2026.11.5 writes them: an event of 1 KiB or more brotli-compressed
+    /// (quality 3, text mode, window 18, as `prepareTrajectoryPayload`), `event_json` empty.
+    pub const BR_STARTED: (&str, i64) = (
+        "131e0600409d53f9e8717c9deb59d967b6d346e48c97263606f03476c0ef0d182aaae65e57d193d1d1d09d0e3b60ce31226178c2937738d1b0360306499224c1ff03",
+        1567,
+    );
+    pub const BR_PROMPT: (&str, i64) = (
+        "132f0600c0dadcb43e374bec8e4ddb8b5f4ad98b5d5444a94949269653151ff87643441fde3aa7f34aad92961190958af8f556192266f74d54a86937597c086f17a5585d0b83b0d8210ff87f",
+        1584,
+    );
+    pub const BR_OTHER: (&str, i64) = (
+        "1308060000bef796facb66fdb766fe3546b8c04c69626220b3b287ef16c15ca951fb9a7bc84a0ad9dc8887754c70f03f",
+        1545,
+    );
+
+    /// An agent database with 2026.11.5's runtime event columns.
+    pub fn agent_fixture_11_5(home: &Path, agent: &str) -> Connection {
+        let file = agent_db(home, agent);
+        std::fs::create_dir_all(file.parent().expect("dir")).expect("mk");
+        let db = Connection::open(&file).expect("db");
+        db.execute_batch(
+            "CREATE TABLE session_windows (session_id TEXT, session_key TEXT, updated_at INTEGER, created_at INTEGER);
+             CREATE TABLE trajectory_runtime_events (session_id TEXT, seq INTEGER, run_id TEXT, event_json TEXT NOT NULL,
+               created_at INTEGER, event_utf8_bytes INTEGER, event_payload BLOB, event_codec TEXT);
+             CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, event_utf8_bytes INTEGER, event_zstd BLOB);
+             CREATE TABLE session_nodes (session_key TEXT, entry_json TEXT);",
+        )
+        .expect("schema");
+        db
+    }
+
+    pub fn insert_br(db: &Connection, sid: &str, run: &str, seq: i64, (hex_payload, bytes): (&str, i64)) {
+        db.execute(
+            "INSERT INTO trajectory_runtime_events VALUES (?, ?, ?, '', 0, ?, ?, 'br')",
+            rusqlite::params![sid, seq, run, bytes, hex::decode(hex_payload).expect("hex")],
+        )
+        .expect("br");
+    }
+
+    #[test]
+    fn a_runs_trigger_from_a_compressed_session_start() {
+        let d = tempfile::tempdir().expect("dir");
+        let db = agent_fixture_11_5(d.path(), "main");
+        db.execute("INSERT INTO session_windows VALUES ('s1', 'agent:main:main', 2, 1)", [])
+            .expect("w");
+        // A compressed event of another kind first, then the run's start, compressed.
+        insert_br(&db, "s1", "r1", 1, BR_OTHER);
+        insert_br(&db, "s1", "r1", 2, BR_STARTED);
+        // A small event stays JSON in the same table.
+        db.execute(
+            "INSERT INTO trajectory_runtime_events VALUES ('s1', 3, 'r2', ?, 0, 40, NULL, NULL)",
+            [json!({ "type": "session.started", "data": { "trigger": "user" } }).to_string()],
+        )
+        .expect("e");
+        insert_br(&db, "s1", "r3", 4, BR_OTHER);
+        // A start after more compressed rows than a lookup decodes is not looked for.
+        for seq in 5..13 {
+            insert_br(&db, "s1", "r4", seq, BR_OTHER);
+        }
+        insert_br(&db, "s1", "r4", 13, BR_STARTED);
+        drop(db);
+        let run = |id: &str| RunRef {
+            run_id: id.into(),
+            session_key: Some("agent:main:main".into()),
+            agent_id: None,
+        };
+        let t = run_triggers(d.path(), &[run("r1"), run("r2"), run("r3"), run("r4")]);
+        assert_eq!(t.get("r1").map(String::as_str), Some("heartbeat"));
+        assert_eq!(t.get("r2").map(String::as_str), Some("user"));
+        assert!(!t.contains_key("r3"), "no session.started in r3");
+        assert!(!t.contains_key("r4"), "past the lookup's compressed rows");
+    }
+
+    #[test]
+    fn a_compressed_payload_is_read_only_when_whole() {
+        let bytes = hex::decode(BR_STARTED.0).expect("hex");
+        let text = runtime_payload("br", Some(bytes.clone()), Some(BR_STARTED.1)).expect("decoded");
+        assert!(text.starts_with(r#"{"type":"session.started""#));
+        assert_eq!(runtime_payload("zstd", Some(bytes.clone()), Some(BR_STARTED.1)), None);
+        assert_eq!(runtime_payload("br", Some(bytes.clone()), Some(BR_STARTED.1 - 1)), None);
+        assert_eq!(runtime_payload("br", Some(bytes.clone()), Some(BR_STARTED.1 + 1)), None);
+        assert_eq!(runtime_payload("br", Some(bytes.clone()), None), None);
+        assert_eq!(
+            runtime_payload("br", Some(bytes), Some(RUNTIME_PAYLOAD_MAX as i64 + 1)),
+            None
+        );
+        assert_eq!(runtime_payload("br", Some(vec![1, 2, 3]), Some(10)), None);
+        assert_eq!(runtime_payload("br", None, Some(10)), None);
     }
 
     #[test]

@@ -307,6 +307,7 @@ impl PhoneStreams {
 
     /// One line on the traffic log, metadata only.
     fn record(&self, kind: &str, reason: &str, c: Option<&Snapshot>) {
+        use crate::channels::ai::internal::{PHONE_HOST, PHONE_PATH, PHONE_RULE};
         let Some(path) = &self.opts.log_path else { return };
         let mut e = Map::new();
         e.insert("source".into(), json!("egress"));
@@ -320,8 +321,8 @@ impl PhoneStreams {
         );
         e.insert("ts".into(), secs(self.now()));
         e.insert("method".into(), json!("WS"));
-        e.insert("host".into(), json!("api.twilio.com"));
-        e.insert("path".into(), json!("/phone-stream/[stream]"));
+        e.insert("host".into(), json!(PHONE_HOST));
+        e.insert("path".into(), json!(PHONE_PATH));
         if let Some(c) = c {
             e.insert("vm_id".into(), json!(c.vm_id));
         }
@@ -334,7 +335,7 @@ impl PhoneStreams {
         e.insert(
             "rule".into(),
             json!(format!(
-                "phone stream: {kind} {reason} {} {} {}",
+                "{PHONE_RULE}{kind} {reason} {} {} {}",
                 c.map_or("unknown", |c| c.direction),
                 c.map_or("classic", |c| c.provider.as_str()),
                 c.map_or("none", |c| c.model.as_str())

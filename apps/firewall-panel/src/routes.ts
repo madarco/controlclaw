@@ -14,7 +14,7 @@ export const PANEL_ROUTES: ConsoleRoutes = {
   webhooks: "/internet",
   teamChat: "/channels",
   backups: "/settings",
-  brain: "/agents",
+  brain: "/brain",
   agent: () => "/agents",
   firewall: "/",
   firewallLogs: "/activity",

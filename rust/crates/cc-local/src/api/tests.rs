@@ -1423,3 +1423,208 @@ async fn routine_traffic_is_out_of_activity_unless_asked_or_searched() {
         .sum();
     assert_eq!(allowed, 5);
 }
+
+/// The Brain routes: switching an agent on is the module's own proposal, confirmed at once with the
+/// code the firewall hands back (and the agent it is for); off, the lock and the model go straight.
+#[tokio::test]
+async fn the_brain_switch_lock_model_and_pages_name() {
+    let w = world();
+    // No brain yet.
+    assert_eq!(
+        w.send("PUT", "/api/brain/agents/a1", json!({"scope": "read"}))
+            .await
+            .status,
+        409
+    );
+    w.ctx
+        .db
+        .lock()
+        .execute(
+            "INSERT INTO agents (vm_id, role, name, private_ip, agent_addr, created_at) VALUES ('b1', 'gbrain', 'Brain', '10.77.0.9', '10.77.0.9:3100', 2)",
+            [],
+        )
+        .expect("brain");
+    assert_eq!(
+        w.send("PUT", "/api/brain/agents/nope", json!({"scope": "read"}))
+            .await
+            .status,
+        404
+    );
+    assert_eq!(
+        w.send("PUT", "/api/brain/agents/a1", json!({"scope": "admin"}))
+            .await
+            .status,
+        400
+    );
+    let r = w
+        .send("PUT", "/api/brain/agents/a1", json!({"scope": "read_write"}))
+        .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.body["status"], "applied");
+    let calls = w.calls.lock().expect("calls").clone();
+    let (a, p) = &calls[calls.len() - 2];
+    assert_eq!(a, "gbrain.propose");
+    assert_eq!(p["agentVmId"], "a1");
+    assert_eq!(p["brainVmId"], "b1");
+    assert_eq!(p["scope"], "read_write");
+    let (a, c) = &calls[calls.len() - 1];
+    assert_eq!(a, "gbrain.confirm");
+    assert_eq!(c["agentVmId"], "a1");
+    assert_eq!(c["code"], "424242");
+    assert_eq!(c["changeId"], p["changeId"]);
+    assert!(r.body.get("localCode").is_none(), "the code is never answered");
+
+    let r = w.send("DELETE", "/api/brain/agents/a1", json!({})).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let last = w.calls.lock().expect("calls").last().cloned().expect("call");
+    assert_eq!(last, ("gbrain.disconnect".to_string(), json!({"agentVmId": "a1"})));
+
+    assert_eq!(
+        w.send("PUT", "/api/brain/lock", json!({"locked": true})).await.status,
+        200
+    );
+    let last = w.calls.lock().expect("calls").last().cloned().expect("call");
+    assert_eq!(last, ("gbrain.lock".to_string(), json!({"locked": true})));
+
+    // The model: one the brain takes, kept once the brain took it.
+    assert_eq!(
+        w.send("PUT", "/api/brain/model", json!({"model": "gpt-9"}))
+            .await
+            .status,
+        400
+    );
+    let r = w
+        .send("PUT", "/api/brain/model", json!({"model": "gpt-5.6-terra"}))
+        .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(
+        w.send("GET", "/api/brain/model", Value::Null).await.body["model"],
+        "gpt-5.6-terra"
+    );
+
+    // The pages' name: a name with a dot, no port; the link needs one.
+    assert_eq!(
+        w.send("POST", "/api/brain/open", json!({"page": "pages"})).await.status,
+        409
+    );
+    for bad in ["localhost", "brain.example.com:8443", "10.0.0.2"] {
+        assert_eq!(
+            w.send("PUT", "/api/brain/pages", json!({ "hostname": bad }))
+                .await
+                .status,
+            400,
+            "{bad}"
+        );
+    }
+    let woken = *w.woken.lock().expect("woken");
+    let r = w
+        .send("PUT", "/api/brain/pages", json!({"hostname": "Brain.Example.com"}))
+        .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.body["url"], "https://brain.example.com");
+    assert_eq!(
+        *w.woken.lock().expect("woken"),
+        woken + 1,
+        "the identity map is read again"
+    );
+    // Set once: the firewall keeps a machine's first name.
+    assert_eq!(
+        w.send("PUT", "/api/brain/pages", json!({"hostname": "brain.example.com"}))
+            .await
+            .status,
+        200
+    );
+    assert_eq!(
+        w.send("PUT", "/api/brain/pages", json!({"hostname": "other.example.com"}))
+            .await
+            .status,
+        409
+    );
+    let host: String = w
+        .ctx
+        .db
+        .lock()
+        .query_row("SELECT hostname FROM agents WHERE vm_id = 'b1'", [], |r| r.get(0))
+        .expect("row");
+    assert_eq!(host, "brain.example.com");
+}
+
+#[tokio::test]
+async fn the_brain_overview_counts_the_firewalls_record_of_each_call() {
+    let w = world();
+    w.ctx
+        .db
+        .lock()
+        .execute(
+            "INSERT INTO agents (vm_id, role, name, private_ip, public_key, created_at) VALUES ('b1', 'gbrain', 'Brain', '10.77.0.9', 'k', 2)",
+            [],
+        )
+        .expect("brain");
+    let now = crate::db::now_s();
+    // What the tools gate writes for each relayed call (`/brain/mcp`, with the tool's name).
+    let call = |i: u32, tool: &str, status: u16, ms: i64| {
+        json!({"source": "egress", "flow_id": format!("cpm-{i}"), "ts": now - 60, "method": "POST",
+               "host": "controlplane-mcp", "path": "/brain/mcp", "vm_id": "a1", "effect": "allow",
+               "status": status, "duration_ms": ms, "tool": tool})
+    };
+    ship(
+        &w,
+        json!([
+            call(1, "search", 200, 100),
+            call(2, "query", 200, 300),
+            call(3, "put_page", 200, 50),
+            call(4, "put_page", 403, 5),
+            call(5, "get_page", 200, 10),
+            {"source": "egress", "flow_id": "cpm-7", "ts": now - 60, "method": "POST", "host": "controlplane-mcp",
+             "path": "/brain/mcp", "vm_id": "a1", "effect": "allow", "status": 200, "tool": "put_page", "scope": "read"},
+            {"source": "egress", "flow_id": "cpm-6", "ts": now - 60, "method": "POST", "host": "controlplane-mcp",
+             "path": "/mcp", "vm_id": "a1", "effect": "allow", "status": 200, "tool": "search"},
+        ]),
+    )
+    .await;
+    // The brain's own readings of its counts.
+    let reading = |at: i64, person: u64, total: u64| {
+        json!({"source": "brain_stats", "ts": at, "page_count": total, "chunk_count": total * 2,
+               "pages_by_type": {"person": person, "meeting": 3}, "disk_used_bytes": 1000, "disk_free_bytes": 9000})
+    };
+    let a = w
+        .ctx
+        .plane
+        .call(
+            "b1",
+            crate::plane::Call {
+                method: "POST".into(),
+                path: "/api/vm-agent/activity".into(),
+                body: Some(json!({"records": [reading(now - 1800, 4, 7), reading(now - 900, 6, 9)]})),
+                ..Default::default()
+            },
+        )
+        .await;
+    assert_eq!(a.status, 200, "{:?}", a.body);
+
+    let r = w.send("GET", "/api/brain/overview", Value::Null).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let o = &r.body;
+    let sum = |v: &Value| v.as_array().map(|h| h.iter().filter_map(Value::as_u64).sum::<u64>());
+    assert_eq!(o["hours"].as_array().map(Vec::len), Some(24));
+    assert_eq!(sum(&o["searches"]["hourly"]), Some(2));
+    assert_eq!(sum(&o["saves"]["hourly"]), Some(1), "a refused save is not one");
+    assert_eq!(o["agents"][0]["vmId"], "a1");
+    assert_eq!(o["agents"][0]["searches"], 2);
+    assert_eq!(o["agents"][0]["saves"], 1);
+    assert_eq!(o["latest"]["pageCount"], 9);
+    assert_eq!(o["latest"]["byType"]["person"], 6);
+    assert_eq!(o["latest"]["diskFreeBytes"], 9000);
+    assert_eq!(o["growth"].as_array().map(Vec::len), Some(30));
+    assert_eq!(o["growth"][29]["pages"], 9);
+    let feed = o["feed"].as_array().expect("feed");
+    assert!(
+        feed.iter()
+            .any(|f| f["kind"] == "saves" && f["count"] == 1 && f["agentName"] == "Atlas")
+    );
+    let change = feed.iter().find(|f| f["kind"] == "changes").expect("change");
+    assert_eq!(
+        change["changes"],
+        json!([{"key": "person", "label": "person", "delta": 2}])
+    );
+}

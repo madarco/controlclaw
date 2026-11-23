@@ -108,13 +108,6 @@ impl RecoveryNotices {
         }))
     }
 
-    /// Save what was loaded, unchanged (the TS ↔ Rust store round trip).
-    #[cfg(test)]
-    pub fn resave(&self) {
-        let n = self.notices();
-        self.save(&n);
-    }
-
     fn notices(&self) -> std::sync::MutexGuard<'_, Vec<Notice>> {
         self.0.notices.lock().unwrap_or_else(|e| e.into_inner())
     }

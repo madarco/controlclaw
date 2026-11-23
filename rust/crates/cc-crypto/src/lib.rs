@@ -1,8 +1,8 @@
 //! The crypto formats the boxes keep on disk and send to the console, byte-compatible with the TS
 //! code: what one side seals, the other opens.
 //!
-//! - [`enc_file`]: the firewall's small encrypted JSON stores (`packages/mitm-agent/src/enc-file.ts`).
-//! - [`secret_store`]: the two-payload record the console holds (`packages/secret-store`).
+//! - [`enc_file`]: the firewall's small encrypted JSON stores (ported from the retired TS firewall agent).
+//! - [`secret_store`]: the two-payload record the console holds.
 //! - [`envelope`]: the backup envelope (`packages/backup-envelope/src/envelope.ts`).
 //! - [`store_health`]: which stores this box could not read (`store-health.ts`).
 //!

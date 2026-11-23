@@ -770,3 +770,38 @@ async fn a_local_link_enrolls_the_browser_for_a_firewall_page() {
         .await;
     assert_eq!(granted.map(|g| g.user_id).as_deref(), Some("user-marco"));
 }
+
+/// Standalone: the brain's pages open through the firewall's local door (`brain`, `brain-admin`):
+/// only an intent for this firewall enrolls; one naming another box, or a box Open with that next,
+/// is refused.
+#[tokio::test]
+async fn a_local_brain_link_enrolls_only_for_this_firewall() {
+    let (_d, w) = world().await;
+    w.approve_owner();
+    let req = || AccessRequest {
+        method: "POST".into(),
+        origin: Some("https://acme-fw.ccl.bot".into()),
+        cookie: None,
+        user_agent: IPHONE.into(),
+        content_type: "application/x-www-form-urlencoded".into(),
+        body: None,
+    };
+    for next in ["brain", "brain-admin"] {
+        let mine = w.intent_with(json!({"vmId": "fw-1", "next": next}), &w.cp, 60);
+        let got = w
+            .access
+            .local_enroll(&req(), &mine)
+            .await
+            .expect("ok")
+            .expect("enrolled");
+        assert_eq!(got.0, next);
+        let other = w.intent_with(json!({"vmId": "vm-1", "next": next}), &w.cp, 60);
+        assert_eq!(
+            w.access.local_enroll(&req(), &other).await.expect("ok"),
+            None,
+            "{next} for a box"
+        );
+        let box_open = w.intent_with(json!({"vmId": "vm-1", "next": next}), &w.cp, 60);
+        assert!(w.access.verify_intent(&box_open).await.is_none(), "{next}: no box Open");
+    }
+}

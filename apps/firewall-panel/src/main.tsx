@@ -12,8 +12,17 @@ captureOauthParams();
 captureSetupToken();
 window.addEventListener("hashchange", captureSetupToken);
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+async function start() {
+  // `pnpm dev` only: a build replaces `import.meta.env.DEV` with false and drops the fake.
+  if (import.meta.env.DEV && import.meta.env.VITE_FAKE_BRAIN === "1") {
+    const [{ fakeBrain }, { setBrainSource }] = await Promise.all([import("./api/fake-brain"), import("./api/brain")]);
+    setBrainSource(fakeBrain());
+  }
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
+
+void start();

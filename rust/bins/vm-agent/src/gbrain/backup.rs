@@ -34,6 +34,8 @@ const CLEAN_TIMEOUT: Duration = Duration::from_secs(60);
 pub struct BrainStaged {
     pub deps: Deps,
     pub gate: Arc<BrainGate>,
+    /// Outside apps' GBrain tokens are in the same table, so they are reissued too.
+    pub clients: Option<Arc<super::clients::BrainClients>>,
     pub dir: PathBuf,
 }
 
@@ -42,8 +44,14 @@ impl BrainStaged {
         Self {
             deps,
             gate,
+            clients: None,
             dir: PathBuf::from(GBRAIN_BACKUP_DIR),
         }
+    }
+
+    pub fn with_clients(mut self, clients: Arc<super::clients::BrainClients>) -> Self {
+        self.clients = Some(clients);
+        self
     }
 
     /// `sudo <helper> <verb>`; the error names what could not be done and the helper's line.
@@ -88,6 +96,20 @@ impl StagedKind for BrainStaged {
                     format!(", {} failed: reconnect those agents from the Brain page", failed.len())
                 }
             );
+            if let Some(clients) = &me.clients {
+                let (reissued, failed) = clients.reissue_all().await;
+                tracing::info!(
+                    "[backup] {reissued} outside app token(s) reissued{}",
+                    if failed.is_empty() {
+                        String::new()
+                    } else {
+                        format!(
+                            ", {} failed: connect those apps again from the Brain page",
+                            failed.len()
+                        )
+                    }
+                );
+            }
             Ok(())
         })
     }

@@ -10,6 +10,7 @@ use super::{ACTIONS, Scope, check};
 /// Payloads the cases send malformed on purpose, to see the handler refuse them: (case file, id).
 const MALFORMED: &[(&str, &str)] = &[
     ("w3/fw-controls.yaml", "q1"),
+    ("w3/fw-gbrain.yaml", "g1"),
     ("w4/fw-agentmail.yaml", "a_claim"),
     ("w4/fw-agentmail.yaml", "a_create"),
     ("w4/fw-agentmail.yaml", "a_delete"),

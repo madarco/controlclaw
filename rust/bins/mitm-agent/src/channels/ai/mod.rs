@@ -6,21 +6,26 @@
 pub mod history;
 #[cfg(test)]
 mod history_tests;
+pub mod internal;
 pub mod judge;
 pub mod model;
 pub mod questions;
+pub mod relay;
+#[cfg(test)]
+mod relay_tests;
 pub mod review;
 #[cfg(test)]
 mod review_tests;
 #[cfg(test)]
 mod tests;
 pub mod trace_store;
+pub mod usage;
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use serde_json::{Map, json};
+use serde_json::{Map, Value, json};
 
 use self::judge::{AiJudge, Grants, JudgeOptions};
 use self::model::{AiClient, LiveModels};
@@ -67,7 +72,16 @@ pub fn register(
         Arc::new(move |id: &str| llm.token_for(id)) as model::KeyFn
     };
     let now: Arc<dyn Fn() -> i64 + Send + Sync> = Arc::new(now_ms);
-    let client = Arc::new(AiClient::new(settings, key_for, Arc::new(LiveModels), now.clone()));
+    // Its own calls' tokens, for the console's AI usage (`usage.rs`), kept across restarts.
+    let usage = Arc::new(usage::UsageCounter::new(Some(PathBuf::from(env_or(
+        "AI_USAGE_STATE",
+        "/opt/controlclaw/state/ai-usage.json",
+    )))));
+    let client =
+        Arc::new(AiClient::new(settings, key_for, Arc::new(LiveModels), now.clone()).with_usage(usage.clone()));
+    if !core.env.activity_url.is_empty() {
+        usage::start_shipper(usage, app.console.clone(), core.env.activity_url.clone(), now.clone());
+    }
 
     // Inline review: loopback only, so only the proxy on this box can ask.
     let judge = Arc::new(AiJudge::new(JudgeOptions {
@@ -208,6 +222,22 @@ pub fn register(
         };
 
     crate::channels::contracts_fill::feature(app, "ai_log_review", || true);
+    // The console's investigations can have their model calls made here (`relay.rs`).
+    crate::channels::contracts_fill::feature(app, "ai_relay", || true);
+    {
+        let client = client.clone();
+        let targets = relay::Targets::default();
+        reg.commands.handle("ai.relay", move |payload| {
+            let (client, targets) = (client.clone(), targets.clone());
+            async move {
+                let req: cc_contracts::commands::ai::Relay = match serde_json::from_value(Value::Object(payload)) {
+                    Ok(r) => r,
+                    Err(_) => return CommandOutcome::failed("refused", "The relay request is malformed."),
+                };
+                relay::run(&client, cc_llm::structured::shared_client(), &targets, req).await
+            }
+        });
+    }
 
     let out = Some((judge.clone(), client.clone()));
     reg.commands.handle("ai.scan", move |_| {

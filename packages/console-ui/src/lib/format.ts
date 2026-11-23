@@ -21,3 +21,11 @@ export function countLabel(n: number): string {
 export function resetDayLabel(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
 }
+
+/** "3.1 GB", "12 GB", "640 MB": decimal units, which is how the plans name their sizes. */
+export function formatBytes(bytes: number): string {
+  const gb = bytes / 1e9;
+  if (gb >= 9.95) return `${Math.round(gb)} GB`;
+  if (gb >= 0.95) return `${Math.round(gb * 10) / 10} GB`;
+  return `${Math.round(bytes / 1e6)} MB`;
+}

@@ -11,13 +11,12 @@ use hyper::Method;
 use regex::Regex;
 use serde_json::{Value, json};
 
+use super::audit::is_tool_call_wrapper;
 use super::common::{js_slice, lock};
 use super::transcripts::{INTERNAL_KEY, RunRef, parse_session_key};
 use crate::app::App;
 use crate::stages;
 
-/// The model calls a generic `tool_call` tool that runs the real one: every call is there twice.
-const WRAPPER_TOOL: &str = "tool_call";
 pub const MAX_STEPS: usize = 12;
 const MAX_OPEN_RUNS: usize = 50;
 /// A run with no new event for this long is taken as gone.
@@ -125,7 +124,7 @@ impl NowTracker {
             let (Some(call), Some(tool)) = (s(ev, "toolCallId"), s(ev, "toolName")) else {
                 continue;
             };
-            if s(ev, "kind") != Some("tool_action") || tool == WRAPPER_TOOL {
+            if s(ev, "kind") != Some("tool_action") || is_tool_call_wrapper(tool) {
                 continue;
             }
             // A run whose start this box did not see is taken up from its first tool call after that.
@@ -455,7 +454,8 @@ mod tests {
             run("r1", "started", 1000),
             tool("r1", "c1", "browser", "started", 1100),
             tool("r1", "c1", "browser", "succeeded", 1200),
-            tool("r1", "w", WRAPPER_TOOL, "started", 1300),
+            tool("r1", "w", "tool_call", "started", 1300),
+            tool("r1", "w2", "dispatch_action", "started", 1350),
         ]);
         let a = activity_now(&t, &deps(2000, "user"));
         assert_eq!(a["run"]["request"], json!("Book a table"));

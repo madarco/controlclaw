@@ -187,7 +187,7 @@ fn sources_for(role: &str) -> &'static [&'static str] {
             "teamchat_stats",
         ],
         "openclaw" => &["tool_action", "agent_run", "ssh_login"],
-        "gbrain" => &["brain_call", "brain_cycle", "ssh_login"],
+        "gbrain" => &["brain_call", "brain_cycle", "brain_stats", "ssh_login"],
         _ => &[],
     }
 }

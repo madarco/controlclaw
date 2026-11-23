@@ -11,9 +11,11 @@
 //! - [`panel`]: the local panel's files, served next to the API.
 //! - [`wireguard`]: tunnel addresses and the peers list for agents paired over WireGuard.
 //! - [`retention`]: raw activity kept 30 days, the hourly rollup 13 months.
+//! - [`brain_key`]: the brain's model key, the user's own, pushed as the SaaS pushes the included one.
 
 pub mod admin;
 pub mod api;
+pub mod brain_key;
 pub mod db;
 #[cfg(feature = "contract")]
 pub mod facade;

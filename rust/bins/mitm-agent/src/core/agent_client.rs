@@ -19,8 +19,8 @@ use serde_json::{Map, Value};
 use super::identities::Agents;
 use crate::contracts::{AGENT_PATH_PREFIX, AgentRoute};
 
-// The firewall's half of the timeout chain (`budgets.ts`); `packages/vm-agent/src/budgets.ts` is
-// the box's half, and each limit here sits above the box's own for the same work.
+// The firewall's half of the timeout chain (`budgets.ts`); the vm-agent's own limits are the box's
+// half, and each limit here sits above the box's own for the same work.
 pub const COMMAND_BUDGET_MS: u64 = 100_000;
 pub const AGENT_CALL_MS: u64 = 25_000;
 pub const CHANNELS_APPLY_MS: u64 = 45_000;
@@ -316,6 +316,72 @@ impl AgentClient {
         self.request(agent, "GET", path, None, Some(timeout_ms)).await
     }
 
+    /// A standalone firewall as a box's control plane: one of its console routes (`/status`,
+    /// `/brain/model`), with the token a console would send (`{vmId}`, no purpose), signed with
+    /// this firewall's key. Only on a box this firewall calls directly (`agent_addr`).
+    pub async fn console_within(
+        &self,
+        agent: &AgentTarget,
+        method: &str,
+        path: &str,
+        body: Option<&Value>,
+        timeout_ms: u64,
+    ) -> Result<Map<String, Value>, AgentError> {
+        self.request_as(agent, method, path, body, Some(timeout_ms), true).await
+    }
+
+    /// An agent's call to the brain, relayed by a standalone firewall's tools gate: to the brain's
+    /// `/gbrain/mcp/<agent>`, with a token bound to this one request (purpose `gbrain-mcp`: the
+    /// method, the path and so the agent, the brain's address, the body). The answer is streamed
+    /// back as it comes; `connect_ms` bounds the connection, the caller bounds the rest.
+    pub async fn relay_brain(
+        &self,
+        brain_vm_id: &str,
+        agent_vm_id: &str,
+        method: &str,
+        headers: &[(&'static str, http::HeaderValue)],
+        body: bytes::Bytes,
+        connect_ms: u64,
+    ) -> Result<reqwest::Response, AgentError> {
+        let Some(route) = self.route_for(brain_vm_id).filter(|r| r.base.starts_with("http://")) else {
+            return Err(AgentError::Other(
+                "This firewall has no address for the brain's vm-agent. Pair the brain again.".into(),
+            ));
+        };
+        let path = format!("/gbrain/mcp/{agent_vm_id}");
+        let token = self.bound_token(brain_vm_id, "gbrain-mcp", method, &path, &route.host, Some(&body))?;
+        let base = match &self.base_for {
+            Some(f) => format!("{}{AGENT_PATH_PREFIX}", f(&route.host).unwrap_or_default()),
+            None => route.base.clone(),
+        };
+        let m: reqwest::Method = method.parse().map_err(|_| AgentError::Other("bad method".into()))?;
+        let mut req = self.http.get().request(m, format!("{base}{path}")).bearer_auth(token);
+        for (name, v) in headers {
+            req = req.header(*name, v.clone());
+        }
+        let send = req.body(body).send();
+        match tokio::time::timeout(Duration::from_millis(connect_ms), send).await {
+            Ok(r) => r.map_err(net_error),
+            Err(_) => Err(AgentError::Timeout),
+        }
+    }
+
+    /// A token bound to one call (`bindingClaims`, then this firewall's key): method, path without
+    /// query, the host the call goes to, the body's hash, a fresh id.
+    fn bound_token(
+        &self,
+        vm_id: &str,
+        purpose: &str,
+        method: &str,
+        path: &str,
+        host: &str,
+        body: Option<&[u8]>,
+    ) -> Result<String, AgentError> {
+        let claims = cc_auth::sign::binding_claims(method, path, Some(host), body);
+        cc_auth::sign::agent_token(&self.keys, &self.box_id, vm_id, purpose, claims)
+            .map_err(|e| AgentError::Other(e.to_string()))
+    }
+
     async fn request(
         &self,
         agent: &AgentTarget,
@@ -323,6 +389,18 @@ impl AgentClient {
         path: &str,
         body: Option<&Value>,
         timeout_ms: Option<u64>,
+    ) -> Result<Map<String, Value>, AgentError> {
+        self.request_as(agent, method, path, body, timeout_ms, false).await
+    }
+
+    async fn request_as(
+        &self,
+        agent: &AgentTarget,
+        method: &str,
+        path: &str,
+        body: Option<&Value>,
+        timeout_ms: Option<u64>,
+        console: bool,
     ) -> Result<Map<String, Value>, AgentError> {
         let budget = Duration::from_millis(timeout_ms.unwrap_or_else(|| timeout_for(path, self.default_ms)));
         let started = tokio::time::Instant::now();
@@ -339,7 +417,7 @@ impl AgentClient {
             ));
         };
         let left = budget.saturating_sub(started.elapsed());
-        match tokio::time::timeout(left, self.send(agent, &route, method, path, body)).await {
+        match tokio::time::timeout(left, self.send(agent, &route, method, path, body, console)).await {
             Ok(r) => r,
             Err(_) => Err(AgentError::Timeout),
         }
@@ -352,12 +430,29 @@ impl AgentClient {
         method: &str,
         path: &str,
         body: Option<&Value>,
+        console: bool,
     ) -> Result<Map<String, Value>, AgentError> {
         let bounded = path == "/hooks/deliver" || path.starts_with("/phone/");
         let sent = body.map(|b| serde_json::to_vec(b).unwrap_or_default());
-        let claims = cc_auth::sign::binding_claims(method, path, Some(&route.host), sent.as_deref());
-        let token = cc_auth::sign::agent_token(&self.keys, &self.box_id, &agent.vm_id, purpose_for_path(path), claims)
-            .map_err(|e| AgentError::Other(e.to_string()))?;
+        let token = if console {
+            // Never over HTTPS to a hostname: the SaaS console's routes are the console's own.
+            if !route.base.starts_with("http://") {
+                return Err(AgentError::Other(
+                    "console calls go only to a box this firewall calls directly".into(),
+                ));
+            }
+            cc_auth::sign::local_console_token(&self.keys, &agent.vm_id)
+                .map_err(|e| AgentError::Other(e.to_string()))?
+        } else {
+            self.bound_token(
+                &agent.vm_id,
+                purpose_for_path(path),
+                method,
+                path,
+                &route.host,
+                sent.as_deref(),
+            )?
+        };
         let base = match &self.base_for {
             Some(f) => format!("{}{AGENT_PATH_PREFIX}", f(&route.host).unwrap_or_default()),
             None => route.base.clone(),
@@ -794,74 +889,8 @@ mod joined {
     }
 }
 
-/// `purpose.test.ts`: the agent's own route table and handlers (the vm-agent's TS source, read
-/// here) name the purpose each route verifies; `purpose_for_path` must give the same.
-#[cfg(test)]
-mod purposes {
-    use super::purpose_for_path;
-    use regex::Regex;
-    use std::collections::{HashMap, HashSet};
-
-    #[test]
-    fn every_route_is_signed_with_the_purpose_the_agent_verifies() {
-        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../packages/vm-agent/src");
-        // The TS vm-agent stays in the private repo: the public export (standalone/oss) has only its
-        // test fixtures.
-        if !src.join("index.ts").is_file() {
-            eprintln!("skipped: no packages/vm-agent to compare the routes with");
-            return;
-        }
-        let index = std::fs::read_to_string(src.join("index.ts")).expect("vm-agent index.ts");
-        let mut handler_file = HashMap::new();
-        let imports = Regex::new(r#"import \{([^}]+)\} from "\./routes/([\w-]+)\.js";"#).expect("re");
-        for m in imports.captures_iter(&index) {
-            for name in m[1].split(',') {
-                let name = name.trim().trim_start_matches("type ").trim().to_string();
-                handler_file.insert(name, m[2].to_string());
-            }
-        }
-        let dispatch =
-            Regex::new(r#"url\.pathname(?:\.startsWith\("([^"]+)"\)|\s*===\s*"([^"]+)")[^{]*\{\s*await (handle\w+)\("#)
-                .expect("re");
-        let verify = Regex::new(r#"verifyMitmRequest\(\s*req\s*(?:,\s*"([^"]+)"\s*)?\)"#).expect("re");
-        let purposes_in = |file: &str| -> HashSet<String> {
-            let text = std::fs::read_to_string(src.join("routes").join(format!("{file}.ts"))).unwrap_or_default();
-            verify
-                .captures_iter(&text)
-                .map(|c| c.get(1).map(|m| m.as_str()).unwrap_or("channels").to_string())
-                .collect()
-        };
-        let mut checked = Vec::new();
-        for m in dispatch.captures_iter(&index) {
-            let Some(file) = handler_file.get(&m[3]) else { continue };
-            let path = match (m.get(1), m.get(2)) {
-                (Some(p), _) => format!("{}anything", p.as_str()),
-                (_, Some(e)) => e.as_str().to_string(),
-                _ => continue,
-            };
-            let purposes = purposes_in(file);
-            if purposes.is_empty() {
-                continue;
-            }
-            checked.push(file.clone());
-            assert_eq!(purposes.len(), 1, "routes/{file}.ts verifies {purposes:?}");
-            let want = purposes.into_iter().next().unwrap_or_default();
-            assert_eq!(purpose_for_path(&path), want, "{path} (routes/{file}.ts)");
-        }
-        assert!(checked.len() >= 10, "only found {checked:?}");
-        for f in ["channels", "llm", "google", "drive", "hooks", "update"] {
-            assert!(checked.iter().any(|c| c == f), "missing {f}");
-        }
-        let verifying: HashSet<&String> = handler_file.values().filter(|f| !purposes_in(f).is_empty()).collect();
-        let missed: Vec<&&String> = verifying.iter().filter(|f| !checked.contains(f)).collect();
-        assert!(missed.is_empty(), "{missed:?}");
-        assert_eq!(purpose_for_path("/google/apply"), "google");
-    }
-}
-
-/// `budgets.test.ts`: the timeouts on the path console → firewall → agent box → OpenClaw nest. The
-/// other two sides are read as text (`packages/vm-agent/src/budgets.ts`, the console's
-/// `firewall.schema.ts`), so a number changed on one side only fails here.
+/// `budgets.test.ts`: the timeouts on the path console → firewall → agent box nest. The console's
+/// side is read as text (`firewall.schema.ts`), so a number changed on one side only fails here.
 #[cfg(test)]
 mod budgets {
     use super::*;
@@ -934,20 +963,15 @@ mod budgets {
     }
 
     #[test]
-    #[allow(clippy::assertions_on_constants)] // the TS asserts these the same way
+    #[allow(clippy::assertions_on_constants)]
     fn the_timeouts_nest() {
-        // The TS files stay in the private repo: the public export (standalone/oss) has neither.
+        // The console's file stays in the private repo: the public export (standalone/oss) has none.
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
         if !root.join("apps/saas").is_dir() {
-            eprintln!("skipped: no apps/saas or packages/vm-agent to compare the timeouts with");
+            eprintln!("skipped: no apps/saas to compare the timeouts with");
             return;
         }
-        let b = constants("packages/vm-agent/src/budgets.ts");
         let plane = constants("apps/saas/app/(mitm)/lib/firewall.schema.ts");
-        let bx = |n: &str| {
-            *b.get(n)
-                .unwrap_or_else(|| panic!("vm-agent budgets.ts no longer exports {n}"))
-        };
         let f = |v: u64| v as f64;
         let stale = *plane
             .get("FIREWALL_COMMAND_STALE_MS")
@@ -955,17 +979,10 @@ mod budgets {
         assert!(f(COMMAND_BUDGET_MS) < stale && stale - f(COMMAND_BUDGET_MS) >= 10_000.0);
         const { assert!(CHANNELS_APPLY_MS + CONFIRM_APPLY_MS <= COMMAND_BUDGET_MS) };
         const { assert!(CHANNELS_APPLY_MS * 2 + CONFIRM_APPLY_MS > COMMAND_BUDGET_MS) };
-        assert!(bx("APPLY_INLINE_WAIT_MS") + bx("GATEWAY_READ_MS") < f(CHANNELS_APPLY_MS));
-        assert!(bx("CONFIG_PATCH_RESTART_MS") > 33_000.0 && bx("CONFIG_PATCH_RESTART_MS") > bx("CONFIG_PATCH_MS"));
-        let ordinary = bx("GATEWAY_READ_MS") + bx("CONFIG_PATCH_RESTART_MS") + bx("SERVICE_ACTION_MS");
-        assert!(f(CONFIG_WRITE_MS) >= ordinary && CONFIG_WRITE_MS > AGENT_CALL_MS);
+        const { assert!(CONFIG_WRITE_MS > AGENT_CALL_MS) };
         const { assert!(CONFIG_WRITE_MS + CONFIRM_MIN_MS <= COMMAND_BUDGET_MS) };
-        let worst = 2.0 * (bx("GATEWAY_READ_MS") + bx("CONFIG_PATCH_RESTART_MS")) + bx("SERVICE_ACTION_MS");
-        assert!(worst > f(COMMAND_BUDGET_MS) && f(CONFIG_WRITE_MS) < worst);
         const { assert!(APPROVE_MS > 53_000 && APPROVE_MS + AGENT_CALL_MS < COMMAND_BUDGET_MS) };
-        assert!(f(DEVICE_APPROVE_MS) > bx("DEVICES_ACTION_MS").max(bx("DEVICES_ACTION_CLI_MS")));
         const { assert!(DEVICE_APPROVE_MS + AGENT_CALL_MS < COMMAND_BUDGET_MS) };
-        assert!(f(GBRAIN_APPLY_MS) > bx("GATEWAY_READ_MS") + bx("CONFIG_PATCH_RESTART_MS"));
         const { assert!(GBRAIN_CONNECT_MS + GBRAIN_APPLY_MS < COMMAND_BUDGET_MS) };
         const { assert!(AGENT_CALL_MS * 2 + KILL_WINDOW_SEND_MS < COMMAND_BUDGET_MS) };
         const { assert!(LLM_PUSH_MS < COMMAND_BUDGET_MS) };

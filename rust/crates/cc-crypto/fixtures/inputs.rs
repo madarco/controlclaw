@@ -1,5 +1,5 @@
-// The deterministic inputs of `fixtures/common.mts`, and how the Rust code opens and seals a
-// fixtures file. `include!`d by the cross-check test and the `seal-fixtures` example.
+// The deterministic inputs `ts-sealed.json` was sealed from (by the retired TS build), and how the
+// Rust code opens and seals a fixtures file. `include!`d by `tests/ts_fixtures.rs`.
 
 use cc_crypto::envelope::{self, ArchiveKind, CHUNK_BYTES, Decryptor, Encryptor, EnvelopeBinding};
 use cc_crypto::secret_store::{self, Ids, SealOpts, StoreRecord};

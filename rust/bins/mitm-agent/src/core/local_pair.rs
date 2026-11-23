@@ -146,7 +146,7 @@ pub async fn serve(db: Arc<Db>, keys_dir: PathBuf) {
 
 fn usage() -> ! {
     eprintln!(
-        "usage: mitm-agent pair-code [--name <agent name>] [--ttl <minutes, 1-60>] [--address <the agent's IPv4, as the proxy sees it>] [--replace]"
+        "usage: mitm-agent pair-code [--name <agent name>] [--ttl <minutes, 1-60>] [--address <the agent's IPv4, as the proxy sees it>] [--replace] [--role openclaw|gbrain]"
     );
     std::process::exit(2);
 }
@@ -155,7 +155,7 @@ fn usage() -> ! {
 /// the firewall's user (it owns `STATE_DIR/local.db`). Only `STATE_DIR` is read from the
 /// environment.
 pub fn pair_code(args: &[String]) -> ! {
-    let (mut name, mut ttl, mut address, mut replace) = (None, None, None, false);
+    let (mut name, mut ttl, mut address, mut replace, mut role) = (None, None, None, false, None);
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -163,6 +163,7 @@ pub fn pair_code(args: &[String]) -> ! {
             "--ttl" => ttl = Some(it.next().and_then(|t| t.parse::<i64>().ok()).unwrap_or_else(|| usage())),
             "--address" => address = Some(it.next().unwrap_or_else(|| usage()).clone()),
             "--replace" => replace = true,
+            "--role" => role = Some(it.next().unwrap_or_else(|| usage()).clone()),
             _ => usage(),
         }
     }
@@ -185,17 +186,26 @@ pub fn pair_code(args: &[String]) -> ! {
         ttl_min: ttl,
         address: address.as_deref(),
         replace,
+        role: role.as_deref(),
     };
     let c = pairing::create_code(&db, &f).unwrap_or_else(|e| fail(e));
     let minutes = (c.expires_at - cc_local::db::now_s() + 59) / 60;
     println!("{}", c.code);
-    eprintln!(
-        "On the agent's machine: controlclaw connect --firewall http://<this firewall>:8801 --mode <mode>, and type the code when it asks"
-    );
+    if c.role == "gbrain" {
+        eprintln!(
+            "On the brain's machine: controlclaw brain install --firewall http://<this firewall>:8801 (or brain connect), and type the code when it asks"
+        );
+    } else {
+        eprintln!(
+            "On the agent's machine: controlclaw connect --firewall http://<this firewall>:8801 --mode <mode>, and type the code when it asks"
+        );
+    }
     if let Some(a) = &c.address {
         eprintln!("The proxy will know the agent at {a}.");
     }
-    if c.replace {
+    if c.replace && c.role == "gbrain" {
+        eprintln!("It may take the place of the brain this firewall has.");
+    } else if c.replace {
         eprintln!("It may take the place of an agent already at its address.");
     }
     eprintln!("It works once, within {minutes} minutes.");

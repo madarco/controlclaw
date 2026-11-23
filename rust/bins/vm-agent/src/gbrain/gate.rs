@@ -11,6 +11,13 @@
 //! `gbrain-gate.json` in the state directory (inside the encrypted container), and never sent
 //! anywhere. Only the org firewall adds or removes an entry (`POST /gbrain/connect|disconnect`).
 //!
+//! On a standalone firewall (`GateMode::Relayed`, docs/plans/standalone-brain.md B) there is no
+//! shared private network the brain could trust addresses on: agents reach the brain through the
+//! firewall's tools gate (3940), and the firewall relays each call to `/gbrain/mcp/<vmId>` on this
+//! vm-agent's own listener, with a firewall token bound to that one request (purpose `gbrain-mcp`).
+//! The 3131 listener is not opened then, and an entry is found by the agent's id in the signed path,
+//! not by the address the call came from. Each agent still has its own token and scope here.
+//!
 //! The emergency stop is a lock on top (`POST /gbrain/lock {all, vmIds}`): a locked agent keeps its
 //! entry and token and gets a 403 until the stop is released, so releasing it needs no new code.
 
@@ -19,7 +26,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use cc_http::{Body, Ctx, Req, Resp, json};
-use cc_proc::{Cmd, Runner};
+use cc_proc::Runner;
 use http_body_util::BodyExt;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -40,6 +47,37 @@ static TOKEN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_]{32,}
 /// reads as octal.
 pub fn is_private_ip(s: &str) -> bool {
     s.parse::<std::net::Ipv4Addr>().is_ok_and(|a| a.octets()[0] == 10)
+}
+
+/// Any private IPv4 address (10/8, 172.16/12, 192.168/16), written the one way: where a standalone
+/// firewall's agents are (a Docker network, a WireGuard tunnel, a LAN). Recorded only: in
+/// [`GateMode::Relayed`] nobody is let in by address.
+pub fn is_private_v4(s: &str) -> bool {
+    s.parse::<std::net::Ipv4Addr>().is_ok_and(|a| a.is_private())
+}
+
+/// How agents reach this brain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GateMode {
+    /// The SaaS: the 3131 listener on the private network, an agent known by its address.
+    Direct,
+    /// A standalone firewall: no 3131 listener; the firewall relays each call to
+    /// `/gbrain/mcp/<vmId>` with a token bound to it.
+    Relayed,
+}
+
+impl GateMode {
+    /// `GBRAIN_GATE=relayed` (a standalone brain's environment); anything else is the SaaS's.
+    pub fn from_env() -> Self {
+        Self::parse(std::env::var("GBRAIN_GATE").ok().as_deref())
+    }
+
+    pub fn parse(v: Option<&str>) -> Self {
+        match v.map(str::trim) {
+            Some("relayed") => Self::Relayed,
+            _ => Self::Direct,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -137,7 +175,14 @@ pub(super) fn pick_private_address(trie: &str, routes: &str, devs: &str) -> Opti
         .map(|(_, ip)| ip)
 }
 
+#[cfg(test)]
 pub fn parse_connect(body: Option<&Map<String, Value>>) -> Result<ConnectInput, &'static str> {
+    parse_connect_for(body, GateMode::Direct)
+}
+
+/// `parse_connect` for a gate in `mode`: the SaaS takes only a 10.x address (the gate lets agents
+/// in by it); a relayed gate takes any private IPv4, which it only records.
+pub fn parse_connect_for(body: Option<&Map<String, Value>>, mode: GateMode) -> Result<ConnectInput, &'static str> {
     let Some(body) = body else {
         return Err("a JSON body is required");
     };
@@ -145,9 +190,15 @@ pub fn parse_connect(body: Option<&Map<String, Value>>) -> Result<ConnectInput, 
     let Some(vm_id) = vm_id else {
         return Err("vmId is required");
     };
-    let ip = body.get("ip").and_then(Value::as_str).filter(|v| is_private_ip(v));
+    let ip = body.get("ip").and_then(Value::as_str).filter(|v| match mode {
+        GateMode::Direct => is_private_ip(v),
+        GateMode::Relayed => is_private_v4(v),
+    });
     let Some(ip) = ip else {
-        return Err("ip must be a private 10.x address");
+        return Err(match mode {
+            GateMode::Direct => "ip must be a private 10.x address",
+            GateMode::Relayed => "ip must be a private IPv4 address",
+        });
     };
     let scope = body
         .get("scope")
@@ -356,11 +407,20 @@ impl BrainGate {
         Admission::Token(e.token.clone())
     }
 
+    /// A relayed call (`GateMode::Relayed`): the agent the firewall named in the signed path.
+    pub fn admit_vm(&self, vm_id: &str) -> Admission {
+        let st = self.state();
+        let Some(e) = st.entries.iter().find(|x| x.vm_id.as_deref() == Some(vm_id)) else {
+            return Admission::Unknown;
+        };
+        if st.lock.all || st.lock.vm_ids.iter().any(|v| v == vm_id) {
+            return Admission::Stopped;
+        }
+        Admission::Token(e.token.clone())
+    }
+
     async fn helper(&self, args: &[&str]) -> Result<String, String> {
-        let cmd = Cmd::new("sudo")
-            .arg(HELPER)
-            .args(args.iter().copied())
-            .timeout(HELPER_TIMEOUT);
+        let cmd = super::helper(HELPER).args(args.iter().copied()).timeout(HELPER_TIMEOUT);
         run_helper(self.runner.as_ref(), cmd).await
     }
 
@@ -525,6 +585,136 @@ pub async fn handle(
     }
 }
 
+/// Where a standalone firewall relays an agent's call: `/gbrain/mcp/<vmId>`.
+pub const RELAY_PREFIX: &str = "/gbrain/mcp/";
+/// The firewall's own cap on a call it relays (its 3940 `/brain/mcp`): the body is hashed whole.
+pub const RELAY_MAX_BODY: usize = 4 * 1024 * 1024;
+/// Relayed calls held here at once, per agent and in all: a little above the firewall's own limits
+/// (4 and 16), so a firewall that keeps to them is never refused, and one that does not cannot make
+/// this box hold more than this many bodies.
+pub const RELAY_IN_FLIGHT_PER_AGENT: usize = 6;
+pub const RELAY_IN_FLIGHT_TOTAL: usize = 24;
+
+/// Relayed calls on their way through this box (`handle_relayed`).
+#[derive(Default)]
+pub struct RelaySlots(Arc<Mutex<std::collections::HashMap<String, usize>>>);
+
+/// One relayed call on its way; freed when dropped.
+pub struct RelaySlot {
+    map: Arc<Mutex<std::collections::HashMap<String, usize>>>,
+    vm_id: String,
+}
+
+impl RelaySlots {
+    /// A slot for a call for `vm_id`, or `None` past the limits.
+    pub fn take(&self, vm_id: &str) -> Option<RelaySlot> {
+        let mut m = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        let mine = m.get(vm_id).copied().unwrap_or(0);
+        if m.values().sum::<usize>() >= RELAY_IN_FLIGHT_TOTAL || mine >= RELAY_IN_FLIGHT_PER_AGENT {
+            return None;
+        }
+        m.insert(vm_id.to_string(), mine + 1);
+        Some(RelaySlot {
+            map: self.0.clone(),
+            vm_id: vm_id.to_string(),
+        })
+    }
+}
+
+impl Drop for RelaySlot {
+    fn drop(&mut self) {
+        let mut m = self.map.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(n) = m.get_mut(&self.vm_id) {
+            *n -= 1;
+            if *n == 0 {
+                m.remove(&self.vm_id);
+            }
+        }
+    }
+}
+/// The token's purpose, always bound to the one request (cc-auth `ALWAYS_BOUND`).
+pub const RELAY_PURPOSE: &str = "gbrain-mcp";
+
+/// The agent a relayed path names, when it is one.
+pub fn relayed_vm(path: &str) -> Option<&str> {
+    path.strip_prefix(RELAY_PREFIX).filter(|v| VM_ID.is_match(v))
+}
+
+/// One call a standalone firewall relays (`GateMode::Relayed`). The connection came past
+/// `firewall.allow_from`; here the token: the firewall's key, purpose `gbrain-mcp`, bound to this
+/// method, path (so the agent's id), host and body, its id taken once. Then the agent's own entry,
+/// as the address is on the SaaS.
+pub async fn handle_relayed(
+    gate: &(dyn Fn(&str) -> Admission + Send + Sync),
+    slots: &RelaySlots,
+    auth: &cc_auth::firewall::FirewallAuth,
+    target: &str,
+    log: &(dyn Fn(&str) + Send + Sync),
+    req: Req,
+) -> Resp {
+    let path = req.uri().path().to_string();
+    let Some(vm_id) = relayed_vm(&path).map(str::to_string) else {
+        return deny(404, "Not found");
+    };
+    if !matches!(req.method().as_str(), "POST" | "GET" | "DELETE") {
+        return deny(404, "Not found");
+    }
+    // Before the body is read: past the limits nothing of it is held.
+    let Some(slot) = slots.take(&vm_id) else {
+        log(&format!(
+            "[gbrain-gate] refused a relayed call for {vm_id}: too many on their way"
+        ));
+        return deny(429, "Too many brain calls on their way at once. Try again in a moment.");
+    };
+    let read = cc_http::ReadBody::Raw { limit: RELAY_MAX_BODY };
+    let (parts, body) = match cc_http::firewall_request(auth, req, RELAY_PURPOSE, 0, read).await {
+        cc_http::FirewallRequest::Refused { reason, .. } => {
+            log(&format!(
+                "[gbrain-gate] refused a relayed call for {vm_id}: {}",
+                reason.map_or("not the firewall's token", |r| r.as_str())
+            ));
+            return deny(401, "Brain calls must come through the firewall.");
+        }
+        cc_http::FirewallRequest::Accepted { parts, body, .. } => match body {
+            cc_http::FirewallBody::Raw(b) => (parts, b),
+            _ => return deny(400, "Not the body the firewall signed."),
+        },
+    };
+    let token = match gate(&vm_id) {
+        Admission::Token(t) => t,
+        refused => {
+            let stopped = refused == Admission::Stopped;
+            log(&format!(
+                "[gbrain-gate] refused {vm_id}: {}",
+                if stopped {
+                    "under an emergency stop"
+                } else {
+                    "not a connected agent"
+                }
+            ));
+            return deny(
+                403,
+                if stopped {
+                    "This agent is under an emergency stop."
+                } else {
+                    "This agent is not connected to the brain."
+                },
+            );
+        }
+    };
+    // GBrain's own path; the agent's query, if any, is not part of what the firewall signed.
+    let answer = forward_parts(target, &token, "/mcp", parts, http_body_util::Full::new(body)).await;
+    // GBrain has the call: its body is no longer held here.
+    drop(slot);
+    match answer {
+        Ok(r) => r,
+        Err(e) => {
+            log(&format!("[gbrain-gate] upstream failed: {e}"));
+            deny(502, "The brain is not answering.")
+        }
+    }
+}
+
 /// Aborts a task when dropped.
 struct AbortOnDrop(tokio::task::AbortHandle);
 
@@ -534,8 +724,22 @@ impl Drop for AbortOnDrop {
     }
 }
 
-async fn forward(target: &str, token: &str, path: &str, req: Req) -> Result<Resp, String> {
-    let (mut parts, body) = req.into_parts();
+pub(super) async fn forward(target: &str, token: &str, path: &str, req: Req) -> Result<Resp, String> {
+    let (parts, body) = req.into_parts();
+    forward_parts(target, token, path, parts, body).await
+}
+
+async fn forward_parts<B>(
+    target: &str,
+    token: &str,
+    path: &str,
+    mut parts: http::request::Parts,
+    body: B,
+) -> Result<Resp, String>
+where
+    B: http_body::Body<Data = bytes::Bytes> + Send + Unpin + 'static,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
     let tcp = tokio::net::TcpStream::connect(target)
         .await
         .map_err(|e| e.to_string())?;

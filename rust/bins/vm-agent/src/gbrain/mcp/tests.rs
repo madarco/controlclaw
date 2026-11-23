@@ -72,3 +72,36 @@ async fn the_brain_entry_is_one_url_written_by_the_firewall() {
     let err = apply(&deps(None), &BrainApply::Remove).await.expect_err("down");
     assert!(err.contains("not running"), "{err}");
 }
+
+#[test]
+fn an_unmanaged_agent_writes_the_brain_on_its_firewalls_gate() {
+    let gate: Option<std::net::Ipv4Addr> = Some("172.31.252.1".parse().expect("ip"));
+    let url = |u: &str| obj(json!({ "url": u }));
+    // The firewall's tools gate, at whatever address the firewall has for itself: written on the
+    // gate this agent reaches its firewall at.
+    for sent in ["http://10.0.0.2:3940/brain/mcp", "http://172.31.252.2:3940/brain/mcp"] {
+        assert_eq!(
+            parse_brain_apply_at(Some(&url(sent)), gate),
+            Ok(BrainApply::Url("http://172.31.252.1:3940/brain/mcp".into())),
+            "{sent}"
+        );
+    }
+    for bad in [
+        "http://10.0.0.9:3131/mcp",
+        "http://10.0.0.2:3940/servers/x/mcp",
+        "http://10.0.0.2:3941/brain/mcp",
+        "https://10.0.0.2:3940/brain/mcp",
+        "http://evil.example:3940/brain/mcp",
+        "http://10.0.0.2:3940/brain/mcp?x=1",
+        "http://u@10.0.0.2:3940/brain/mcp",
+    ] {
+        assert!(parse_brain_apply_at(Some(&url(bad)), gate).is_err(), "{bad}");
+    }
+    assert_eq!(
+        parse_brain_apply_at(Some(&obj(json!({"remove": true}))), gate),
+        Ok(BrainApply::Remove)
+    );
+    // A managed box keeps taking only the brain's private address.
+    assert!(parse_brain_apply_at(Some(&url("http://10.0.0.2:3940/brain/mcp")), None).is_err());
+    assert!(parse_brain_apply_at(Some(&url("http://10.0.0.9:3131/mcp")), None).is_ok());
+}

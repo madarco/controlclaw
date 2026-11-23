@@ -1,6 +1,7 @@
 #!/bin/bash
-# Run the mitmproxy smoke rigs (packages/mitm-proxy/smoke/run-*.sh) against cc-proxy, unchanged:
-# the scripts run in a copy of the smoke folder whose compose files run cc-proxy as `proxy`.
+# Run the smoke rigs (rigs/run-*.sh, written for mitmproxy and its addon, which are retired) against
+# cc-proxy, unchanged: the scripts run in a copy of the folder whose compose files run cc-proxy as
+# `proxy`.
 #
 #   rust/conformance/proxy/w1/smoke/run.sh                 # all six
 #   rust/conformance/proxy/w1/smoke/run.sh run-smoke.sh    # one
@@ -22,8 +23,8 @@ cp "$BIN" "$HERE/Dockerfile" "$CTX/"
 docker build -q -t controlclaw-cc-proxy-smoke:local "$CTX" >/dev/null || exit 1
 
 mkdir -p "$WORK/mitm-proxy"
-cp -R "$REPO/packages/mitm-proxy/smoke" "$REPO/packages/mitm-proxy/config" \
-  "$REPO/packages/mitm-proxy/addon.py" "$REPO/packages/mitm-proxy/gen-ca.sh" "$WORK/mitm-proxy/"
+cp -R "$HERE/rigs" "$WORK/mitm-proxy/smoke"
+cp -R "$HERE/config" "$REPO/rust/bins/cc-proxy/gen-ca.sh" "$WORK/mitm-proxy/"
 python3 "$HERE/as-cc-proxy.py" "$WORK"/mitm-proxy/smoke/docker-compose.*.yml || exit 1
 python3 "$HERE/differences.py" "$WORK/mitm-proxy/smoke" || exit 1
 

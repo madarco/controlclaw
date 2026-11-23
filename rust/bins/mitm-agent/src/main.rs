@@ -100,7 +100,11 @@ fn check_standalone() {
 /// with its own key. Standalone only: it needs the key and the identity the running agent wrote in
 /// `KEYS_DIR` (the console makes links otherwise). Only `KEYS_DIR` is read from the environment.
 fn open_link(config: &Config, page: Option<&str>) -> ! {
-    let pages: Vec<&str> = core::local_intent::PAGES.iter().map(|(n, _)| *n).collect();
+    let pages: Vec<&str> = core::local_intent::PAGES
+        .iter()
+        .chain(core::local_intent::BRAIN_PAGES)
+        .map(|(n, _)| *n)
+        .collect();
     let Some(page) = page.filter(|p| pages.contains(p)) else {
         die(&format!("usage: mitm-agent open <{}>", pages.join("|")));
     };

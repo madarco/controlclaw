@@ -23,6 +23,9 @@ const OPENCLAW: &[&str] = &[
     "POST /start",
     "POST /stop",
     "POST /restart",
+    // Run OpenClaw doctor: Restart with OpenClaw's safe migrations in between (openclaw_doctor.rs).
+    "GET /openclaw/doctor",
+    "POST /openclaw/doctor",
     "POST /mitm-ca/refresh",
     "GET /update",
     "GET /channels/status",
@@ -48,6 +51,9 @@ const OPENCLAW: &[&str] = &[
     "GET /storage",
     "POST /storage/grow",
     "POST /templates/poke",
+    // "Save what it learns automatically" (T-217, gbrain/capture.rs): the switch and its state.
+    "GET /brain/capture",
+    "POST /brain/capture",
 ];
 
 const GBRAIN: &[&str] = &[
@@ -59,6 +65,10 @@ const GBRAIN: &[&str] = &[
     "POST /mitm-ca/refresh",
     "GET /logs",
     "GET /update",
+    // The model for the brain's own calls (T-217, gbrain/model.rs).
+    "POST /brain/model",
+    // An outside app's waiting sign-in, for the Connect page (T-219): its name and site only.
+    "GET /clients/request",
 ];
 
 /// Whether the control plane's key may call this method and path here. An unknown service falls
@@ -120,6 +130,19 @@ mod tests {
         assert!(!control_plane_may_call("GET", "/logs", "openclaw"));
         assert!(control_plane_may_call("GET", "/logs", "gbrain"));
         assert!(!control_plane_may_call("GET", "/skills", "gbrain"));
+        assert!(control_plane_may_call("GET", "/clients/request?req=abc", "gbrain"));
+        assert!(!control_plane_may_call("GET", "/clients/request", "openclaw"));
+        assert!(!control_plane_may_call("POST", "/gbrain/clients/connect", "gbrain"));
         assert!(control_plane_may_call("GET", "/skills", "something-else"));
+    }
+
+    #[test]
+    fn the_brain_settings_each_on_their_own_box() {
+        assert!(control_plane_may_call("POST", "/brain/capture", "openclaw"));
+        assert!(control_plane_may_call("GET", "/brain/capture", "openclaw"));
+        assert!(!control_plane_may_call("POST", "/brain/capture", "gbrain"));
+        assert!(control_plane_may_call("POST", "/brain/model", "gbrain"));
+        assert!(!control_plane_may_call("POST", "/brain/model", "openclaw"));
+        assert!(!control_plane_may_call("GET", "/brain/model", "gbrain"));
     }
 }

@@ -233,9 +233,13 @@ pub fn register(reg: &mut Registry, app: &Arc<App>) {
     };
     // Channels (Telegram, Slack, WhatsApp): the connections, who may confirm changes, and the code
     // routes every other module sends its codes through.
-    // A standalone firewall always: its calls to an agent are plain HTTP, so a bot's token never
-    // goes to the agent, only a stand-in the proxy swaps on the way out.
-    let placeholder_swap = env_or("CHANNELS_PLACEHOLDER_SWAP", "") == "1" || app.config.mode.standalone();
+    // The agent gets a stand-in the proxy swaps for the bot's token on the way out: Telegram by
+    // default. A standalone firewall always, Slack too: its calls to an agent are plain HTTP.
+    let placeholder_swap = if app.config.mode.standalone() {
+        chan::PlaceholderSwap::ALL
+    } else {
+        chan::PlaceholderSwap::parse(&env_or("CHANNELS_PLACEHOLDER_SWAP", ""))
+    };
     let channels = chan::ChannelsFirewall::new(chan::ChannelsOptions {
         store_path: PathBuf::from(env_or("CHANNEL_STORE_PATH", "/opt/controlclaw/state/channels.enc")),
         box_key: app.box_key.clone(),
@@ -251,6 +255,7 @@ pub fn register(reg: &mut Registry, app: &Arc<App>) {
             })
         },
         placeholder_swap,
+        unrecorded_stand_in: app.config.mode.standalone(),
         dev: contracts_fill::dev_build(),
         codes: contracts_fill::codes_for(app, "channels", false),
         on_credentials_changed: sync_now(app),
@@ -264,7 +269,7 @@ pub fn register(reg: &mut Registry, app: &Arc<App>) {
         tracing::info!(
             "[mitm-agent] channel store loaded ({} connection(s), {assigned} assigned, placeholder swap {})",
             summary.len(),
-            if placeholder_swap { "on" } else { "off" }
+            placeholder_swap.describe()
         );
     }
     app.contracts

@@ -5,10 +5,10 @@ import { cn } from "../lib/utils";
 import { changeLabel, changePct } from "../lib/stats";
 
 /**
- * The small charts of Console v3: a sparkline, mini bars, the stat card that carries a sparkline,
- * and a list of horizontal bars. Hand-written SVG, no chart library: they are a line or a row of
- * rectangles, and `recharts` is kept for the two charts that need axes (the Firewall's traffic,
- * the Brain's growth). Colours come from the theme tokens, so dark mode needs nothing here.
+ * The small charts of Console v3: a sparkline, spark bars, mini bars, the stat card that carries a
+ * sparkline or spark bars, and a list of horizontal bars. Hand-written SVG and HTML, no chart
+ * library: they are a line or a row of rectangles, and `recharts` is kept for the two charts that
+ * need axes (the Firewall's traffic, the Brain's growth). Colours come from the theme tokens, so dark mode needs nothing here.
  */
 
 export type ChartTone = "brand" | "allow" | "ask" | "block" | "muted";
@@ -169,6 +169,74 @@ export function Sparkline({
 }
 
 /**
+ * Below this, bars are scaled as if the largest count were this, so a day of a few 1s and 2s draws
+ * short bars rather than bars the height of the card.
+ */
+const BAR_MIN_SCALE = 4;
+
+/**
+ * Each bar's height as a share of the chart, 0 to 1, for counts. Scaled to the largest value, or to
+ * `BAR_MIN_SCALE` if that is larger. A count above zero is at least `minShare` high, so it is not
+ * lost next to a big one. Zero is 0 (drawn as a faint tick); null (no value) stays null.
+ */
+export function sparkBars(data: readonly (number | null)[], minShare = 0.1): (number | null)[] {
+  const max = Math.max(BAR_MIN_SCALE, ...data.filter((v): v is number => v !== null));
+  return data.map((v) => (v === null ? null : v <= 0 ? 0 : Math.max(minShare, Math.min(1, v / max))));
+}
+
+/**
+ * One bar per value, for sparse counts (blocked requests), where a line reads as spikes over a flat
+ * floor. Zero is a faint tick on the floor and null is nothing. `current` is drawn solid and the
+ * others lighter, like the line's dot on its last point; while hovering, the hovered bar is the
+ * solid one. With `onHover`, each bar's column reports its index.
+ */
+export function SparkBars({
+  data,
+  tone = "brand",
+  active,
+  current,
+  onHover,
+  className,
+  "aria-label": ariaLabel,
+}: {
+  /** null: no value there, no bar. */
+  data: readonly (number | null)[];
+  tone?: ChartTone;
+  /** The hovered index. */
+  active?: number | null;
+  /** The index to mark when nothing is hovered (the current hour). */
+  current?: number;
+  onHover?: (index: number | null) => void;
+  className?: string;
+  "aria-label"?: string;
+}) {
+  const heights = sparkBars(data);
+  const solid = active ?? current;
+  return (
+    <div
+      role={ariaLabel ? "img" : undefined}
+      aria-label={ariaLabel}
+      aria-hidden={ariaLabel ? undefined : true}
+      className={cn("flex h-14 w-full items-stretch", TONE_TEXT[tone], onHover && "cursor-crosshair", className)}
+      onMouseLeave={onHover ? () => onHover(null) : undefined}
+    >
+      {heights.map((h, i) => (
+        <span key={i} className="flex min-w-0 flex-1 items-end justify-center" onMouseEnter={onHover ? () => onHover(i) : undefined}>
+          {h === null ? null : h === 0 ? (
+            <span className={cn("block h-0.5 w-[68%] max-w-[18px] rounded-full bg-current", i === solid ? "opacity-50" : "opacity-20")} />
+          ) : (
+            <span
+              className={cn("block w-[68%] max-w-[18px] rounded-t-[3px] bg-current", solid === undefined || i === solid ? "opacity-100" : "opacity-75")}
+              style={{ height: `${h * 100}%` }}
+            />
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
  * A row of bars, one per value (an agent's last hours on the Firewall's "By agent" list). `off`
  * draws them as a flat floor, for an agent that is not running.
  */
@@ -207,8 +275,9 @@ export function MiniBars({
 }
 
 /**
- * A number with its change against yesterday and a 24-hour sparkline (the design's `LvSpark`).
- * Hovering the line shows that hour's value in place of the total.
+ * A number with its change against yesterday and a 24-hour sparkline (the design's `LvSpark`), or
+ * one bar per hour with `chart="bars"` (for sparse counts such as Blocked). Hovering the line or a
+ * bar shows that hour's value in place of the total.
  */
 export function SparkStatCard({
   label,
@@ -220,6 +289,7 @@ export function SparkStatCard({
   yesterday,
   upIsBad,
   tone = "brand",
+  chart = "line",
   format = (n) => Math.round(n).toLocaleString("en-US"),
   className,
   "data-testid": testId,
@@ -238,6 +308,8 @@ export function SparkStatCard({
   /** For counts where more is worse (Blocked): an increase is red instead of green. */
   upIsBad?: boolean;
   tone?: ChartTone;
+  /** "bars": one bar per value, for counts that are mostly 0 (Blocked), which read as spikes as a line. */
+  chart?: "line" | "bars";
   format?: (n: number) => string;
   className?: string;
   "data-testid"?: string;
@@ -273,18 +345,31 @@ export function SparkStatCard({
         {shown}
         {at ? <small className="ml-1 text-[12px] font-medium tracking-normal text-ink-2">at {at}</small> : null}
       </div>
-      <div className="relative -mx-4 mt-auto h-14">
-        <Sparkline data={series} tone={tone} active={hover} onHover={setHover} className="h-full" />
-        {marker ? (
-          <span
-            aria-hidden="true"
-            className={cn("pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-[3px] ring-surface", TONE_BG[tone])}
-            style={{ left: `${(marker[0] / W) * 100}%`, top: `${(marker[1] / H) * 100}%` }}
-          />
-        ) : null}
-      </div>
+      {chart === "bars" ? (
+        // Inside the card's rounded corners, with room above for the headline.
+        <div className="-mx-1.5 mt-auto h-14 pt-1.5 pb-3">
+          <SparkBars data={series} tone={tone} active={hover} current={latestIndex(series)} onHover={setHover} className="h-full" />
+        </div>
+      ) : (
+        <div className="relative -mx-4 mt-auto h-14">
+          <Sparkline data={series} tone={tone} active={hover} onHover={setHover} className="h-full" />
+          {marker ? (
+            <span
+              aria-hidden="true"
+              className={cn("pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-[3px] ring-surface", TONE_BG[tone])}
+              style={{ left: `${(marker[0] / W) * 100}%`, top: `${(marker[1] / H) * 100}%` }}
+            />
+          ) : null}
+        </div>
+      )}
     </div>
   );
+}
+
+/** The newest index with a value, where the bars mark the current hour; undefined when none has one. */
+function latestIndex(series: readonly (number | null)[]): number | undefined {
+  for (let i = series.length - 1; i >= 0; i--) if (series[i] !== null) return i;
+  return undefined;
 }
 
 /** "14:00" in the reader's own time. */

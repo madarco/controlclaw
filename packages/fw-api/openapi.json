@@ -2449,6 +2449,392 @@
         }
       }
     },
+    "/api/brain": {
+      "get": {
+        "operationId": "getBrain",
+        "tags": [
+          "brain"
+        ],
+        "summary": "The brain, whether it answers, its model, the agents that may use it and how, and the locks",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PanelBrain"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/brain/overview": {
+      "get": {
+        "operationId": "getBrainOverview",
+        "tags": [
+          "brain"
+        ],
+        "summary": "Searches and saves today and over 30 days, per agent and per hour, the brain's page counts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrainOverview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/brain/agents/{vmId}": {
+      "put": {
+        "operationId": "putBrainAgentsVmId",
+        "tags": [
+          "brain"
+        ],
+        "summary": "Switch an agent on the brain, or change what it may do: read, or read and write",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "vmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrainAgentScope"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteBrainAgentsVmId",
+        "tags": [
+          "brain"
+        ],
+        "summary": "Switch an agent off the brain; its OpenClaw config is left as it was",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "vmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/brain/lock": {
+      "put": {
+        "operationId": "putBrainLock",
+        "tags": [
+          "brain"
+        ],
+        "summary": "Lock every agent out of the brain, or let them back; connections are kept",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrainLockBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/brain/status": {
+      "get": {
+        "operationId": "getBrainStatus",
+        "tags": [
+          "brain"
+        ],
+        "summary": "Whether the brain answers: GBrain and its database",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/brain/model": {
+      "get": {
+        "operationId": "getBrainModel",
+        "tags": [
+          "brain"
+        ],
+        "summary": "The brain's model, and the ones it takes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrainModelView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putBrainModel",
+        "tags": [
+          "brain"
+        ],
+        "summary": "Set the brain's model for its own work (the nightly run, rewording searches); it restarts once",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrainModelView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrainModelBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/brain/pages": {
+      "put": {
+        "operationId": "putBrainPages",
+        "tags": [
+          "brain"
+        ],
+        "summary": "The name the browser reaches the brain's pages at (HTTPS in front of BRAIN_PAGES_BIND); set once",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrainPagesView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrainPagesBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/brain/open": {
+      "post": {
+        "operationId": "postBrainOpen",
+        "tags": [
+          "brain"
+        ],
+        "summary": "A one-time link (60 s) that signs this browser in to the brain's pages, or GBrain's admin page",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenLink"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Refused: `{error}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrainOpenBody"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/channels": {
       "get": {
         "operationId": "getChannels",
@@ -5470,13 +5856,17 @@
           "expires_at": {
             "type": "integer",
             "format": "int64"
+          },
+          "role": {
+            "type": "string"
           }
         },
         "required": [
           "id",
           "code",
           "replace",
-          "expires_at"
+          "expires_at",
+          "role"
         ]
       },
       "NewCodeBody": {
@@ -5510,8 +5900,16 @@
           },
           "replace": {
             "type": "boolean",
-            "description": "Whether the machine may take the place of an agent already at its address.",
+            "description": "Whether the machine may take the place of an agent already at its address (for the brain:\nof the brain this firewall has).",
             "default": false
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`openclaw` (default): an OpenClaw machine (`controlclaw connect`); `gbrain`: the brain\n(`controlclaw brain install` or `brain connect`). A code pairs only what it was made for.",
+            "default": null
           }
         },
         "description": "What the admin says about the machine the code is for."
@@ -5559,13 +5957,17 @@
           },
           "replace": {
             "type": "boolean"
+          },
+          "role": {
+            "type": "string"
           }
         },
         "required": [
           "id",
           "created_at",
           "expires_at",
-          "replace"
+          "replace",
+          "role"
         ],
         "description": "A code still waiting, without the code."
       },
@@ -6129,6 +6531,692 @@
             "default": null
           }
         }
+      },
+      "PanelBrain": {
+        "type": "object",
+        "properties": {
+          "brain": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrainDetail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The brain paired with this firewall (role `gbrain`); null when there is none."
+          }
+        }
+      },
+      "BrainDetail": {
+        "type": "object",
+        "properties": {
+          "vmId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where the firewall reaches its vm-agent."
+          },
+          "origin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`install` or `connect`, when the brain's pairing said; null otherwise."
+          },
+          "reachable": {
+            "type": "boolean",
+            "description": "The brain's vm-agent answered."
+          },
+          "service": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceState"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "GBrain's own service, when the vm-agent answered."
+          },
+          "locked": {
+            "type": "boolean",
+            "description": "No agent can search or save: the emergency stop for everyone, or the admin's lock."
+          },
+          "lockedByAdmin": {
+            "type": "boolean",
+            "description": "The admin's lock (`PUT /api/brain/lock`)."
+          },
+          "stoppedAll": {
+            "type": "boolean",
+            "description": "The emergency stop for everyone."
+          },
+          "pages": {
+            "type": "boolean",
+            "description": "Its pages have a name, so they can be opened (`POST /api/brain/open`)."
+          },
+          "pagesUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`https://<name>` of its pages, when set."
+          },
+          "hostname": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "GBrain's version, when the brain reported it."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model set from here; null until one was."
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrainModelChoice"
+            }
+          },
+          "needsKey": {
+            "type": "boolean",
+            "description": "No OpenAI or Vercel AI Gateway key on this firewall for the brain's calls."
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrainAgent"
+            }
+          },
+          "change": {
+            "description": "Always null here: a change applies at once."
+          },
+          "gateUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What agents are given as their `gbrain` MCP entry; null when the tools gate is off."
+          },
+          "brainError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the brain could not be read, when it could not."
+          },
+          "autoSave": {
+            "$ref": "#/components/schemas/BrainAutoSave"
+          }
+        },
+        "required": [
+          "vmId",
+          "name",
+          "reachable",
+          "locked",
+          "lockedByAdmin",
+          "stoppedAll",
+          "pages",
+          "models",
+          "needsKey",
+          "agents",
+          "autoSave"
+        ]
+      },
+      "ServiceState": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "active"
+        ]
+      },
+      "BrainModelChoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "blurb": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "blurb"
+        ]
+      },
+      "BrainAgent": {
+        "type": "object",
+        "properties": {
+          "vmId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "secured": {
+            "type": "boolean",
+            "description": "The firewall can reach its vm-agent, so it can be switched on."
+          },
+          "connection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrainConnection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while it is off the brain."
+          },
+          "stopped": {
+            "type": "boolean",
+            "description": "Under the emergency stop, on its own or with everyone."
+          }
+        },
+        "required": [
+          "vmId",
+          "name",
+          "running",
+          "secured",
+          "stopped"
+        ]
+      },
+      "BrainConnection": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "description": "`read` or `read_write`."
+          },
+          "since": {
+            "type": "string",
+            "description": "When it was switched on (ISO)."
+          },
+          "autoCapture": {
+            "type": "boolean",
+            "description": "Always false here: \"Save what it learns automatically\" is not on a standalone firewall."
+          }
+        },
+        "required": [
+          "scope",
+          "since",
+          "autoCapture"
+        ]
+      },
+      "BrainAutoSave": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "reason"
+        ]
+      },
+      "BrainOverview": {
+        "type": "object",
+        "properties": {
+          "hours": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "ISO hour starts of the 24 points."
+          },
+          "searches": {
+            "$ref": "#/components/schemas/BrainCount"
+          },
+          "saves": {
+            "$ref": "#/components/schemas/BrainCount",
+            "description": "Saves that went through."
+          },
+          "answerMs": {
+            "$ref": "#/components/schemas/BrainAnswerMs"
+          },
+          "lastSavedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrainReading"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest reading of the brain's counts; null until the brain sends one."
+          },
+          "feed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrainFeedItem"
+            },
+            "description": "Newest first: an agent's saves per quarter hour, and how the counts per kind moved."
+          },
+          "growth": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrainGrowthDay"
+            },
+            "description": "30 days, oldest first, ending today."
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrainAgentUsage"
+            },
+            "description": "Searches and saves per agent over 30 days, busiest first."
+          }
+        },
+        "required": [
+          "hours",
+          "searches",
+          "saves",
+          "answerMs",
+          "feed",
+          "growth",
+          "agents"
+        ]
+      },
+      "BrainCount": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "yesterday": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0,
+            "description": "Yesterday up to the same time of day."
+          },
+          "hourly": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "description": "The last 24 hours, oldest first, as `hours`."
+          }
+        },
+        "required": [
+          "today",
+          "yesterday",
+          "hourly"
+        ]
+      },
+      "BrainAnswerMs": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "hourly": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        },
+        "required": [
+          "hourly"
+        ]
+      },
+      "BrainReading": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "pageCount": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "chunkCount": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "byType": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            }
+          },
+          "diskUsedBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          },
+          "diskFreeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "at",
+          "pageCount",
+          "chunkCount",
+          "byType"
+        ]
+      },
+      "BrainFeedItem": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "saves"
+              },
+              "id": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "agentVmId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "agentName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "count": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "at",
+              "count"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "changes"
+              },
+              "id": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "changes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BrainTypeChange"
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "at",
+              "changes"
+            ]
+          }
+        ]
+      },
+      "BrainTypeChange": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "The key: the panel names it."
+          },
+          "delta": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "delta"
+        ]
+      },
+      "BrainGrowthDay": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "`YYYY-MM-DD`, UTC."
+          },
+          "pages": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0,
+            "description": "Pages at the day's last reading; null before the first one."
+          },
+          "saves": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "day",
+          "saves"
+        ]
+      },
+      "BrainAgentUsage": {
+        "type": "object",
+        "properties": {
+          "vmId": {
+            "type": "string"
+          },
+          "searches": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "saves": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "lastAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "vmId",
+          "searches",
+          "saves"
+        ]
+      },
+      "BrainAgentScope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/BrainScope"
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "BrainScope": {
+        "type": "string",
+        "enum": [
+          "read",
+          "read_write"
+        ]
+      },
+      "BrainLockBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "locked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "locked"
+        ]
+      },
+      "BrainModelView": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model last set from here; null until one was (the brain's own default then)."
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrainModelChoice"
+            }
+          }
+        },
+        "required": [
+          "models"
+        ]
+      },
+      "BrainModelBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "model"
+        ]
+      },
+      "BrainPagesView": {
+        "type": "object",
+        "properties": {
+          "hostname": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hostname",
+          "url"
+        ]
+      },
+      "BrainPagesBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "hostname": {
+            "type": "string",
+            "description": "A name with a dot and no port (`brain.example.com`), served on 443 by HTTPS in front of\n`BRAIN_PAGES_BIND`; the brain's own `vm_hostname` must be the same."
+          }
+        },
+        "required": [
+          "hostname"
+        ]
+      },
+      "BrainOpenBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "page": {
+            "$ref": "#/components/schemas/BrainPage"
+          }
+        },
+        "required": [
+          "page"
+        ]
+      },
+      "BrainPage": {
+        "type": "string",
+        "enum": [
+          "pages",
+          "lately",
+          "ask",
+          "import",
+          "export",
+          "admin"
+        ],
+        "description": "Pages, Lately, Ask, Import and Export each open on the brain's Pages, where the others are a\nclick away; `admin` is GBrain's own admin page."
       },
       "ChannelsView": {
         "type": "object",

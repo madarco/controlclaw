@@ -3,10 +3,11 @@
 //! consult runtime check (`phone-runtime.ts`, every reviewed admission build).
 //!
 //! The patches are JavaScript source edits: exact string swaps, each file's sha256 checked before
-//! and after. They stay JavaScript; this build carries them byte for byte in `compat.json`, which
-//! `rust/conformance/cases/w8/phone-compat/gen.mts` writes from the TS tables (`--check` compares).
+//! and after. They stay JavaScript; this build carries them byte for byte in `compat.json`, first
+//! written from the retired TS vm-agent's tables and edited here since.
 //! Never patch an unknown file.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -25,7 +26,9 @@ pub struct Patch {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Compat {
-    admission_digests: Vec<String>,
+    /// Each reviewed admission build's digest, and the export its bundler gave
+    /// `tryBeginGatewayIndependentRootWorkAdmission` (`A` in 2026.11.3 and 11.4, `k` in 11.5).
+    admission_exports: BTreeMap<String, String>,
     no_reply_text: String,
     patches: Vec<Patch>,
 }
@@ -117,35 +120,57 @@ pub fn patch_plugin(install_path: &Path) -> Result<(), String> {
 static BUILD_HASH: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"-[A-Za-z0-9_-]{8}(\.mjs["'])"#).expect("regex"));
 static ADMISSION_FILE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^gateway-work-admission-[A-Za-z0-9_-]{8}\.mjs$").expect("regex"));
+/// From OpenClaw 2026.11.5 the admission module keeps its state in a module of its own.
+static ADMISSION_STATE_FILE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^gateway-work-admission-state-[A-Za-z0-9_-]{8}\.mjs$").expect("regex"));
 
 /// `phoneAdmissionDigest`: only bundler file names may vary; the code and export aliases are pinned.
-pub fn admission_digest(source: &str) -> String {
-    sha256_hex(&BUILD_HASH.replace_all(source, "-BUILDHASH$1"))
+/// The state module's code, when there is one, follows the admission module's: both are reviewed.
+pub fn admission_digest(source: &str, state: Option<&str>) -> String {
+    let code = |s: &str| BUILD_HASH.replace_all(s, "-BUILDHASH$1").into_owned();
+    sha256_hex(&(code(source) + &state.map(code).unwrap_or_default()))
 }
 
-/// `resolvePhoneAdmission`: the one gateway admission module, if its code is the reviewed one.
-pub fn resolve_admission(dir: &Path) -> Result<PathBuf, &'static str> {
-    const UNSUPPORTED: &str = "Unsupported realtime consult runtime";
-    let files: Vec<String> = std::fs::read_dir(dir)
-        .map_err(|_| UNSUPPORTED)?
+/// The one gateway admission module in OpenClaw's `dist`, if its code (with its state module's) is a
+/// reviewed build. Err `missing` when the folder or a module cannot be read, `mismatch` for none or
+/// two of either module, or code that is not reviewed.
+pub fn admission_status(dir: &Path) -> Result<PathBuf, &'static str> {
+    let names: Vec<String> = std::fs::read_dir(dir)
+        .map_err(|_| "missing")?
         .filter_map(|e| e.ok())
         .filter_map(|e| e.file_name().into_string().ok())
-        .filter(|n| ADMISSION_FILE.is_match(n))
         .collect();
-    let [only] = files.as_slice() else {
-        return Err(UNSUPPORTED);
+    let of = |re: &Regex| names.iter().filter(|n| re.is_match(n)).collect::<Vec<_>>();
+    let (admission, state) = (of(&ADMISSION_FILE), of(&ADMISSION_STATE_FILE));
+    let [only] = admission.as_slice() else {
+        return Err("mismatch");
     };
+    if state.len() > 1 {
+        return Err("mismatch");
+    }
     let path = dir.join(only);
-    let source = std::fs::read_to_string(&path).map_err(|_| UNSUPPORTED)?;
-    if !phone_admission_ok(&source) {
-        return Err(UNSUPPORTED);
+    let source = std::fs::read(&path).map_err(|_| "missing")?;
+    let state = match state.first() {
+        Some(name) => Some(std::fs::read(dir.join(name)).map_err(|_| "missing")?),
+        None => None,
+    };
+    // `readFileSync(path, "utf8")` decodes bad bytes rather than failing.
+    let state = state.as_deref().map(String::from_utf8_lossy);
+    if !phone_admission_ok(&String::from_utf8_lossy(&source), state.as_deref()) {
+        return Err("mismatch");
     }
     Ok(path)
 }
 
-/// `isReviewedAdmission`: this admission module's code is one of the reviewed builds.
-pub fn phone_admission_ok(source: &str) -> bool {
-    COMPAT.admission_digests.contains(&admission_digest(source))
+/// `resolvePhoneAdmission`: the one gateway admission module, if its code is the reviewed one.
+pub fn resolve_admission(dir: &Path) -> Result<PathBuf, &'static str> {
+    admission_status(dir).map_err(|_| "Unsupported realtime consult runtime")
+}
+
+/// `isReviewedAdmission`: this admission module's code, with its state module's, is one of the
+/// reviewed builds.
+pub fn phone_admission_ok(source: &str, state: Option<&str>) -> bool {
+    COMPAT.admission_exports.contains_key(&admission_digest(source, state))
 }
 
 /// `phonePluginItem` for the health check, with the plugin installed at `plugin_dir`: `ok` when
@@ -228,20 +253,26 @@ mod tests {
         let dir = tempfile::tempdir().expect("dir");
         let d = dir.path();
         assert_eq!(phone_patch_status(d), ("mismatch", None));
-        std::fs::write(d.join("package.json"), r#"{"version":"2026.9.9"}"#).expect("w");
-        assert_eq!(phone_patch_status(d), ("mismatch", Some(serde_json::json!("2026.9.9"))));
+        // The version before this pin is another version.
         std::fs::write(d.join("package.json"), r#"{"version":"2026.9.7"}"#).expect("w");
-        assert_eq!(phone_patch_status(d), ("missing", Some(serde_json::json!("2026.9.7"))));
+        assert_eq!(phone_patch_status(d), ("mismatch", Some(serde_json::json!("2026.9.7"))));
+        let pinned = serde_json::json!(super::super::apply::PHONE_VERSION);
+        std::fs::write(
+            d.join("package.json"),
+            serde_json::json!({"version": pinned}).to_string(),
+        )
+        .expect("w");
+        assert_eq!(phone_patch_status(d), ("missing", Some(pinned.clone())));
         let setup = d.join("dist").join(".setup");
         std::fs::create_dir_all(&setup).expect("dir");
         for p in patches() {
             std::fs::write(setup.join(&p.file), "not the reviewed source").expect("w");
         }
-        assert_eq!(phone_patch_status(d), ("mismatch", Some(serde_json::json!("2026.9.7"))));
+        assert_eq!(phone_patch_status(d), ("mismatch", Some(pinned)));
         // A version that is not text is passed on as it is.
         std::fs::write(d.join("package.json"), r#"{"version":2026}"#).expect("w");
         assert_eq!(phone_patch_status(d), ("mismatch", Some(serde_json::json!(2026))));
-        assert!(!phone_admission_ok("not the reviewed module"));
+        assert!(!phone_admission_ok("not the reviewed module", None));
     }
 
     /// "plugin upgrades resume every reviewed stage, including already patched older installs".
@@ -269,7 +300,12 @@ mod tests {
             }
             last.insert(&p.file, &p.after);
         }
-        assert_eq!(patches().len(), 9);
+        // Voice-call 2026.11.3 on four files, and one later stage on the consult's file (the
+        // admission builds of OpenClaw 2026.11.5), so a plugin patched by the release before goes on
+        // from where it is.
+        assert_eq!(patches().len(), 5);
+        let files: std::collections::HashSet<&str> = patches().iter().map(|p| p.file.as_str()).collect();
+        assert_eq!(files.len(), 4);
         assert!(no_reply_text().starts_with("Sorry"));
     }
 
@@ -279,35 +315,47 @@ mod tests {
         let setup = dir.path().join("dist").join(".setup");
         std::fs::create_dir_all(&setup).expect("dir");
         for name in [
-            "runtime-entry-BNOQRXii.mjs",
-            "response-generator-BzKrJMEb.mjs",
-            "twilio-Bp3gfmUB.mjs",
+            "runtime-entry-Cy51Uayg.mjs",
+            "response-generator-CZJCHbml.mjs",
+            "twilio-CrPMFGbz.mjs",
         ] {
             std::fs::write(setup.join(name), "not the pinned source").expect("file");
         }
         assert!(patch_plugin(dir.path()).is_err());
         // Nothing was written, and the missing file is an error too.
         assert_eq!(
-            std::fs::read_to_string(setup.join("twilio-Bp3gfmUB.mjs")).expect("file"),
+            std::fs::read_to_string(setup.join("twilio-CrPMFGbz.mjs")).expect("file"),
             "not the pinned source"
         );
     }
 
-    /// `phone-runtime.test.ts`: OpenClaw 2026.9.7's admission module and 9.8's (only an import
-    /// changed) are accepted; two at once, none, or changed code are refused.
+    fn fixture(name: &str) -> String {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/phone/fixtures")
+            .join(name);
+        std::fs::read_to_string(path).expect("fixture")
+    }
+
+    /// `phone-runtime.test.ts`: OpenClaw 2026.11.3's admission module is accepted, also under
+    /// other bundler names; two at once, none, or changed code are refused.
     #[test]
     fn admission_runtime() {
-        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../packages/vm-agent/src/phone-admission.fixture.txt");
-        let original = std::fs::read_to_string(fixture).expect("fixture");
-        let upgraded = original.replace("./subsystem-SFVirYCI.mjs", "./subsystem-CeqVSEVi.mjs");
+        let original = fixture("phone-admission-2026.11.3.fixture.txt");
+        let upgraded = original.replace("./subsystem-mStysHHC.mjs", "./subsystem-AbCd1234.mjs");
+        assert_ne!(original, upgraded);
         for (name, source) in [
-            ("gateway-work-admission-DPOFUg7J.mjs", &original),
+            ("gateway-work-admission-FWbk4b3p.mjs", &original),
             ("gateway-work-admission-B4bQUVQ6.mjs", &upgraded),
         ] {
             let dir = tempfile::tempdir().expect("dir");
-            assert_eq!(admission_digest(source), COMPAT.admission_digests[0]);
-            assert!(phone_admission_ok(source));
+            assert_eq!(
+                COMPAT
+                    .admission_exports
+                    .get(&admission_digest(source, None))
+                    .map(String::as_str),
+                Some("A")
+            );
+            assert!(phone_admission_ok(source, None));
             std::fs::write(dir.path().join(name), source).expect("file");
             assert_eq!(resolve_admission(dir.path()), Ok(dir.path().join(name)));
             std::fs::write(dir.path().join("gateway-work-admission-Xxxxxxxx.mjs"), source).expect("file");
@@ -320,27 +368,94 @@ mod tests {
             resolve_admission(dir.path()),
             Err("Unsupported realtime consult runtime")
         );
+        assert!(!phone_admission_ok(&original.replacen("export", "export ", 1), None));
         // Only the bundler's 8-character names change the source; they do not change the digest.
         assert_eq!(
-            admission_digest(r#"import "./chunk-AbCd1234.mjs";"#),
-            admission_digest(r#"import "./chunk-ZyXw9876.mjs";"#)
+            admission_digest(r#"import "./chunk-AbCd1234.mjs";"#, None),
+            admission_digest(r#"import "./chunk-ZyXw9876.mjs";"#, None)
         );
-        assert_ne!(admission_digest("a"), admission_digest("b"));
+        assert_ne!(admission_digest("a", None), admission_digest("b", None));
     }
 
+    /// The plugin is pinned to 2026.11.3, which needs OpenClaw 2026.11.3: the 9.x admission modules
+    /// (9.7/9.8, 9.33 to 9.37) are no longer reviewed builds.
     #[test]
-    fn openclaw_2026_9_35s_admission_module_is_a_reviewed_build() {
-        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../packages/vm-agent/src/phone-admission-2026.9.35.fixture.txt");
-        let source = std::fs::read_to_string(fixture).expect("fixture");
-        assert!(phone_admission_ok(&source));
-        assert_ne!(admission_digest(&source), COMPAT.admission_digests[0]);
-        assert!(!phone_admission_ok(&source.replacen("export", "export ", 1)));
-        // The plugin is moved on to accept them: the last stage of its file.
-        assert!(patches().iter().any(|p| {
-            p.changes
-                .iter()
-                .any(|(_, a)| a.contains(COMPAT.admission_digests[2].as_str()))
-        }));
+    fn older_admission_modules_are_refused() {
+        for name in ["phone-admission.fixture.txt", "phone-admission-2026.9.35.fixture.txt"] {
+            assert!(!phone_admission_ok(&fixture(name), None), "{name}");
+        }
+        assert_eq!(COMPAT.admission_exports.len(), 2);
+    }
+
+    /// OpenClaw 2026.11.5 moved the admission state to a module of its own and minified the names;
+    /// the function and what it returns are unchanged, and its export is `k` (`A` is now
+    /// `tryBeginGatewayPreparedRestartRootWorkAdmission`, which the consult must never call).
+    #[test]
+    fn admission_2026_11_5() {
+        let source = fixture("phone-admission-2026.11.5.fixture.txt");
+        let state = fixture("phone-admission-state-2026.11.5.fixture.txt");
+        assert!(phone_admission_ok(&source, Some(&state)));
+        assert_eq!(
+            COMPAT
+                .admission_exports
+                .get(&admission_digest(&source, Some(&state)))
+                .map(String::as_str),
+            Some("k")
+        );
+        // The admission module alone, or with a state module that is not the reviewed one, is not.
+        assert!(!phone_admission_ok(&source, None));
+        assert!(!phone_admission_ok(
+            &source,
+            Some(&state.replacen("e.signal", "e.signal ", 1))
+        ));
+        assert!(source.contains("tryBeginGatewayIndependentRootWorkAdmission as k,"));
+        assert!(source.contains("tryBeginGatewayPreparedRestartRootWorkAdmission as A,"));
+        let dir = tempfile::tempdir().expect("dir");
+        let main = dir.path().join("gateway-work-admission-C_AYjV_d.mjs");
+        std::fs::write(&main, &source).expect("file");
+        assert_eq!(
+            admission_status(dir.path()),
+            Err("mismatch"),
+            "its state module is missing"
+        );
+        // The state module is read with it, and is not a second admission module.
+        std::fs::write(dir.path().join("gateway-work-admission-state-X3ZM0tLe.mjs"), &state).expect("file");
+        assert_eq!(resolve_admission(dir.path()), Ok(main.clone()));
+        std::fs::write(dir.path().join("gateway-work-admission-state-Ab12Cd34.mjs"), &state).expect("file");
+        assert_eq!(admission_status(dir.path()), Err("mismatch"), "two state modules");
+        assert_eq!(admission_status(&dir.path().join("none")), Err("missing"));
+    }
+
+    /// The patched consult, at its last stage, checks the same builds and imports the export each
+    /// gives `tryBeginGatewayIndependentRootWorkAdmission` (`A` in 11.3/11.4, `k` in 11.5; it was
+    /// `E` up to 9.37).
+    #[test]
+    fn the_consult_stage_checks_the_reviewed_digests() {
+        let map = serde_json::to_string(&COMPAT.admission_exports).expect("json");
+        let consult = patches()
+            .iter()
+            .flat_map(|p| p.changes.iter())
+            .filter(|(_, a)| a.contains("beginPhoneConsult"))
+            .map(|(_, a)| a.as_str())
+            .next_back()
+            .expect("consult change");
+        assert!(
+            consult.contains(&format!("const admissionExport = {map}[createHash(")),
+            "{consult}"
+        );
+        assert!(consult.contains("if (!admissionExport) throw new Error(\"Unsupported realtime consult runtime\");"));
+        assert!(consult.contains("const { [admissionExport]: beginPhoneConsult } = await import(admissionPath);"));
+    }
+
+    /// The stock voice-call 2026.11.3 file goes through both stages, and a file patched by the
+    /// release before (its first stage only) is brought to the same result.
+    #[test]
+    fn the_consult_file_reaches_its_last_stage() {
+        let steps: Vec<&Patch> = patches()
+            .iter()
+            .filter(|p| p.file.starts_with("runtime-entry-"))
+            .collect();
+        assert_eq!(steps.len(), 2);
+        assert_eq!(steps[1].before, steps[0].after);
     }
 }

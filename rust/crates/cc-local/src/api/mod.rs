@@ -25,6 +25,7 @@ use crate::plane::{BoxFuture, LocalControlPlane};
 
 pub mod accounts;
 pub mod activity;
+pub mod brain;
 pub mod channels;
 pub mod controls;
 pub mod egress;
@@ -431,6 +432,7 @@ pub fn routes() -> Vec<Route> {
         rules::routes(),
         security::routes(),
         controls::routes(),
+        brain::routes(),
         channels::routes(),
         integrations::routes(),
         accounts::routes(),

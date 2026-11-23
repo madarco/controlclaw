@@ -62,6 +62,10 @@ const TEXT_KEYS: &[&str] = &[
     "quote",
     "label",
     "options",
+    // Telegram's widgets (OpenClaw 2026.11.5's `show_widget`): `sendWidget` carries the agent's
+    // HTML and its state, `editMessageWidgetData` the state.
+    "html",
+    "chat_data",
 ];
 /// Who sent a message and where, never its words (`_TG_IN_SKIP`): a name is not checked, or every
 /// message from a person whose name holds a blocked word would be stopped.
@@ -612,6 +616,7 @@ pub fn texts(value: &Value, under: bool, out: &mut Vec<String>, depth: usize, ke
         Value::Object(m) => {
             for (k, v) in m {
                 texts(v, under || keys.contains(&k.as_str()), out, depth + 1, keys)?;
+                html_words(k, v, keys, out);
             }
         }
         Value::Array(a) => {
@@ -633,8 +638,17 @@ pub fn text_of(fields: &[(String, Value)], keys: &[&str]) -> Result<String, Text
     let mut out = Vec::new();
     for (k, v) in fields {
         texts(v, keys.contains(&k.as_str()), &mut out, 0, keys)?;
+        html_words(k, v, keys, &mut out);
     }
     Ok(out.join("\n"))
+}
+
+/// A widget's HTML is also read as the words it shows, as an email's is (`mime::html_text`): a tag
+/// or an entity inside a phrase does not hide it.
+fn html_words(k: &str, v: &Value, keys: &[&str], out: &mut Vec<String>) {
+    if let (true, Value::String(s)) = (k == "html" && keys.contains(&"html"), v) {
+        out.push(super::mime::html_text(s));
+    }
 }
 
 // ---- taps ---------------------------------------------------------------------------------------
@@ -852,6 +866,15 @@ fn update_text(u: &Value, bot_id: &str) -> UpdateText {
             continue;
         }
         in_texts(v, in_key(k), &mut out, bot_id, 1)?;
+    }
+    // A widget's request (`TelegramWidget.request`), which OpenClaw 2026.11.5 hands the agent as
+    // `widget_request: <data>`. A button's `callback_data` is not read: the agent chose it.
+    if let Some(data) = u
+        .get("widget_query")
+        .and_then(|w| w.get("data"))
+        .and_then(Value::as_str)
+    {
+        out.push(data.to_owned());
     }
     // A button tap's chat is on the message it was tapped under.
     let chat = match (body.get("chat"), body.get("message")) {

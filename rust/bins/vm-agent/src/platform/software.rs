@@ -155,7 +155,7 @@ pub fn firewall_origin(state_dir: &Path) -> Option<String> {
     }
 }
 
-const AGENT_FEATURES: [&str; 24] = [
+const AGENT_FEATURES: [&str; 25] = [
     "logs_page",
     "whatsapp_page",
     "meetings_page",
@@ -181,6 +181,8 @@ const AGENT_FEATURES: [&str; 24] = [
     "storage_grow",
     // OpenClaw's approvals go to the firewall's gate, which checks the Auto approve rules.
     "approvals_via_firewall",
+    // `POST /openclaw/doctor` (openclaw_doctor.rs): Run OpenClaw doctor on the Doctor tab.
+    "openclaw_doctor",
 ];
 
 /// `boxSoftware()`: the object reported on `/ready` and `/status`, in the TS key order.
@@ -199,6 +201,9 @@ pub fn box_software(app: &App, console_mcp: bool, doctor_fingerprint: Option<&st
     }
     if !brain {
         features.extend(AGENT_FEATURES);
+    } else {
+        // Outside AI apps on the brain's own MCP address (gbrain/oauth.rs).
+        features.push("brain_clients");
     }
     if Path::new("/etc/controlclaw/disk-partners").exists() {
         features.push("disk_partners");
@@ -219,6 +224,13 @@ pub fn box_software(app: &App, console_mcp: bool, doctor_fingerprint: Option<&st
     // The role moved this vm-agent to 3102; a box without it is one 3100 is still kept for.
     if app.config.port == crate::app::PORT {
         features.push("agent_port_3102");
+    }
+    // The brain's own pages (`gbrain/pages`): this build serves them, the role installed the helper
+    // they need for GBrain's token, export and import, and the page bundle shipped with this build
+    // (they are staged separately). The override is for tests: sudo runs only the fixed path.
+    let pages_helper = std::env::var("CC_GBRAIN_PAGES_HELPER").unwrap_or_else(|_| crate::gbrain::pages::HELPER.into());
+    if brain && Path::new(&pages_helper).exists() && crate::boxside::access::ui_dir().join("brain.js").exists() {
+        features.push("brain_pages");
     }
     let release = std::env::var("RELEASE_FILE").unwrap_or_else(|_| RELEASE_PATH.into());
     json!({

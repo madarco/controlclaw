@@ -418,6 +418,62 @@ impl Drive {
     }
 }
 
+/// The Drive section of ControlClaw's instructions (platform::controlclaw_agents), or None when the
+/// agent has no folders. The folders are mounted outside the workspace (`/home/controlclaw/drive/<name>`,
+/// T-oc114): OpenClaw's doctor opens every file under its state folder, and a Drive folder in the
+/// workspace made each of those a download. The agent learns the paths from this section, which the
+/// role's cc-instructions plugin puts in every run. `mounts` is `(name, absolute path, mode)`
+/// in the order the set lists them.
+pub fn agents_section(mounts: &[(String, String, String)]) -> Option<String> {
+    if mounts.is_empty() {
+        return None;
+    }
+    let mut lines = vec![
+        "## Google Drive folders".to_string(),
+        String::new(),
+        "These Google Drive folders are mounted on this computer, outside your workspace. Use them by \
+         their full path; files you save in a read-write folder are saved to Drive."
+            .to_string(),
+        String::new(),
+    ];
+    for (name, path, mode) in mounts {
+        let access = if mode == "rw" { "read-write" } else { "read-only" };
+        lines.push(format!("- {name}: `{path}` ({access})"));
+    }
+    Some(lines.join("\n"))
+}
+
+impl Drive {
+    /// The folders the agent should be told about: those in the reconciled set while the
+    /// organization's Google connection works (unmounted folders are empty directories otherwise).
+    fn told_mounts(&self) -> Vec<(String, String, String)> {
+        let Some(state) = self.read_state() else {
+            return Vec::new();
+        };
+        if !state.connected {
+            return Vec::new();
+        }
+        let modes = self.modes();
+        state
+            .mounts
+            .iter()
+            .filter_map(|m| {
+                let name = m.get("name")?.as_str()?.to_string();
+                let path = m.get("path")?.as_str()?.to_string();
+                let mode = modes.get(&name).and_then(Value::as_str).unwrap_or("ro").to_string();
+                Some((name, path, mode))
+            })
+            .collect()
+    }
+
+    /// Bring the Drive section of ControlClaw's instructions in line with the mounts. Ok(true) when
+    /// the file was written.
+    pub fn sync_agents(&self, ours: &crate::platform::controlclaw_agents::Instructions) -> Result<bool, String> {
+        let section = agents_section(&self.told_mounts());
+        ours.update(|text| crate::platform::controlclaw_agents::with_section(text, "drive", section.as_deref()))
+    }
+}
+
 /// `${v}` in a template literal, for a field that may be missing.
 fn js_template(v: Option<&Value>) -> String {
     match v {

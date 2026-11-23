@@ -11,7 +11,7 @@ use std::time::Duration;
 use serde_json::{Map, Value, json};
 
 /// The page types that may reach the console by name: the ones GBrain's built-in schema pack
-/// `gbrain-base` declares (v0.60.10.0). A page's type comes from its frontmatter, which an agent
+/// `gbrain-base` declares (v0.60.723.0). A page's type comes from its frontmatter, which an agent
 /// writes, so any other name could be text from the brain; every other type is counted in `other`.
 pub const BASE_PAGE_TYPES: &[&str] = &[
     "person",
@@ -41,6 +41,7 @@ pub const BASE_PAGE_TYPES: &[&str] = &[
     "image",
     "synthesis",
     "extract_receipt",
+    "question",
 ];
 static BASE: LazyLock<HashSet<&'static str>> = LazyLock::new(|| BASE_PAGE_TYPES.iter().copied().collect());
 pub const STATS_EVERY: Duration = Duration::from_secs(15 * 60);
@@ -125,7 +126,7 @@ pub fn brain_disk(paths: &[&std::path::Path]) -> Option<Disk> {
 mod tests {
     use super::*;
 
-    pub const FULL: &str = r#"{"status":"ok","version":"0.60.10.0","engine":"postgres","page_count":10000,"chunk_count":10000,"embedded_count":0,"link_count":0,"tag_count":20,"timeline_entry_count":0,"pages_by_type":{"project":2022,"person":1606,"company":911}}"#;
+    pub const FULL: &str = r#"{"status":"ok","version":"0.60.723.0","engine":"postgres","page_count":10000,"chunk_count":10000,"embedded_count":0,"link_count":0,"tag_count":20,"timeline_entry_count":0,"pages_by_type":{"project":2022,"person":1606,"company":911,"question":7}}"#;
 
     #[test]
     fn stats_become_a_record_of_counts_and_type_names() {
@@ -136,7 +137,7 @@ mod tests {
             json!({
                 "source": "brain_stats", "ts": 1_760_000_000i64, "page_count": 10000, "chunk_count": 10000,
                 "embedded_count": 0, "link_count": 0, "tag_count": 20, "timeline_entry_count": 0,
-                "pages_by_type": {"project": 2022, "person": 1606, "company": 911},
+                "pages_by_type": {"project": 2022, "person": 1606, "company": 911, "question": 7},
                 "disk_used_bytes": null, "disk_free_bytes": null,
             })
         );

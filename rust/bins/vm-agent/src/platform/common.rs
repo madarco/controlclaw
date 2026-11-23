@@ -120,6 +120,23 @@ pub struct CliWrite {
     pub args: Vec<String>,
     pub stdin: Option<String>,
     pub timeout: Duration,
+    /// Set for this run only (the proxy's CA for a CLI that reaches npm).
+    pub env: Vec<(&'static str, String)>,
+    /// Keep everything it printed, on success and on failure, instead of stdout or the failure's
+    /// last line: Run OpenClaw doctor shows it.
+    pub whole_output: bool,
+}
+
+impl CliWrite {
+    pub fn new(args: &[&str], stdin: Option<String>, timeout: Duration) -> Self {
+        Self {
+            args: args.iter().map(|a| a.to_string()).collect(),
+            stdin,
+            timeout,
+            env: Vec::new(),
+            whole_output: false,
+        }
+    }
 }
 
 /// What an [`OfflineRun`] did: each write's result, in order, and whether OpenClaw started again.
@@ -297,15 +314,7 @@ impl Deps {
         stdin: Option<String>,
         env: &[(&str, String)],
     ) -> Result<String, String> {
-        let mut cmd = Cmd::new(program)
-            .args(args.iter().copied())
-            .timeout(timeout)
-            .env("HOME", self.home.to_string_lossy().to_string());
-        for (k, v) in env {
-            cmd = cmd.env(*k, v.clone());
-        }
-        // Node's execFile always opens stdin and ends it, with the data when there is some.
-        cmd = cmd.stdin(stdin.unwrap_or_default());
+        let cmd = self.cli_cmd(program, args, timeout, stdin, env);
         match self.runner.run(cmd).await {
             Ok(out) if out.success() => Ok(out.stdout_str()),
             Ok(out) => {
@@ -316,9 +325,67 @@ impl Deps {
         }
     }
 
+    /// A CLI run as the box user, `HOME` set: what [`Self::exec`] and [`Self::exec_write`] run.
+    fn cli_cmd(
+        &self,
+        program: &str,
+        args: &[&str],
+        timeout: Duration,
+        stdin: Option<String>,
+        env: &[(&str, String)],
+    ) -> Cmd {
+        let mut cmd = Cmd::new(program)
+            .args(args.iter().copied())
+            .timeout(timeout)
+            .env("HOME", self.home.to_string_lossy().to_string());
+        for (k, v) in env {
+            cmd = cmd.env(*k, v.clone());
+        }
+        // Node's execFile always opens stdin and ends it, with the data when there is some.
+        cmd.stdin(stdin.unwrap_or_default())
+    }
+
+    /// One [`CliWrite`] as [`Self::exec`] runs it, or with everything it printed when the write
+    /// asks for it (`whole_output`): Ok with the output on success, Err with it otherwise.
+    pub async fn exec_write(&self, program: &str, w: &CliWrite) -> Result<String, String> {
+        let args: Vec<&str> = w.args.iter().map(String::as_str).collect();
+        let env: Vec<(&str, String)> = w.env.iter().map(|(k, v)| (*k, v.clone())).collect();
+        if !w.whole_output {
+            return self.exec(program, &args, w.timeout, w.stdin.clone(), &env).await;
+        }
+        let cmd = self.cli_cmd(program, &args, w.timeout, w.stdin.clone(), &env);
+        match self.runner.run(cmd).await {
+            Ok(out) => {
+                let text = whole_output(&out);
+                if out.success() { Ok(text) } else { Err(text) }
+            }
+            Err(e) => Err(spawn_message(program, &e)),
+        }
+    }
+
     pub async fn restart(&self) -> Result<(), String> {
         (self.restart)().await
     }
+}
+
+/// stdout then stderr, and how it ended when that was not a plain exit 0.
+pub fn whole_output(out: &cc_proc::Output) -> String {
+    let mut text = out.stdout_str();
+    let err = out.stderr_str();
+    if !err.trim().is_empty() {
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+        text.push_str(&err);
+    }
+    if out.timed_out {
+        text.push_str("\n[stopped: it ran out of time]\n");
+    } else if let Some(code) = out.code.filter(|c| *c != 0) {
+        text.push_str(&format!("\n[exit code {code}]\n"));
+    } else if out.code.is_none() {
+        text.push_str("\n[stopped by a signal]\n");
+    }
+    text
 }
 
 /// Node's message for a program that could not be started (`spawn <program> ENOENT`), which the

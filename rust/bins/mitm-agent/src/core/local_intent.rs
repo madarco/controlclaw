@@ -32,6 +32,16 @@ pub const PAGES: &[(&str, &str)] = &[
     ("logins", "/__cc/logins/open"),
 ];
 
+/// The brain's pages (docs/plans/standalone-brain.md, "the brain's own pages"): a local link enrolls
+/// the browser on this firewall, which then sends it to the brain's own Open with a fresh intent for
+/// the brain, and the `next` the brain lands on: `files` its pages, `chat` GBrain's admin page.
+pub const BRAIN_PAGES: &[(&str, &str)] = &[("brain", "files"), ("brain-admin", "chat")];
+
+/// The brain's `next` for a local page name, when it is one of [`BRAIN_PAGES`].
+pub fn brain_next(page: &str) -> Option<&'static str> {
+    BRAIN_PAGES.iter().find(|(n, _)| *n == page).map(|(_, next)| *next)
+}
+
 /// Make the key pair if there is none, write the public half if it went missing (the page check
 /// reads that file), and record whom the links are for. The public PEM.
 pub fn ensure(keys_dir: &Path, org_id: &str, box_id: &str) -> Option<String> {
@@ -82,7 +92,9 @@ pub fn mint(keys_dir: &Path, org_id: &str, box_id: &str, next: &str) -> Result<S
 /// The link a browser opens: `https://<hostname>/__cc/local/open#i=<intent>`, which enrolls the
 /// browser and goes on to the page (`local_open`).
 pub fn link(hostname: &str, next: &str, intent: &str) -> Option<String> {
-    PAGES.iter().find(|(n, _)| *n == next)?;
+    if brain_next(next).is_none() {
+        PAGES.iter().find(|(n, _)| *n == next)?;
+    }
     Some(format!(
         "https://{}{}#i={intent}",
         hostname.to_lowercase(),

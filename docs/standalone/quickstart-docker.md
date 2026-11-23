@@ -26,7 +26,7 @@ It prints OpenClaw's address, then its checks (each line starts with ✓), then 
 panel. On a machine with no desktop, it prints the panel's address instead:
 
 ```text
-OpenClaw runs in Docker (ghcr.io/openclaw/openclaw:2026.10.9), its files in /home/you/openclaw.
+OpenClaw runs in Docker (ghcr.io/openclaw/openclaw:2026.11.5), its files in /home/you/openclaw.
   Control UI: http://127.0.0.1:18789/#token=…
   From another machine: ssh -L 18789:127.0.0.1:18789 <this machine>
 …

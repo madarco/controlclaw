@@ -39,10 +39,10 @@ export const UP_PROJECT = "controlclaw-firewall";
 export const UP_GATEWAY_IP = "172.31.251.10";
 const AGENT_LISTEN = `${HOST_OUTSIDE_IP}:${AGENT_PORT}`;
 const PAIR_URL = "http://127.0.0.1:8801/";
-/** Published on this machine's loopback: the panel, pairing, the pages. */
-const LOOPBACK_PORTS = [8800, 8801, 8790];
+/** Published on this machine's loopback: the panel, pairing, the pages, the brain's pages. */
+const LOOPBACK_PORTS = [8800, 8801, 8790, 8803];
 /** The firewall's own ports in its container: a gateway port it would publish must be none of them. */
-const FIREWALL_PORTS = [53, 3100, 3101, 3900, 3940, 8080, 8790, 8800, 8801];
+const FIREWALL_PORTS = [53, 3100, 3101, 3900, 3940, 8080, 8790, 8800, 8801, 8803];
 /** Published on `--listen` for other machines: the proxy, pairing, the gates. DNS (53) besides. */
 const LISTEN_PORTS = [8080, 8801, 3900, 3940];
 

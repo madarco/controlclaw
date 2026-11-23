@@ -217,6 +217,16 @@
   --chart-3: var(--ask);
   --chart-4: var(--block);
   --chart-5: oklch(0.62 0.16 265);
+  /* Categorical series for charts with several kinds (AI usage: agents in the order 1, 2, 3, 5, 6,
+     the firewall 4). Checked with the dataviz validator against both surfaces in that order; not
+     status colours. `--series-other` is the neutral for "N other agents". */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #6250d6;
+  --series-6: #e87ba4;
+  --series-other: #c4c0b6;
   --sidebar: var(--surface);
   --sidebar-foreground: var(--ink);
   --sidebar-primary: var(--brand);
@@ -294,6 +304,13 @@
   --chart-3: var(--ask);
   --chart-4: var(--block);
   --chart-5: oklch(0.78 0.15 265);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #9085e9;
+  --series-6: #d55181;
+  --series-other: #5d6272;
   --sidebar: var(--surface);
   --sidebar-foreground: var(--ink);
   --sidebar-primary: var(--brand);

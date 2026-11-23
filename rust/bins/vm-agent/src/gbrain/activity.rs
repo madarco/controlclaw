@@ -28,6 +28,8 @@ use super::now_ms;
 use super::stats::{Disk, STATS_EVERY, map_brain_stats};
 
 static AGENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^cc-([A-Za-z0-9_-]{1,64})$").expect("regex"));
+/// An outside app's token (`clients.rs`): `cc-client-<the console's id>`.
+static CLIENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^cc-client-([A-Za-z0-9_-]{1,48})$").expect("regex"));
 static COOKIE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"gbrain_admin=([^;,\s]+)").expect("regex"));
 const QUEUE_MAX: usize = 2000;
 const BATCH: usize = 200;
@@ -98,11 +100,16 @@ fn num(n: f64) -> Value {
 }
 
 /// One `data:` line of GBrain's admin feed, as a record. `None` for anything that is not an
-/// agent's call.
+/// agent's or an outside app's call.
 pub fn map_brain_event(data: &str) -> Option<Value> {
     let ev: Value = serde_json::from_str(data).ok()?;
     let agent_raw = ev.get("agent").and_then(Value::as_str);
+    let client = agent_raw
+        .and_then(|a| CLIENT.captures(a))
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_string());
     let agent = agent_raw
+        .filter(|_| client.is_none())
         .and_then(|a| AGENT.captures(a))
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_string());
@@ -115,9 +122,10 @@ pub fn map_brain_event(data: &str) -> Option<Value> {
     let at = ts_raw.and_then(parse_iso);
     // Only calls through the gate; MCP's own protocol methods (`tools/list`) are not something the
     // agent did.
-    let (Some(agent), Some(at)) = (agent, at) else {
+    if agent.is_none() && client.is_none() {
         return None;
-    };
+    }
+    let at = at?;
     if operation.is_empty() || operation.contains('/') {
         return None;
     }
@@ -134,7 +142,7 @@ pub fn map_brain_event(data: &str) -> Option<Value> {
         latency.map(|l| l.to_string()).unwrap_or_default()
     );
     let call_id = hex::encode(Sha256::digest(id_src.as_bytes()))[..40].to_string();
-    Some(json!({
+    let mut rec = json!({
         "source": "brain_call",
         "call_id": call_id,
         "ts": num(at / 1000.0),
@@ -143,7 +151,11 @@ pub fn map_brain_event(data: &str) -> Option<Value> {
         "ok": status.as_deref() == Some("success"),
         "status": status,
         "duration_ms": latency,
-    }))
+    });
+    if let Some(c) = client {
+        rec["client_id"] = json!(c);
+    }
+    Some(rec)
 }
 
 /// The nightly summary file, as a record. `None` when it cannot be read.
@@ -348,7 +360,8 @@ impl BrainActivity {
     }
 
     /// The brain's counts, queued for the next flush. A refused cookie is replaced once.
-    pub async fn read_stats(&self) -> Result<(), String> {
+    /// GBrain's `GET /admin/api/full-stats`, with the admin cookie (also for the brain's Pages).
+    pub async fn full_stats(&self) -> Result<Value, String> {
         for _ in 0..2 {
             let cookie = self.cookie().await?;
             let res = self
@@ -368,13 +381,17 @@ impl BrainActivity {
             if !res.status().is_success() {
                 return Err(format!("GBrain's stats answered HTTP {status}"));
             }
-            let body: Value = res.json().await.map_err(plain)?;
-            let disk = self.opts.disk.as_ref().and_then(|d| d());
-            let r = map_brain_stats(&body, now_ms(), disk).ok_or("GBrain's stats had no page count")?;
-            self.enqueue(r);
-            return Ok(());
+            return res.json().await.map_err(plain);
         }
         Err("GBrain refused the admin cookie for its stats".into())
+    }
+
+    pub async fn read_stats(&self) -> Result<(), String> {
+        let body = self.full_stats().await?;
+        let disk = self.opts.disk.as_ref().and_then(|d| d());
+        let r = map_brain_stats(&body, now_ms(), disk).ok_or("GBrain's stats had no page count")?;
+        self.enqueue(r);
+        Ok(())
     }
 
     async fn follow_loop(&self) {

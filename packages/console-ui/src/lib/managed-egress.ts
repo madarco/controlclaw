@@ -121,3 +121,27 @@ export function isRoutineRecord(r: RoutineRecordFields): boolean {
     (r.status == null || r.status < 400)
   );
 }
+
+/** The rule the firewall names on a box's own request to the control plane. */
+export const CONTROL_PLANE_RULE = "control_plane";
+/** The rule the firewall names on a box's own request to its backup store. */
+export const BACKUP_RULE = "backup_store";
+export const BOX_OWN_RULES: readonly string[] = [CONTROL_PLANE_RULE, BACKUP_RULE];
+
+/** The parts of a traffic record `isBoxOwnCall` reads, as the firewall sends them. */
+export interface BoxOwnCallFields {
+  rule?: string | null;
+  effect?: string | null;
+  rule_id?: string | null;
+}
+
+/**
+ * A box's own request the firewall let through to ControlClaw or to its backup store (the disk
+ * report, the activity upload, a backup): not the agent's doing. The same conditions as the AI log
+ * review's `is_builtin`; the Rust proxy does not record these at all. A refused one stays, and so does
+ * an owner's rule that happens to have the same name (it carries the rule's id). Activity drops these
+ * when they come in.
+ */
+export function isBoxOwnCall(r: BoxOwnCallFields): boolean {
+  return !!r.rule && BOX_OWN_RULES.includes(r.rule) && r.effect === "allow" && r.rule_id == null;
+}

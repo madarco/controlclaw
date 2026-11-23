@@ -61,6 +61,8 @@ export interface PairRequest {
   wgPublicKey?: string;
   /** `ip:port` where the vm-agent listens for the firewall's calls (the firewall's default: the agent's address, 3100). */
   agentListen?: string;
+  /** `gbrain` for the brain (`brain install`, `brain connect`): the code must be one made for it. */
+  role?: "openclaw" | "gbrain";
 }
 
 /** The tunnel, when pairing was over WireGuard. */
@@ -112,7 +114,7 @@ export async function pair(firewall: string, code: string, req: PairRequest, pos
   const nonce = randomBytes(32).toString("hex");
   if (!req.source) throw new Error("this machine's own address toward the firewall is not known");
   const unpairSha = req.unpairSecret ? createHash("sha256").update(req.unpairSecret).digest("hex") : null;
-  const text = JSON.stringify({ v: 1, nonce, agent_public_key: req.publicKey, name: req.name ?? null, source: req.source, unpair_sha256: unpairSha, wg_public_key: req.wgPublicKey ?? null, agent_listen: req.agentListen ?? null });
+  const text = JSON.stringify({ v: 1, nonce, agent_public_key: req.publicKey, name: req.name ?? null, source: req.source, unpair_sha256: unpairSha, wg_public_key: req.wgPublicKey ?? null, agent_listen: req.agentListen ?? null, ...(req.role ? { role: req.role } : {}) });
   const url = pairUrl(firewall);
   let r: { status: number; json: unknown };
   try {

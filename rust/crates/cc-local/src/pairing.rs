@@ -20,6 +20,10 @@
 //!   it and counts, so a refusal never confirms a guess for free.
 //! - The firewall keeps the plain code until it is used or expires (it needs it to check the
 //!   HMAC), in `local.db`, which only the firewall's user can read.
+//! - **What it pairs.** A code is for an OpenClaw machine (`openclaw`, the default) or for the brain
+//!   (`gbrain`, `pair-code --role gbrain`), and the request says which it is, under the proof. Only
+//!   the admin's code makes a machine the brain: a brain code pairs no agent and an agent code no
+//!   brain. One brain per firewall: a second is refused unless the code says `replace`.
 
 use std::collections::{HashMap, VecDeque};
 use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
@@ -105,6 +109,7 @@ pub struct NewCode {
     pub address: Option<String>,
     pub replace: bool,
     pub expires_at: i64,
+    pub role: String,
 }
 
 /// What the admin says about the agent a code is for.
@@ -116,9 +121,15 @@ pub struct CodeFor<'a> {
     /// The address the proxy will see the agent at, when it is not the one pairing comes from (a
     /// NAT, a container on this machine). Only the admin sets it: the agent cannot choose its own.
     pub address: Option<&'a str>,
-    /// Whether the agent may take the place of one already at its address.
+    /// Whether the agent may take the place of one already at its address (or, for the brain, the
+    /// brain this firewall has).
     pub replace: bool,
+    /// `openclaw` (default) or `gbrain`.
+    pub role: Option<&'a str>,
 }
+
+/// What a code can pair.
+pub const ROLES: &[&str] = &["openclaw", "gbrain"];
 
 /// The firewall's own address, which no agent may have.
 fn own_address(c: &rusqlite::Connection) -> rusqlite::Result<Option<String>> {
@@ -132,6 +143,10 @@ fn own_address(c: &rusqlite::Connection) -> rusqlite::Result<Option<String>> {
 
 /// A code for one agent.
 pub fn create_code(db: &Db, f: &CodeFor) -> Result<NewCode, String> {
+    let role = f.role.map(str::trim).filter(|r| !r.is_empty()).unwrap_or("openclaw");
+    if !ROLES.contains(&role) {
+        return Err(format!("role: openclaw or gbrain, not {role}"));
+    }
     let ttl = f.ttl_min.unwrap_or(TTL_DEFAULT_MIN);
     if !(1..=TTL_MAX_MIN).contains(&ttl) {
         return Err(format!("the code's lifetime is 1 to {TTL_MAX_MIN} minutes"));
@@ -167,8 +182,8 @@ pub fn create_code(db: &Db, f: &CodeFor) -> Result<NewCode, String> {
     let code = new_code();
     let expires_at = now + ttl * 60;
     c.execute(
-        "INSERT INTO pairing_codes (code, name, address, replace, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![normalize(&code), name, address, f.replace, now, expires_at],
+        "INSERT INTO pairing_codes (code, name, address, replace, created_at, expires_at, role) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![normalize(&code), name, address, f.replace, now, expires_at, role],
     )
     .map_err(|e| e.to_string())?;
     Ok(NewCode {
@@ -178,6 +193,7 @@ pub fn create_code(db: &Db, f: &CodeFor) -> Result<NewCode, String> {
         address,
         replace: f.replace,
         expires_at,
+        role: role.to_string(),
     })
 }
 
@@ -190,13 +206,14 @@ pub struct PendingCode {
     pub expires_at: i64,
     pub address: Option<String>,
     pub replace: bool,
+    pub role: String,
 }
 
 /// The codes still waiting, without the codes.
 pub fn list_pending(db: &Db) -> rusqlite::Result<Vec<PendingCode>> {
     let c = db.lock();
     let mut q = c.prepare(
-        "SELECT id, name, created_at, expires_at, address, replace FROM pairing_codes WHERE expires_at > ?1 ORDER BY id",
+        "SELECT id, name, created_at, expires_at, address, replace, role FROM pairing_codes WHERE expires_at > ?1 ORDER BY id",
     )?;
     let rows = q
         .query_map([now_s()], |r| {
@@ -207,6 +224,7 @@ pub fn list_pending(db: &Db) -> rusqlite::Result<Vec<PendingCode>> {
                 expires_at: r.get(3)?,
                 address: r.get(4)?,
                 replace: r.get(5)?,
+                role: r.get(6)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -255,6 +273,10 @@ pub struct PairRequest {
     /// `<address>:3100` (`up --local`: the vm-agent on the host, OpenClaw in a container).
     #[serde(default)]
     pub agent_listen: Option<String>,
+    /// `gbrain` for the brain (`controlclaw brain install|connect`); `openclaw` when left out. It
+    /// must be what the code was made for.
+    #[serde(default)]
+    pub role: Option<String>,
 }
 
 /// Where the firewall calls an agent's vm-agent when pairing does not say.
@@ -498,6 +520,10 @@ impl PairService {
                 "agent_listen: not with wg_public_key (the firewall calls the tunnel address)",
             ));
         }
+        let role = req.role.as_deref().unwrap_or("openclaw");
+        if !ROLES.contains(&role) {
+            return Err(refuse(400, "role: openclaw or gbrain"));
+        }
         let unpair = match req.unpair_sha256.as_deref() {
             Some(h) if h.len() == 64 && h.bytes().all(|b| b.is_ascii_hexdigit()) => Some(h.to_ascii_lowercase()),
             Some(_) => return Err(refuse(400, "unpair_sha256: 32 bytes, hex")),
@@ -531,15 +557,17 @@ impl PairService {
                 "This request came over IPv6: make a code with the agent's IPv4 address (pair-code --address).".into(),
             ),
         };
-        type CodeRow = (i64, String, Option<String>, Option<String>, bool);
+        type CodeRow = (i64, String, Option<String>, Option<String>, bool, String);
         let codes: Vec<CodeRow> = {
             let mut q = tx
-                .prepare("SELECT id, code, name, address, replace FROM pairing_codes WHERE expires_at > ?1")
+                .prepare("SELECT id, code, name, address, replace, role FROM pairing_codes WHERE expires_at > ?1")
                 .map_err(internal)?;
-            q.query_map([now], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))
-                .map_err(internal)?
-                .collect::<rusqlite::Result<_>>()
-                .map_err(internal)?
+            q.query_map([now], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?))
+            })
+            .map_err(internal)?
+            .collect::<rusqlite::Result<_>>()
+            .map_err(internal)?
         };
         // Every pending code is tried, so the time taken says nothing about which one matched.
         let mut found = None;
@@ -548,7 +576,7 @@ impl PairService {
                 found = Some(row);
             }
         }
-        let Some((code_id, code, code_name, code_address, replace)) = found else {
+        let Some((code_id, code, code_name, code_address, replace, code_role)) = found else {
             return Err(refuse(
                 401,
                 "No waiting pairing code matches. Check the code, or make a new one: it works once and expires.",
@@ -562,6 +590,21 @@ impl PairService {
             tracing::info!("[cc-local] pairing: code {code_id} spent on a refusal: {}", r.1);
             Refusal(409, format!("{} The code is spent: make a new one.", r.1))
         };
+        // Only the admin's code makes a machine the brain, and a brain's code pairs nothing else.
+        if code_role != role {
+            let r = if code_role == "gbrain" {
+                refuse(
+                    409,
+                    "This code is for the brain: use it with controlclaw brain install or brain connect.",
+                )
+            } else {
+                refuse(
+                    409,
+                    "This code is for an agent, not the brain: make one with pair-code --role gbrain.",
+                )
+            };
+            return Err(spend(tx, r));
+        }
         let info = (self.info)().map_err(|e| {
             tracing::error!("[cc-local] pairing: {e}");
             refuse(500, "The firewall could not read its key or CA")
@@ -657,14 +700,42 @@ impl PairService {
             );
             return Err(spend(tx, r));
         }
+        // One brain per firewall, as one per organization on the SaaS: the panel and the firewall's
+        // brain module know one. A second one only takes the first one's place when the code says so.
+        let brains: Vec<String> = if role == "gbrain" {
+            let mut q = tx
+                .prepare("SELECT vm_id FROM agents WHERE role = 'gbrain' AND private_ip IS NOT ?1")
+                .map_err(internal)?;
+            q.query_map([&address], |r| r.get(0))
+                .map_err(internal)?
+                .collect::<rusqlite::Result<_>>()
+                .map_err(internal)?
+        } else {
+            Vec::new()
+        };
+        if !brains.is_empty() && !replace {
+            let r = refuse(
+                409,
+                format!(
+                    "This firewall has a brain already ({}). To put this one in its place, make a code with pair-code --role gbrain --replace.",
+                    brains.join(", ")
+                ),
+            );
+            return Err(spend(tx, r));
+        }
         tx.execute(
             "DELETE FROM agents WHERE private_ip = ?1 AND role <> 'mitm'",
             [&address],
         )
         .map_err(internal)?;
+        for old in &brains {
+            tx.execute("DELETE FROM agents WHERE vm_id = ?1", [old])
+                .map_err(internal)?;
+        }
+        let replaced: Vec<String> = replaced.into_iter().chain(brains).collect();
         tx.execute(
-            "INSERT INTO agents (vm_id, role, name, private_ip, public_key, created_at, paired_at, unpair_sha256, wg_public_key, agent_addr) VALUES (?1, 'openclaw', ?2, ?3, ?4, ?5, ?5, ?6, ?7, ?8)",
-            params![agent_id, name, address, req.agent_public_key.trim(), now, unpair, wg_key, listen.map(|a| a.to_string())],
+            "INSERT INTO agents (vm_id, role, name, private_ip, public_key, created_at, paired_at, unpair_sha256, wg_public_key, agent_addr) VALUES (?1, ?9, ?2, ?3, ?4, ?5, ?5, ?6, ?7, ?8)",
+            params![agent_id, name, address, req.agent_public_key.trim(), now, unpair, wg_key, listen.map(|a| a.to_string()), role],
         )
         .map_err(internal)?;
         tx.execute("DELETE FROM pairing_codes WHERE id = ?1", [code_id])
@@ -674,7 +745,10 @@ impl PairService {
         for old in &replaced {
             tracing::info!("[cc-local] pairing: {agent_id} replaces {old} at {address}");
         }
-        tracing::info!("[cc-local] paired {agent_id} ({name}) at {address}");
+        tracing::info!(
+            "[cc-local] paired {}{agent_id} ({name}) at {address}",
+            if role == "gbrain" { "the brain " } else { "" }
+        );
 
         let pairing = Pairing {
             v: 1,
@@ -719,7 +793,7 @@ impl PairService {
             .db
             .lock()
             .query_row(
-                "SELECT unpair_sha256 FROM agents WHERE vm_id = ?1 AND role = 'openclaw'",
+                "SELECT unpair_sha256 FROM agents WHERE vm_id = ?1 AND role IN ('openclaw', 'gbrain')",
                 [id],
                 |r| r.get(0),
             )

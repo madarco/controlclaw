@@ -1,0 +1,124 @@
+# Residential-exit smoke (docs/plans/residential-exit.md). Proves that a rule marked
+# `exit: residential` leaves through the org's upstream proxy, with the client's own TLS bytes
+# untouched, and that it fails CLOSED rather than falling back to this box's address.
+#
+# Four networks' worth of intent in three:
+#   intnet  — the agent boxes. Two of them, with static IPs, so sticky sessions can be told apart.
+#   extnet  — the firewall, the upstream proxy and `echo` (reachable by BOTH, which is what makes
+#             the "the firewall never dialled it itself" assertion meaningful).
+#   resnet  — `shop`, reachable ONLY through the upstream proxy. A request that arrives there
+#             cannot have come any other way.
+#
+# `connection_strategy=lazy` is on the proxy command on purpose and is load-bearing: with
+# mitmproxy's default (eager) the destination is dialled before any addon decides anything.
+services:
+  echo:
+    image: python:3.12-alpine
+    command: ["python", "/app/echo-server.py"]
+    environment:
+      ECHO_PEER_LOG: /logs/echo-peers.log
+      ECHO_PLAIN_PORT: "80"
+    volumes:
+      - ./echo-server.py:/app/echo-server.py:ro
+      - ./echo-certs:/certs:ro
+      - ./logs:/logs
+    networks:
+      extnet:
+        ipv4_address: 10.88.0.10
+        aliases: [echo.test, cp.test, res.test]
+
+  # The same reflector, on a network the firewall has no route to.
+  shop:
+    image: python:3.12-alpine
+    command: ["python", "/app/echo-server.py"]
+    environment:
+      ECHO_PLAIN_PORT: "80"
+    volumes:
+      - ./echo-server.py:/app/echo-server.py:ro
+      - ./echo-certs:/certs:ro
+    networks:
+      resnet:
+        ipv4_address: 10.99.0.10
+        aliases: [shop.test]
+
+  upstream:
+    image: python:3.12-alpine
+    command: ["python", "/app/upstream-proxy.py"]
+    environment:
+      UPSTREAM_USER: "acme"
+      UPSTREAM_PASSWORD: "pw"
+      UPSTREAM_LOG: /logs/upstream.jsonl
+    volumes:
+      - ./upstream-proxy.py:/app/upstream-proxy.py:ro
+      - ./logs:/logs
+    networks:
+      extnet:
+        ipv4_address: 10.88.0.20
+      resnet: {}
+
+  proxy:
+    image: mitmproxy/mitmproxy:12.2.2
+    extra_hosts:
+      - "echo.test:10.88.0.10"
+      - "cp.test:10.88.0.10"
+      - "res.test:10.88.0.10"
+    command: >
+      mitmdump --listen-port 8080 --ssl-insecure
+      --set connection_strategy=lazy
+      --set confdir=/ca -s /app/addon.py
+    volumes:
+      - ../addon.py:/app/addon.py:ro
+      - ./ca:/ca
+      - ./config:/config:ro
+      - ./logs:/logs
+    environment:
+      MITM_TENANT: "residential-org"
+      MITM_CONTROL_PLANE_HOST: "cp.test"
+      MITM_RULES_PATH: /config/rules.json
+      MITM_CREDENTIALS_PATH: /config/credentials.json
+      MITM_IDENTITIES_PATH: /config/identities.json
+      MITM_EXIT_PATH: /config/exit.json
+      MITM_GRANTS_PATH: /config/grants.json
+      MITM_PENDING_PATH: /logs/pending.jsonl
+      MITM_LOG_FILE: /logs/mitm.jsonl
+    networks:
+      intnet:
+        ipv4_address: 10.77.0.250
+      extnet:
+        ipv4_address: 10.88.0.250
+
+  vma:
+    build: { context: ., dockerfile: Dockerfile.agent }
+    command: ["sleep", "infinity"]
+    volumes:
+      - ./ca:/ca:ro
+      - ./echo-certs:/certs:ro
+    networks:
+      intnet:
+        ipv4_address: 10.77.0.11
+
+  vmb:
+    build: { context: ., dockerfile: Dockerfile.agent }
+    command: ["sleep", "infinity"]
+    volumes:
+      - ./ca:/ca:ro
+      - ./echo-certs:/certs:ro
+    networks:
+      intnet:
+        ipv4_address: 10.77.0.12
+
+networks:
+  intnet:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.77.0.0/24
+  extnet:
+    ipam:
+      config:
+        - subnet: 10.88.0.0/24
+  resnet:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.99.0.0/24

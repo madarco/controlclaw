@@ -297,6 +297,9 @@ pub enum ReadBody {
     No,
     /// A JSON object of at most this many bytes, checked against the token's hash.
     Json { limit: usize },
+    /// Any body of at most this many bytes, checked against the token's hash and kept as it came
+    /// (a relayed MCP call, which is forwarded byte for byte).
+    Raw { limit: usize },
 }
 
 /// The body a firewall route got. Three outcomes, so a route that read nothing is never mistaken
@@ -307,6 +310,8 @@ pub enum FirewallBody {
     NotRead,
     /// The JSON object, the one the token named.
     Json(Map<String, Value>),
+    /// The bytes, the ones the token named ([`ReadBody::Raw`]).
+    Raw(Bytes),
     /// Not a JSON object within the limit, or not the body the token named: `readJsonBody`
     /// returning null, which is the route's 400.
     Rejected,
@@ -356,6 +361,10 @@ pub async fn firewall_request(
                     Some(m) => FirewallBody::Json(m),
                     None => FirewallBody::Rejected,
                 },
+                ReadBody::Raw { limit } => match read_raw_body(body, limit, &BodyBinding::from(&accepted)).await {
+                    Some(b) => FirewallBody::Raw(b),
+                    None => FirewallBody::Rejected,
+                },
             };
             FirewallRequest::Accepted {
                 parts,
@@ -380,6 +389,16 @@ pub async fn read_json_body(body: Incoming, limit: usize, binding: &BodyBinding)
         Ok(Value::Object(m)) => Some(m),
         _ => None,
     }
+}
+
+/// A body of at most `limit` bytes, as it came, or `None` when it is larger, slower or not the body
+/// a bound firewall token named.
+pub async fn read_raw_body(body: Incoming, limit: usize, binding: &BodyBinding) -> Option<Bytes> {
+    let raw = read_body(body, limit).await?;
+    if binding.bound && binding.sha256.as_deref() != Some(hex::encode(Sha256::digest(&raw)).as_str()) {
+        return None;
+    }
+    Some(raw)
 }
 
 /// How long a request's body may take to arrive once its handler reads it. With the 60 s for the

@@ -23,6 +23,12 @@ use crate::request_path;
 const TAKEN_KEPT_MS: i64 = 150_000;
 /// Past this many ids a new token is refused rather than an id forgotten early.
 const TAKEN_MAX: usize = 20_000;
+/// Agents' brain calls relayed by a standalone firewall (`gbrain-mcp`) come at the agents' pace, so
+/// they may hold at most this many of the taken ids: the rest stay for the firewall's own calls
+/// (`/gbrain/lock`, `/gbrain/connect`, `/gbrain/disconnect`, every other purpose), which a flood of
+/// brain calls must never refuse as busy.
+const RELAYED_PURPOSE: &str = "gbrain-mcp";
+const RELAYED_MAX: usize = 12_000;
 /// How far ahead of this box's clock a token's `iat` may be.
 const AHEAD_MS: i64 = 150_000;
 /// Expired ids looked at per call.
@@ -37,6 +43,8 @@ const ALWAYS_BOUND: &[&str] = &[
     "template-capture",
     "disk",
     "mcp-servers",
+    // An agent's brain call relayed by a standalone firewall (`/gbrain/mcp/<vmId>`).
+    "gbrain-mcp",
 ];
 
 /// Why a token was refused, as the fixed words the TS puts on `req.ccRefused`.
@@ -115,7 +123,10 @@ struct State {
     bound_written: bool,
     floor_iat: i64,
     newest_iat: i64,
-    taken: IndexMap<String, i64>,
+    /// Each taken id: when it may be forgotten, and whether it is a relayed brain call's.
+    taken: IndexMap<String, (i64, bool)>,
+    /// How many of `taken` are relayed brain calls'.
+    relayed: usize,
     refusal_said: Vec<(Refusal, Instant)>,
     host_unknown_said: Option<Instant>,
     wrong_name_said: Option<Instant>,
@@ -182,6 +193,7 @@ impl FirewallAuth {
                 floor_iat: floor,
                 newest_iat: floor,
                 taken: IndexMap::new(),
+                relayed: 0,
                 refusal_said: Vec::new(),
                 host_unknown_said: None,
                 wrong_name_said: None,
@@ -356,24 +368,32 @@ impl FirewallAuth {
             return Ok(Some(Binding { jti: jti.clone(), body }));
         }
         let mut looked = 0;
-        while let Some((_, until)) = s.taken.first() {
+        while let Some((_, (until, relayed))) = s.taken.first() {
             looked += 1;
             if *until >= now || looked > TAKEN_SWEEP {
                 break;
             }
+            let relayed = *relayed;
             s.taken.shift_remove_index(0);
+            if relayed {
+                s.relayed -= 1;
+            }
         }
         if s.taken.contains_key(jti) {
             return Err(Refusal::Replay);
         }
-        if s.taken.len() >= TAKEN_MAX {
+        let relayed = claims.get("purpose").and_then(Value::as_str) == Some(RELAYED_PURPOSE);
+        if s.taken.len() >= TAKEN_MAX || (relayed && s.relayed >= RELAYED_MAX) {
             return Err(Refusal::Busy);
         }
         let exp_ms = match claims.get("exp").and_then(Value::as_f64) {
             Some(e) => (e * 1000.0) as i64,
             None => now + 30_000,
         };
-        s.taken.insert(jti.clone(), exp_ms + TAKEN_KEPT_MS);
+        s.taken.insert(jti.clone(), (exp_ms + TAKEN_KEPT_MS, relayed));
+        if relayed {
+            s.relayed += 1;
+        }
         if !wrong_name {
             s.bound_seen = true;
         }
@@ -403,7 +423,18 @@ impl FirewallAuth {
     #[doc(hidden)]
     pub fn take_ids_for_test(&self, ids: impl IntoIterator<Item = (String, i64)>) {
         if let Ok(mut s) = self.state.lock() {
-            s.taken.extend(ids);
+            s.taken.extend(ids.into_iter().map(|(id, until)| (id, (until, false))));
+        }
+    }
+
+    /// Tests only: fill the taken ids as relayed brain calls'.
+    #[doc(hidden)]
+    pub fn take_relayed_ids_for_test(&self, ids: impl IntoIterator<Item = (String, i64)>) {
+        if let Ok(mut s) = self.state.lock() {
+            for (id, until) in ids {
+                s.taken.insert(id, (until, true));
+                s.relayed += 1;
+            }
         }
     }
 }
@@ -646,6 +677,53 @@ mod tests {
         assert!(matches!(
             a.verify_at(&req("GET", "/a", &t), "channels", 0, now),
             Outcome::Refused(Refusal::Busy)
+        ));
+    }
+
+    /// Relayed brain calls fill their own share and no more: past it their tokens are busy, while
+    /// the firewall's own calls (the brain's lock and connections) are still taken; once they expire
+    /// the share is free again.
+    #[test]
+    fn relayed_brain_calls_cannot_starve_the_firewalls_own_calls() {
+        let now = base();
+        let dir = tempfile::tempdir().expect("dir");
+        let (sk, pubpem) = pair();
+        let a = auth(dir.path(), pubpem);
+        a.take_relayed_ids_for_test((0..RELAYED_MAX).map(|i| (format!("r{i}"), now + 1_000)));
+        let t = |jti: &str, purpose: &str| {
+            format!(
+                "Bearer {}",
+                token(
+                    &sk,
+                    json!({"m":"POST","p":"/a","h":"box.example","jti":jti,"purpose":purpose}),
+                    now / 1000
+                )
+            )
+        };
+        let got = a.verify_at(&req("POST", "/a", &t("m1", RELAYED_PURPOSE)), RELAYED_PURPOSE, 0, now);
+        assert!(matches!(got, Outcome::Refused(Refusal::Busy)), "{got:?}");
+        for (i, purpose) in ["gbrain", "gbrain", "access", "llm"].iter().enumerate() {
+            assert!(
+                matches!(
+                    a.verify_at(&req("POST", "/a", &t(&format!("c{i}"), purpose)), purpose, 0, now),
+                    Outcome::Accepted(_)
+                ),
+                "{purpose}"
+            );
+        }
+        // The relayed ids run out (64 are forgotten per call): brain calls are taken again.
+        let later = now + 10_000;
+        let t2 = format!(
+            "Bearer {}",
+            token(
+                &sk,
+                json!({"m":"POST","p":"/a","h":"box.example","jti":"m2","purpose":RELAYED_PURPOSE}),
+                later / 1000
+            )
+        );
+        assert!(matches!(
+            a.verify_at(&req("POST", "/a", &t2), RELAYED_PURPOSE, 0, later),
+            Outcome::Accepted(_)
         ));
     }
 

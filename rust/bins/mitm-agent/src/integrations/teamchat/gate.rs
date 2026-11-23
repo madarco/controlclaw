@@ -43,7 +43,7 @@ pub const GATE_MAX_CHECKED_ANSWER: usize = 8 * 1024 * 1024;
 const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(120);
 /// Messages of one answer checked at once: each may be a call to the AI.
 const CHECKS_AT_ONCE: usize = 4;
-/// The fields of a chat write that people see (ClickClack 0.7.1): messages, channel and topic titles
+/// The fields of a chat write that people see (ClickClack 0.9.4, unchanged from 0.7.1): messages, channel and topic titles
 /// and sidebar sections, display names and handles, home links, moderation notes, reactions, bot
 /// commands and their hints, the tool name in a progress line (`toolName` too, kept as sent), and the
 /// links people's browsers open or fetch. In lower case: keys are compared through `go_json_key`.
@@ -300,40 +300,45 @@ impl TeamChatGate {
         method: &str,
         path: &str,
         status: u16,
-        bytes_in: u64,
-        bytes_out: u64,
+        sent: u64,
+        answered: u64,
         started_at: i64,
         refused: Option<&str>,
     ) {
+        use crate::channels::ai::internal::{
+            SIZES_FIELD, SIZES_OUT_IS_SENT, TEAM_CHAT_FLOW, TEAM_CHAT_HOST, TEAM_CHAT_RULE,
+        };
         let Some(p) = &self.opts.log_path else { return };
         let now = js::now_ms();
         let mut rec = Map::new();
         rec.insert("source".into(), json!("egress"));
         rec.insert(
             "flow_id".into(),
-            json!(format!("tc-{}", hex::encode(rand::random::<[u8; 10]>()))),
+            json!(format!("{TEAM_CHAT_FLOW}{}", hex::encode(rand::random::<[u8; 10]>()))),
         );
         rec.insert("ts".into(), json!(now as f64 / 1000.0));
         rec.insert(
             "method".into(),
             json!(crate::integrations::connectors::firewall::js_slice(method, 16)),
         );
-        rec.insert("host".into(), json!("team-chat"));
+        rec.insert("host".into(), json!(TEAM_CHAT_HOST));
         rec.insert("path".into(), json!(template_path(path)));
         if let Some(v) = vm_id {
             rec.insert("vm_id".into(), json!(v));
         }
         rec.insert("effect".into(), json!(if refused.is_some() { "drop" } else { "allow" }));
         rec.insert("status".into(), json!(status));
-        rec.insert("bytes_in".into(), json!(bytes_in));
-        rec.insert("bytes_out".into(), json!(bytes_out));
+        // As the proxy's records: `bytes_out` is what the agent sent, `bytes_in` the answer.
+        rec.insert("bytes_out".into(), json!(sent));
+        rec.insert("bytes_in".into(), json!(answered));
+        rec.insert(SIZES_FIELD.into(), json!(SIZES_OUT_IS_SENT));
         rec.insert("duration_ms".into(), json!((now - started_at).max(0)));
         rec.insert(
             "rule".into(),
             json!(
                 refused
-                    .map(|r| format!("team chat: {r}"))
-                    .unwrap_or_else(|| "team chat".into())
+                    .map(|r| format!("{TEAM_CHAT_RULE}: {r}"))
+                    .unwrap_or_else(|| TEAM_CHAT_RULE.into())
             ),
         );
         append_line(p, &Value::Object(rec));

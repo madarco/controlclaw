@@ -1,4 +1,4 @@
-import type { ContentRule } from "@controlclaw/console-ui/lib/agent/content-rules-schema";
+import type { ContentRule } from "./agent/content-rules-schema";
 import { topRules, type RuleCounts, type RuleOutcome, type RuleOverviewItem, type RuleSort } from "./rule-metrics";
 import { describeMatch, isMcpService, type AppRule } from "./app-rules-schema";
 import { messagesRow } from "./security-rules-list";

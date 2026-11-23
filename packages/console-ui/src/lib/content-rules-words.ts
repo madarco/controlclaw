@@ -1,4 +1,4 @@
-import { CONTENT_CHANNELS, type ContentChannel, type ContentRule } from "@controlclaw/console-ui/lib/agent/content-rules-schema";
+import { CONTENT_CHANNELS, type ContentChannel, type ContentRule } from "./agent/content-rules-schema";
 
 /**
  * The words the console uses for content rules (docs/features/content-rules.md): the Security

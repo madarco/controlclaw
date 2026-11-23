@@ -13,7 +13,8 @@ use serde_json::Value;
 
 use super::common::js_slice;
 use super::transcripts::{
-    AGENT_ID, ByAgent, INTERNAL_KEY, RunRef, agent_db, has_tables, message_text, open_db, session_ids,
+    AGENT_ID, ByAgent, INTERNAL_KEY, RunRef, agent_db, first_runtime_event, has_tables, message_text, open_db,
+    runtime_event_sql, session_ids,
 };
 
 pub const TITLE_MAX: usize = 80;
@@ -215,24 +216,23 @@ pub fn run_prompts(openclaw_home: &Path, runs: &[RunRef]) -> HashMap<String, Str
                 return Ok(());
             }
             // Only the start of the row: a prompt can be long, and only its start is used.
-            let mut submitted = db.prepare(&format!(
-                "SELECT substr(event_json, 1, {}) AS ev FROM trajectory_runtime_events
-                  WHERE session_id = ? AND run_id = ? AND event_json LIKE '%\"prompt.submitted\"%' ORDER BY seq LIMIT 1",
-                PROMPT_READ_MAX * 2
-            ))?;
+            let cut = PROMPT_READ_MAX * 2;
+            let mut submitted = db.prepare(&runtime_event_sql(&db, "prompt.submitted", Some(cut)))?;
             for (key, run_ids) in &keys {
                 let ids = session_ids(&db, key);
                 for run_id in run_ids {
                     for sid in &ids {
                         // The row found ends the search, whatever is in it (the TS's `break`).
-                        match submitted.query_row([sid, run_id], |r| r.get::<_, Option<String>>(0)) {
-                            Err(rusqlite::Error::QueryReturnedNoRows) => continue,
+                        match first_runtime_event(&mut submitted, sid, run_id, "prompt.submitted") {
+                            Ok(None) => continue,
                             Ok(Some(ev)) => {
+                                // A decoded row is whole: cut it as `substr` cuts the others.
+                                let ev: String = ev.chars().take(cut).collect();
                                 if let Some(p) = prompt_of_event(&ev) {
                                     out.insert(run_id.clone(), p);
                                 }
                             }
-                            _ => {}
+                            Err(_) => {}
                         }
                         break;
                     }
@@ -445,6 +445,29 @@ mod tests {
         assert_eq!(drop_cut_escape(r"abc\\"), r"abc\\");
         assert_eq!(drop_cut_escape(r"abc\u00"), "abc");
         assert_eq!(drop_cut_escape(r"abc\\u00"), r"abc\\u00");
+    }
+
+    #[test]
+    fn a_title_from_a_compressed_prompt() {
+        use super::super::transcripts::tests::{BR_OTHER, BR_PROMPT, agent_fixture_11_5, insert_br};
+        let d = tempfile::tempdir().expect("dir");
+        let db = agent_fixture_11_5(d.path(), "main");
+        db.execute(
+            "INSERT INTO session_windows VALUES ('s1', 'agent:main:telegram:direct:1', 2, 1)",
+            [],
+        )
+        .expect("w");
+        insert_br(&db, "s1", "r1", 1, BR_OTHER);
+        insert_br(&db, "s1", "r1", 2, BR_PROMPT);
+        drop(db);
+        let run = RunRef {
+            run_id: "r1".into(),
+            session_key: Some("agent:main:telegram:direct:1".into()),
+            agent_id: Some("main".into()),
+        };
+        let (titles, _) = run_titles(d.path(), std::slice::from_ref(&run));
+        let title = titles.get("r1").expect("a title");
+        assert!(title.starts_with("Book a table for two at eight"), "{title}");
     }
 
     #[test]

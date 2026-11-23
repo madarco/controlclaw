@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { FwServiceState } from "@controlclaw/console-ui/lib/agent/fw-logs-types";
+import type { FwServiceState } from "./agent/fw-logs-types";
 import { fwPassesLevel, fwServiceTone } from "./firewall-logs";
 
 const s = (over: Partial<FwServiceState>): FwServiceState => ({ id: "proxy", label: "Proxy", about: "", active: "active", sub: "running", result: "success", since: null, restarts: 0, exitStatus: 0, optional: false, ...over });

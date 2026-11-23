@@ -168,6 +168,10 @@ CREATE TABLE rule_hourly (
     PRIMARY KEY (hour, vm_id, rule_type, rule_key, outcome)
 );
 "#,
+    // What a pairing code is for: an OpenClaw machine, or the brain (`controlclaw brain install`).
+    r#"
+ALTER TABLE pairing_codes ADD COLUMN role TEXT NOT NULL DEFAULT 'openclaw';
+"#,
 ];
 
 /// "Every other site: Block": a rule after every other (`*`, block). A new firewall has none, so

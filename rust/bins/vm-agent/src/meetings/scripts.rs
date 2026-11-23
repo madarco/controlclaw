@@ -1,5 +1,5 @@
 //! The JavaScript the vm-agent runs elsewhere, carried unchanged from the TS in
-//! `page_scripts.json` (written by `rust/conformance/cases/w8/page-scripts/gen.mts`): the caption
+//! `page_scripts.json` (written from the retired TS vm-agent; edit it here now): the caption
 //! observer and the microphone settings in the meeting browser's pages, and the notes program in
 //! `node`.
 

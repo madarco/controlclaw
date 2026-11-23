@@ -1,6 +1,6 @@
 /**
  * Starting a Doctor repair on the firewall, served by the firewall at `https://<firewall>/__cc/doctor/start/`
- * (packages/mitm-agent/src/doctor-start.ts, docs/plans/doctor-rescue.md).
+ * (rust/bins/mitm-agent/src/integrations/doctor/start.rs, docs/plans/doctor-rescue.md).
  *
  * Why the firewall serves it: the problem description never passes through the console. The page
  * talks to the firewall same-origin, with the cookie the firewall gave this enrolled browser.
@@ -33,7 +33,7 @@ const source: DoctorStartSource = {
   go: (chat) => location.assign(chat),
 };
 
-// The header and sidebar around `#root` are the firewall's own (packages/mitm-agent/src/fw-shell.ts).
+// The header and sidebar around `#root` are the firewall's own (rust/bins/mitm-agent/src/core/fw_shell.rs).
 const root = document.getElementById("root")!;
 
 createRoot(root).render(

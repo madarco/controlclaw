@@ -115,13 +115,6 @@ impl GrantStore {
         }
     }
 
-    /// Save what was loaded, unchanged (the TS ↔ Rust store round trip).
-    #[cfg(test)]
-    pub fn resave(&self) {
-        let g = self.g();
-        self.save(&g).expect("save");
-    }
-
     fn g(&self) -> std::sync::MutexGuard<'_, Option<Grant>> {
         self.grant.lock().unwrap_or_else(|e| e.into_inner())
     }

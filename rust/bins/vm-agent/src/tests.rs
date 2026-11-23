@@ -71,6 +71,7 @@ async fn start_with(service: &str, pool: bool, before: impl FnOnce(&Arc<App>)) -
         contracts: crate::contracts::Contracts::default(),
         started: std::time::Instant::now(),
         unmanaged: None,
+        brain: None,
         config,
     });
     before(&app);
@@ -149,6 +150,7 @@ async fn off_list_paths_are_401_even_with_a_token() {
 
 #[tokio::test]
 async fn lifecycle_runs_systemctl_through_sudo() {
+    let _turn = STOP_MARK.lock().await;
     let b = start("openclaw", false).await;
     let (status, body) = call(&b, "POST", "/restart", Some(b.keys.console_token(json!({})))).await;
     assert_eq!(status, 200);
@@ -186,6 +188,7 @@ async fn pool_mode_answers_only_health() {
 
 #[tokio::test]
 async fn brain_box_has_its_own_list() {
+    let _turn = STOP_MARK.lock().await;
     let b = start("gbrain", false).await;
     let (status, body) = call(&b, "GET", "/health", Some(b.keys.console_token(json!({})))).await;
     assert_eq!((status, body["role"].clone()), (200, json!("gbrain")));
@@ -205,6 +208,10 @@ async fn brain_box_has_its_own_list() {
     );
 }
 
+/// Stop, Start and Restart set and clear one mark for the whole process: tests that use them here
+/// take turns.
+static STOP_MARK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 struct FakeMeeting(std::sync::atomic::AtomicUsize);
 
 impl crate::contracts::MeetingControl for FakeMeeting {
@@ -219,6 +226,7 @@ impl crate::contracts::MeetingControl for FakeMeeting {
 
 #[tokio::test]
 async fn stop_leaves_the_meeting_first_and_stops_anyway() {
+    let _turn = STOP_MARK.lock().await;
     let meeting = Arc::new(FakeMeeting(Default::default()));
     let m = meeting.clone();
     let b = start_with("openclaw", false, move |app| app.contracts.meeting.set(m)).await;
@@ -234,4 +242,55 @@ async fn stop_leaves_the_meeting_first_and_stops_anyway() {
     // Start does not touch the meeting.
     call(&b, "POST", "/start", Some(b.keys.console_token(json!({})))).await;
     assert_eq!(meeting.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn openclaw_doctor_stops_the_gateway_runs_the_fix_and_starts_it_again() {
+    let _turn = STOP_MARK.lock().await;
+    let b = start("openclaw", false).await;
+    b.runner.answer(
+        &[crate::platform::common::OPENCLAW_BIN, "doctor"],
+        ok("Doctor: config migrated\n"),
+    );
+    let t = || Some(b.keys.console_token(json!({})));
+    // A Stop someone asked for stands: the run would start OpenClaw again. (One test: the stop mark
+    // is the process's own, shared by every test.)
+    call(&b, "POST", "/stop", t()).await;
+    let (status, body) = call(&b, "POST", "/openclaw/doctor", t()).await;
+    assert_eq!((status, body["stopped"].clone()), (409, json!(true)));
+    call(&b, "POST", "/start", t()).await;
+    assert_eq!(call(&b, "GET", "/openclaw/doctor", t()).await.0, 200);
+    let (status, body) = call(&b, "POST", "/openclaw/doctor", t()).await;
+    assert_eq!(
+        (status, body["run"]["phase"].clone()),
+        (202, json!("running")),
+        "{body}"
+    );
+    let mut run = Value::Null;
+    for _ in 0..200 {
+        run = call(&b, "GET", "/openclaw/doctor", t()).await.1["run"].clone();
+        if run["phase"] != "running" {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert_eq!(run["phase"], "done", "{run}");
+    assert_eq!(run["output"], "Doctor: config migrated");
+    let ran: Vec<String> = b
+        .runner
+        .calls()
+        .iter()
+        .map(|c| format!("{} {}", c.program, c.args.join(" ")))
+        .collect();
+    let at = |s: &str| {
+        ran.iter()
+            .rposition(|r| r == s)
+            .unwrap_or_else(|| panic!("{s} not in {ran:?}"))
+    };
+    let doctor = format!(
+        "{} doctor --fix --non-interactive",
+        crate::platform::common::OPENCLAW_BIN
+    );
+    assert!(at("sudo -n systemctl stop openclaw") < at(&doctor));
+    assert!(at(&doctor) < at("sudo -n systemctl start openclaw"));
 }

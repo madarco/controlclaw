@@ -1,100 +1,30 @@
 {
- "admissionDigests": [
-  "e9f7717502261327a4fe58a7f18fa0e60fa2e7a6193e18fdabebf98a9481b387",
-  "03ee4a4d4f0fbabe7420f8766a5fa3b8af789e3f5b4729f2f31d7785a8e69c0e",
-  "6cd00b695a57dedd6535e52c27daa11bbed793df42251ed4644bf9625547e75c"
- ],
+ "admissionExports": {
+  "7580c5e8d626a2944211eb596e40f6fb2b5739828c99e4a8591a1eadb6a5edbe": "k",
+  "f165019b0f6e3132c236333e099fcc8ec2042734cccc72b157ee3d4fff26fd10": "A"
+ },
  "noReplyText": "Sorry, I could not get an answer in time. Please ask again.",
  "patches": [
   {
-   "file": "runtime-entry-BNOQRXii.mjs",
-   "before": "2042cdc3c6ba0e8e0762ff87cf30a6fdfd38dd6fd2f982f1249fbdaeaf0c4984",
-   "after": "3cd13a4dde64bfb0909bd8ed5e6288b67436dfb816affd27b09e12f7f9837ee6",
+   "file": "runtime-entry-Cy51Uayg.mjs",
+   "before": "71311dd6eec85b8fe7c16075d2e17f2c5a943a3f1b95813de4128f9a38073f0d",
+   "after": "59536dbba790cef7e6fd17cb44364c7aed2fb3e16d1ea36c1d5753b7f8149597",
    "changes": [
     [
-     "initialMessage: params.direction === \"inbound\" ? effectiveConfig.inboundGreeting",
-     "initialMessage: params.direction === \"inbound\" && (params.ctx.provider?.name !== \"twilio\" || effectiveConfig.streaming.enabled) ? effectiveConfig.inboundGreeting"
+     "initialMessage: event.direction === \"inbound\" ? effectiveConfig.inboundGreeting",
+     "initialMessage: event.direction === \"inbound\" && (ctx.provider?.name !== \"twilio\" || effectiveConfig.streaming.enabled || effectiveConfig.realtime.enabled) ? effectiveConfig.inboundGreeting"
     ],
     [
      "senderIsOwner: call.direction === \"inbound\" ? false : void 0,",
      "senderIsOwner: false,"
     ],
     [
-     "if (!ctx.config.streaming.enabled) return true;",
-     "if (!ctx.config.streaming.enabled) return false;"
-    ],
-    [
-     "const playbackOptions = options?.listenAfterPlayback ? { listenAfterPlayback: true } : {};",
-     "const playbackOptions = { ...(options?.listenAfterPlayback ? { listenAfterPlayback: true } : {}), ...(options?.turnToken ? { turnToken: options.turnToken } : {}) };"
-    ],
-    [
-     "const speakResult = await speak(ctx, callId, prompt);",
-     "const speakResult = await speak(ctx, callId, prompt, { turnToken });"
-    ],
-    [
-     "await provider.startListening({\n\t\t\tcallId,\n\t\t\tproviderCallId: call.providerCallId ?? providerCallId,\n\t\t\tturnToken\n\t\t});",
-     "if (provider.name !== \"twilio\" || ctx.config.streaming.enabled) await provider.startListening({\n\t\t\tcallId,\n\t\t\tproviderCallId: call.providerCallId ?? providerCallId,\n\t\t\tturnToken\n\t\t});"
-    ],
-    [
-     "const modelRef = params.voiceConfig.responseModel ?? `${params.agentRuntime.defaults.provider}/${params.agentRuntime.defaults.model}`;",
-     "const selectedRef = params.voiceConfig.responseModel ?? `${params.agentRuntime.defaults.provider}/${params.agentRuntime.defaults.model}`;\n\tconst at = selectedRef.lastIndexOf(\"@\");\n\tconst authProfileId = at > 0 ? selectedRef.slice(at + 1) : void 0;\n\tconst modelRef = at > 0 ? selectedRef.slice(0, at) : selectedRef;"
+     "const modelRef = params.voiceConfig.responseModel;\n\tconst slashIndex",
+     "const selectedRef = params.voiceConfig.responseModel;\n\tconst at = selectedRef.lastIndexOf(\"@\");\n\tconst authProfileId = at > 0 ? selectedRef.slice(at + 1) : void 0;\n\tconst modelRef = at > 0 ? selectedRef.slice(0, at) : selectedRef;\n\tconst slashIndex"
     ],
     [
      "\t\tmodelRef,\n\t\tprovider:",
      "\t\tmodelRef,\n\t\tauthProfileId,\n\t\tprovider:"
-    ]
-   ]
-  },
-  {
-   "file": "response-generator-BzKrJMEb.mjs",
-   "before": "0b61f858a71311f0db28ea46bff9c2de9a6bc8e610dc22ffe07ecb7b46a07b17",
-   "after": "6a67ea52c400eb8c309a1e361fcbc577fb3a16a480dbe21e6c94b7abd035fb04",
-   "changes": [
-    [
-     "const { provider, model } = resolveVoiceResponseModel({",
-     "const { provider, model, authProfileId } = resolveVoiceResponseModel({"
-    ],
-    [
-     "\t\t\t\tprovider,\n\t\t\t\tmodel,\n\t\t\t\tmodelSelectionLocked,",
-     "\t\t\t\tprovider,\n\t\t\t\tmodel,\n\t\t\t\tauthProfileId,\n\t\t\t\tauthProfileIdSource: authProfileId ? \"user\" : void 0,\n\t\t\t\tmodelSelectionLocked,"
-    ]
-   ]
-  },
-  {
-   "file": "twilio-Bp3gfmUB.mjs",
-   "before": "923879d7b93a1bf291733dedebfac1aac88b85d10144d8f1cf46f6770bafb406",
-   "after": "c019ce1c3fe0f6bf49d80d2e6f98f53f2c06b1d254f57eee681406c6ff942337",
-   "changes": [
-    [
-     "case \"pause\": return TwilioProvider.PAUSE_TWIML;",
-     "case \"pause\": return controlClawInboundTwiml(ctx, this.currentPublicUrl) ?? controlClawWaitTwiml(ctx.rawBody) ?? TwilioProvider.PAUSE_TWIML;"
-    ],
-    [
-     "var TwilioProvider = class TwilioProvider {",
-     "function controlClawPlainSpeech(text) {\n  return String(text)\n    .replace(/```[^\\n]*\\n?([\\s\\S]*?)```/g, \"$1\")\n    .replace(/!?\\[([^\\]]+)\\]\\([^)]*\\)/g, \"$1\")\n    .replace(/\\\\([\\\\`*_{}\\[\\]()#+\\-.!>~])/g, \"$1\")\n    .replace(/<[^>]*>/g, \"\")\n    .replace(/^\\s*(?:#{1,6}\\s+|>\\s*|[-*+]\\s+|\\d+[.)]\\s+)/gm, \"\")\n    .replace(/[`*_~]/g, \"\")\n    .replace(/\\s+/g, \" \").trim();\n}\nfunction controlClawWaitTwiml(rawBody) {\n  if (!new URLSearchParams(rawBody).get(\"SpeechResult\")?.trim()) return null;\n  return '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say voice=\"Polly.Joanna\">One moment.</Say><Pause length=\"30\"/></Response>';\n}\nfunction controlClawInboundTwiml(ctx, hook) {\n  const p = new URLSearchParams(ctx.rawBody);\n  if (!hook || ctx.query?.type === \"status\" || p.get(\"Direction\") !== \"inbound\" || p.get(\"CallStatus\") !== \"ringing\") return null;\n  return '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say voice=\"Polly.Joanna\">Hello! How can I help you today?</Say><Gather input=\"speech\" speechTimeout=\"auto\" timeout=\"5\" action=\"' + escapeXml(hook) + '\" method=\"POST\"/></Response>';\n}\n\nvar TwilioProvider = class TwilioProvider {"
-    ],
-    [
-     "${escapeXml(input.text)}</Say>",
-     "${escapeXml(controlClawPlainSpeech(input.text))}</Say>"
-    ],
-    [
-     "    <Say>.</Say>\n",
-     ""
-    ],
-    [
-     "const webhookUrl = this.callWebhookUrls.get(input.providerCallId);\n\t\tif (!webhookUrl) throw new Error(\"Missing webhook URL for this call (provider state not initialized)\");\n\t\tconsole.warn",
-     "let webhookUrl = this.callWebhookUrls.get(input.providerCallId);\n\t\tif (!webhookUrl) throw new Error(\"Missing webhook URL for this call (provider state not initialized)\");\n\t\tif (input.turnToken) { const action = new URL(webhookUrl); action.searchParams.set(\"turnToken\", input.turnToken); webhookUrl = action.toString(); }\n\t\tconsole.warn"
-    ]
-   ]
-  },
-  {
-   "file": "runtime-entry-BNOQRXii.mjs",
-   "before": "3cd13a4dde64bfb0909bd8ed5e6288b67436dfb816affd27b09e12f7f9837ee6",
-   "after": "480dec4e7be9cb5d50a984c728fdfed3cbba4ebc5f17debefa00bb52c62e9fc4",
-   "changes": [
-    [
-     "params.ctx.provider?.name !== \"twilio\" || effectiveConfig.streaming.enabled",
-     "params.ctx.provider?.name !== \"twilio\" || effectiveConfig.streaming.enabled || effectiveConfig.realtime.enabled"
     ],
     [
      "if (!this.realtimeHandler || this.provider.name !== \"twilio\") return null;",
@@ -114,72 +44,12 @@
     ],
     [
      "return await consultRealtimeVoiceAgent({\n\t\t\t\tcfg,\n\t\t\t\tagentRuntime,",
-     "const { E: beginPhoneConsult } = await import(\"/usr/lib/node_modules/openclaw/dist/gateway-work-admission-DPOFUg7J.mjs\");\n\t\t\tconst admission = beginPhoneConsult(\"phone-read-only-consult\");\n\t\t\tif (!admission) throw new Error(\"Main agent temporarily unavailable\");\n\t\t\ttry { return await admission.run(() => consultRealtimeVoiceAgent({\n\t\t\t\tcfg,\n\t\t\t\tsenderIsOwner: false,\n\t\t\t\tagentRuntime: { ...agentRuntime, runEmbeddedAgent: (params) => agentRuntime.runEmbeddedAgent({ ...params, authProfileId, authProfileIdSource: authProfileId ? \"user\" : void 0 }) },"
+     "const admissionDir = \"/usr/lib/node_modules/openclaw/dist\";\n            const { readdir, readFile } = await import(\"node:fs/promises\");\n            const { createHash } = await import(\"node:crypto\");\n            const admissionFiles = (await readdir(admissionDir)).filter(file => /^gateway-work-admission-[A-Za-z0-9_-]{8}\\.mjs$/.test(file));\n            if (admissionFiles.length !== 1) throw new Error(\"Unsupported realtime consult runtime\");\n            const admissionPath = admissionDir + \"/\" + admissionFiles[0];\n            const admissionSource = (await readFile(admissionPath, \"utf8\")).replace(/-[A-Za-z0-9_-]{8}(?=\\.mjs[\"'])/g, \"-BUILDHASH\");\n            if (![\"f165019b0f6e3132c236333e099fcc8ec2042734cccc72b157ee3d4fff26fd10\"].includes(createHash(\"sha256\").update(admissionSource).digest(\"hex\"))) throw new Error(\"Unsupported realtime consult runtime\");\n            const { A: beginPhoneConsult } = await import(admissionPath);\n\t\t\tconst admission = beginPhoneConsult(\"phone-read-only-consult\");\n\t\t\tif (!admission) throw new Error(\"Main agent temporarily unavailable\");\n\t\t\ttry { return await admission.run(() => consultRealtimeVoiceAgent({\n\t\t\t\tcfg,\n\t\t\t\tsenderIsOwner: false,\n\t\t\t\tagentRuntime: { ...agentRuntime, runEmbeddedAgent: (params) => agentRuntime.runEmbeddedAgent({ ...params, authProfileId, authProfileIdSource: authProfileId ? \"user\" : void 0 }) },"
     ],
     [
      "abortSignal: handlerContext.abortSignal\n\t\t\t});",
      "abortSignal: handlerContext.abortSignal\n\t\t\t})); } finally { admission.release(); }"
-    ]
-   ]
-  },
-  {
-   "file": "twilio-Bp3gfmUB.mjs",
-   "before": "c019ce1c3fe0f6bf49d80d2e6f98f53f2c06b1d254f57eee681406c6ff942337",
-   "after": "7a3f4089458a2108a5466d2aa442e3606e1819da096f339a8f681bd22412092b",
-   "changes": [
-    [
-     "if (!hook || ctx.query?.type === \"status\" || p.get(\"Direction\") !== \"inbound\" || p.get(\"CallStatus\") !== \"ringing\") return null;",
-     "if (!hook || ctx.query?.type === \"status\" || (!(ctx.headers?.[\"x-cc-phone-mode\"] === \"classic\" && ctx.query?.turnToken === \"classic\") && (p.get(\"Direction\") !== \"inbound\" || p.get(\"CallStatus\") !== \"ringing\")) || p.get(\"SpeechResult\") || p.get(\"Digits\")) return null;"
-    ]
-   ]
-  },
-  {
-   "file": "realtime-handler-BgDPcPZt.mjs",
-   "before": "226f3ea2203d44537c4380c50e6ccff412dcae7e5156e63cf31e7f05d999cbb0",
-   "after": "04f63ed216d37669493a748df66f1b6469941fb8d88996a100629722099565ed",
-   "changes": [
-    [
-     "this.publicPathPrefix = resolveVoiceCallPublicPathPrefix(parsed.pathname, this.servePath);",
-     "this.publicPathPrefix = \"\"; // Managed fixed loopback route; firewall rewrites the external stream URL."
     ],
-    [
-     "const DEFAULT_MAX_QUEUED_AUDIO_BYTES = TELEPHONY_SAMPLE_RATE * 120;",
-     "const DEFAULT_MAX_QUEUED_AUDIO_BYTES = TELEPHONY_SAMPLE_RATE * 30;"
-    ],
-    [
-     "if (cause === \"disconnect\") this.streamDisconnectLifecycle.disconnect(callSid, streamSid);\n\t\t\t\telse this.streamDisconnectLifecycle.retire(callSid, streamSid);",
-     "this.streamDisconnectLifecycle.retire(callSid, streamSid); // Firewall owns fallback and the absolute call deadline."
-    ],
-    [
-     "if (!this.activeBridgesByCallId.has(callId)) emitCallEnd(\"error\");",
-     "/* Firewall performs bounded classic fallback if provider resolution fails. */"
-    ],
-    [
-     "if (!this.activeBridgesByCallId.has(callId)) emitCallEnd(reason);",
-     "if (!this.activeBridgesByCallId.has(callId) && reason !== \"error\") emitCallEnd(reason);"
-    ],
-    [
-     "if (ownsCall && stillOwnsCall && cause && cause !== \"disconnect\") return emitCallEnd(cause);",
-     "if (ownsCall && stillOwnsCall && cause && cause !== \"disconnect\" && cause !== \"error\") return emitCallEnd(cause);"
-    ]
-   ]
-  },
-  {
-   "file": "runtime-entry-BNOQRXii.mjs",
-   "before": "480dec4e7be9cb5d50a984c728fdfed3cbba4ebc5f17debefa00bb52c62e9fc4",
-   "after": "aa0e18119e8e22857e850ba3c07c4c37ea789d52004b16af1d58115bd846b94b",
-   "changes": [
-    [
-     "const { E: beginPhoneConsult } = await import(\"/usr/lib/node_modules/openclaw/dist/gateway-work-admission-DPOFUg7J.mjs\");",
-     "const admissionDir = \"/usr/lib/node_modules/openclaw/dist\";\n            const { readdir, readFile } = await import(\"node:fs/promises\");\n            const { createHash } = await import(\"node:crypto\");\n            const admissionFiles = (await readdir(admissionDir)).filter(file => /^gateway-work-admission-[A-Za-z0-9_-]{8}\\.mjs$/.test(file));\n            if (admissionFiles.length !== 1) throw new Error(\"Unsupported realtime consult runtime\");\n            const admissionPath = admissionDir + \"/\" + admissionFiles[0];\n            const admissionSource = (await readFile(admissionPath, \"utf8\")).replace(/-[A-Za-z0-9_-]{8}(?=\\.mjs[\"'])/g, \"-BUILDHASH\");\n            if (createHash(\"sha256\").update(admissionSource).digest(\"hex\") !== \"e9f7717502261327a4fe58a7f18fa0e60fa2e7a6193e18fdabebf98a9481b387\") throw new Error(\"Unsupported realtime consult runtime\");\n            const { E: beginPhoneConsult } = await import(admissionPath);"
-    ]
-   ]
-  },
-  {
-   "file": "runtime-entry-BNOQRXii.mjs",
-   "before": "aa0e18119e8e22857e850ba3c07c4c37ea789d52004b16af1d58115bd846b94b",
-   "after": "5c9aed4c9cd6fe491625d42b6f99474d7cc5d1f63da94494dd3ed7d8acca8f4b",
-   "changes": [
     [
      "\t\ttry {\n\t\t\tconst { generateVoiceResponse } = await loadResponseGeneratorModule();",
      "\t\tlet controlClawApologized = false;\n\t\tconst controlClawNoReply = () => {\n\t\t\tif (controlClawApologized) return false;\n\t\t\tcontrolClawApologized = true;\n\t\t\treturn speakResponse(\"Sorry, I could not get an answer in time. Please ask again.\").catch(() => false);\n\t\t};\n\t\ttry {\n\t\t\tconst { generateVoiceResponse } = await loadResponseGeneratorModule();"
@@ -195,13 +65,86 @@
    ]
   },
   {
-   "file": "runtime-entry-BNOQRXii.mjs",
-   "before": "5c9aed4c9cd6fe491625d42b6f99474d7cc5d1f63da94494dd3ed7d8acca8f4b",
-   "after": "38baa0c8036a5179f9b589eb69d40188746e17a8c9b680019e4d68e907e4b93f",
+   "file": "runtime-entry-Cy51Uayg.mjs",
+   "before": "59536dbba790cef7e6fd17cb44364c7aed2fb3e16d1ea36c1d5753b7f8149597",
+   "after": "3919922a9d1892ecae0b3163f7aeec830e120e33e1548b365e9127178516930a",
    "changes": [
     [
-     "if (createHash(\"sha256\").update(admissionSource).digest(\"hex\") !== \"e9f7717502261327a4fe58a7f18fa0e60fa2e7a6193e18fdabebf98a9481b387\") throw new Error(\"Unsupported realtime consult runtime\");",
-     "if (![\"e9f7717502261327a4fe58a7f18fa0e60fa2e7a6193e18fdabebf98a9481b387\",\"03ee4a4d4f0fbabe7420f8766a5fa3b8af789e3f5b4729f2f31d7785a8e69c0e\",\"6cd00b695a57dedd6535e52c27daa11bbed793df42251ed4644bf9625547e75c\"].includes(createHash(\"sha256\").update(admissionSource).digest(\"hex\"))) throw new Error(\"Unsupported realtime consult runtime\");"
+     "            const admissionSource = (await readFile(admissionPath, \"utf8\")).replace(/-[A-Za-z0-9_-]{8}(?=\\.mjs[\"'])/g, \"-BUILDHASH\");\n            if (![\"f165019b0f6e3132c236333e099fcc8ec2042734cccc72b157ee3d4fff26fd10\"].includes(createHash(\"sha256\").update(admissionSource).digest(\"hex\"))) throw new Error(\"Unsupported realtime consult runtime\");\n            const { A: beginPhoneConsult } = await import(admissionPath);",
+     "            const admissionState = (await readdir(admissionDir)).filter(file => /^gateway-work-admission-state-[A-Za-z0-9_-]{8}\\.mjs$/.test(file));\n            if (admissionState.length > 1) throw new Error(\"Unsupported realtime consult runtime\");\n            const admissionCode = async path => (await readFile(path, \"utf8\")).replace(/-[A-Za-z0-9_-]{8}(?=\\.mjs[\"'])/g, \"-BUILDHASH\");\n            const admissionSource = await admissionCode(admissionPath) + (admissionState.length ? await admissionCode(admissionDir + \"/\" + admissionState[0]) : \"\");\n            const admissionExport = {\"7580c5e8d626a2944211eb596e40f6fb2b5739828c99e4a8591a1eadb6a5edbe\":\"k\",\"f165019b0f6e3132c236333e099fcc8ec2042734cccc72b157ee3d4fff26fd10\":\"A\"}[createHash(\"sha256\").update(admissionSource).digest(\"hex\")];\n            if (!admissionExport) throw new Error(\"Unsupported realtime consult runtime\");\n            const { [admissionExport]: beginPhoneConsult } = await import(admissionPath);"
+    ]
+   ]
+  },
+  {
+   "file": "response-generator-CZJCHbml.mjs",
+   "before": "0445cb1dd41f51b689bb9cadd04b8b61df1a91ffd1147e435bb74a1ee48641d4",
+   "after": "6f0781502ac4f14558a2962b6a1207a787464d5d21aa94cd1662a913183a85eb",
+   "changes": [
+    [
+     "const { provider, model } = resolveVoiceResponseModel({",
+     "const { provider, model, authProfileId } = resolveVoiceResponseModel({"
+    ],
+    [
+     "\t\t\t\tprovider,\n\t\t\t\tmodel,\n\t\t\t\tmodelSelectionLocked,",
+     "\t\t\t\tprovider,\n\t\t\t\tmodel,\n\t\t\t\tauthProfileId,\n\t\t\t\tauthProfileIdSource: authProfileId ? \"user\" : void 0,\n\t\t\t\tmodelSelectionLocked,"
+    ]
+   ]
+  },
+  {
+   "file": "twilio-CrPMFGbz.mjs",
+   "before": "1c52897d5f0f42fd32b5b972bf6557665450a62bc6b122b2d94deb1dd9a72e77",
+   "after": "1561f6cea3aa14e717cfbd404bf30fa7a11f02eb1e298810ab012d5f95d9207c",
+   "changes": [
+    [
+     "if (!streamUrl || !callSid) return TwilioProvider.PAUSE_TWIML;",
+     "if (!streamUrl || !callSid) return controlClawInboundTwiml(ctx, this.currentPublicUrl) ?? controlClawWaitTwiml(ctx.rawBody) ?? TwilioProvider.PAUSE_TWIML;"
+    ],
+    [
+     "var TwilioProvider = class TwilioProvider {",
+     "function controlClawPlainSpeech(text) {\n  return String(text)\n    .replace(/```[^\\n]*\\n?([\\s\\S]*?)```/g, \"$1\")\n    .replace(/!?\\[([^\\]]+)\\]\\([^)]*\\)/g, \"$1\")\n    .replace(/\\\\([\\\\`*_{}\\[\\]()#+\\-.!>~])/g, \"$1\")\n    .replace(/<[^>]*>/g, \"\")\n    .replace(/^\\s*(?:#{1,6}\\s+|>\\s*|[-*+]\\s+|\\d+[.)]\\s+)/gm, \"\")\n    .replace(/[`*_~]/g, \"\")\n    .replace(/\\s+/g, \" \").trim();\n}\nfunction controlClawWaitTwiml(rawBody) {\n  if (!new URLSearchParams(rawBody).get(\"SpeechResult\")?.trim()) return null;\n  return '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say voice=\"Polly.Joanna\">One moment.</Say><Pause length=\"30\"/></Response>';\n}\nfunction controlClawInboundTwiml(ctx, hook) {\n  const p = new URLSearchParams(ctx.rawBody);\n  if (!hook || ctx.query?.type === \"status\" || (!(ctx.headers?.[\"x-cc-phone-mode\"] === \"classic\" && ctx.query?.turnToken === \"classic\") && (p.get(\"Direction\") !== \"inbound\" || p.get(\"CallStatus\") !== \"ringing\")) || p.get(\"SpeechResult\") || p.get(\"Digits\")) return null;\n  return '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say voice=\"Polly.Joanna\">Hello! How can I help you today?</Say><Gather input=\"speech\" speechTimeout=\"auto\" timeout=\"5\" action=\"' + escapeXml(hook) + '\" method=\"POST\"/></Response>';\n}\n\nvar TwilioProvider = class TwilioProvider {"
+    ],
+    [
+     "${escapeXml(input.text)}</Say>\n  ${gather}",
+     "${escapeXml(controlClawPlainSpeech(input.text))}</Say>\n  ${gather}"
+    ],
+    [
+     "    <Say>.</Say>\n",
+     ""
+    ],
+    [
+     "</Gather>\n  <Redirect method=\"POST\">${escapeXml(redirectUrl.toString())}</Redirect>`;",
+     "</Gather>`;"
+    ]
+   ]
+  },
+  {
+   "file": "realtime-handler-Bziu0nfs.mjs",
+   "before": "06bf67854f352b6b26e49e504a6c58eaff277d36c22e4158303adb4159a0244e",
+   "after": "aebc5a80b8ff0af7d565096817c544c1858fb471318575dc34a12bb0fa859d26",
+   "changes": [
+    [
+     "this.publicPathPrefix = resolveVoiceCallPublicPathPrefix(parsed.pathname, this.servePath);",
+     "this.publicPathPrefix = \"\"; // Managed fixed loopback route; firewall rewrites the external stream URL."
+    ],
+    [
+     "const DEFAULT_MAX_QUEUED_AUDIO_BYTES = TELEPHONY_SAMPLE_RATE * 120;",
+     "const DEFAULT_MAX_QUEUED_AUDIO_BYTES = TELEPHONY_SAMPLE_RATE * 30;"
+    ],
+    [
+     "if (cause === \"disconnect\") this.streamDisconnectLifecycle.disconnect(callSid, streamSid);\n\t\t\t\telse this.streamDisconnectLifecycle.retire(callSid, streamSid);",
+     "this.streamDisconnectLifecycle.retire(callSid, streamSid); // Firewall owns fallback and the absolute call deadline."
+    ],
+    [
+     "if (!this.activeBridgesByCallId.has(callId)) emitCallEnd(\"error\");\n\t\t\tws.close(1011, \"Check realtime configuration for routed agent\");",
+     "/* Firewall performs bounded classic fallback if provider resolution fails. */\n\t\t\tws.close(1011, \"Check realtime configuration for routed agent\");"
+    ],
+    [
+     "if (!this.activeBridgesByCallId.has(callId)) emitCallEnd(\"error\");\n\t\t\tif (ws.readyState === WebSocket.OPEN) ws.close(1011, \"Failed to create realtime bridge\");",
+     "/* Firewall performs bounded classic fallback if the realtime bridge cannot start. */\n\t\t\tif (ws.readyState === WebSocket.OPEN) ws.close(1011, \"Failed to create realtime bridge\");"
+    ],
+    [
+     "if (ownsCall && stillOwnsCall && cause && cause !== \"disconnect\") return emitCallEnd(cause);",
+     "if (ownsCall && stillOwnsCall && cause && cause !== \"disconnect\" && cause !== \"error\") return emitCallEnd(cause);"
     ]
    ]
   }

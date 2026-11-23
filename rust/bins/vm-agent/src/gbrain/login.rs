@@ -8,7 +8,7 @@
 use std::sync::LazyLock;
 use std::time::Duration;
 
-use cc_proc::{Cmd, Runner};
+use cc_proc::Runner;
 use regex::Regex;
 
 use super::run_helper;
@@ -26,7 +26,7 @@ pub fn parse_login_link(stdout: &str) -> Option<String> {
 }
 
 pub async fn login_path(runner: &dyn Runner) -> Result<String, String> {
-    let cmd = Cmd::new("sudo").arg(HELPER).timeout(HELPER_TIMEOUT);
+    let cmd = super::helper(HELPER).timeout(HELPER_TIMEOUT);
     let stdout = run_helper(runner, cmd)
         .await
         .map_err(|e| format!("could not get a GBrain login link: {e}"))?;

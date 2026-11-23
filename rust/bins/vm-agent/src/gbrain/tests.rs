@@ -549,6 +549,17 @@ fn only_the_gates_agents() {
 }
 
 #[test]
+fn an_outside_apps_call_names_the_client_not_an_agent() {
+    let r = map_brain_event(&PUT.replace("cc-og16xfj078hb36bavvml91or", "cc-client-c1")).expect("record");
+    assert_eq!(r["client_id"], "c1");
+    assert_eq!(r["agent_vm_id"], Value::Null);
+    assert_eq!(r["operation"], "put_page");
+    let a = map_brain_event(PUT).expect("record");
+    assert_eq!(a["agent_vm_id"], "og16xfj078hb36bavvml91or");
+    assert!(a.get("client_id").is_none());
+}
+
+#[test]
 fn sse_comments_and_partial_blocks() {
     let (events, rest) = split_sse(&format!(
         ": connected\n\ndata: {PUT}\n\ndata: {{\"a\":1}}\n\ndata: {{\"part"
@@ -940,4 +951,182 @@ async fn serve_gate_admits_by_the_callers_address_and_drops_its_forwarded_for() 
     assert_eq!(status, 403);
     assert!(body.contains("emergency stop"));
     assert_eq!(seen.lock().expect("seen").len(), 1);
+}
+
+// ---- relayed by a standalone firewall (`GateMode::Relayed`, docs/plans/standalone-brain.md B) ----
+
+#[test]
+fn a_relayed_gate_takes_any_private_address_and_the_saas_only_10x() {
+    let b = |ip: &str| json!({"vmId": "vm_a", "ip": ip, "scope": "read"}).as_object().cloned();
+    for ip in ["172.31.251.10", "10.77.0.2", "192.168.1.20"] {
+        assert!(
+            gate::parse_connect_for(b(ip).as_ref(), gate::GateMode::Relayed).is_ok(),
+            "{ip}"
+        );
+    }
+    for ip in ["8.8.8.8", "127.0.0.1", "172.32.0.1", "10.0.0.999"] {
+        assert!(
+            gate::parse_connect_for(b(ip).as_ref(), gate::GateMode::Relayed).is_err(),
+            "{ip}"
+        );
+    }
+    assert!(
+        parse_connect(b("172.31.251.10").as_ref()).is_err(),
+        "the SaaS gate stays 10.x"
+    );
+    assert!(parse_connect(b("10.0.0.5").as_ref()).is_ok());
+    assert_eq!(gate::GateMode::parse(Some("relayed")), gate::GateMode::Relayed);
+    assert_eq!(gate::GateMode::parse(Some("direct")), gate::GateMode::Direct);
+    assert_eq!(gate::GateMode::parse(None), gate::GateMode::Direct);
+    assert_eq!(gate::relayed_vm("/gbrain/mcp/vm_a"), Some("vm_a"));
+    assert_eq!(gate::relayed_vm("/gbrain/mcp/vm_a/x"), None);
+    assert_eq!(gate::relayed_vm("/gbrain/mcp/"), None);
+}
+
+async fn send_body(addr: &str, method: &str, path: &str, auth: Option<&str>, body: &[u8]) -> (u16, String) {
+    let c = reqwest::Client::new();
+    let mut r = c
+        .request(method.parse().expect("method"), format!("http://{addr}{path}"))
+        .body(body.to_vec());
+    if let Some(a) = auth {
+        r = r.header("authorization", a);
+    }
+    let res = r.send().await.expect("send");
+    (res.status().as_u16(), res.text().await.expect("text"))
+}
+
+#[tokio::test]
+async fn relayed_calls_need_the_firewalls_token_for_that_one_request() {
+    let seen: Arc<Mutex<Vec<(String, String, String)>>> = Arc::default();
+    let s = seen.clone();
+    let upstream = serve(move |req| {
+        let s = s.clone();
+        async move {
+            let auth = req
+                .headers()
+                .get("authorization")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            let uri = req.uri().to_string();
+            let body = req.into_body().collect().await.expect("body").to_bytes();
+            s.lock()
+                .expect("seen")
+                .push((uri, auth, String::from_utf8_lossy(&body).into_owned()));
+            cc_http::json(200, &json!({"ok": true}))
+        }
+    })
+    .await;
+    let dir = tempfile::tempdir().expect("dir");
+    let keys = cc_testkit::BoxKeys::write(&dir.path().join("keys"), "brain_1", "10.77.0.5").expect("keys");
+    let pin = keys.firewall.public_pem.clone();
+    let auth = Arc::new(cc_auth::firewall::FirewallAuth::new(
+        move || Some(pin.clone()),
+        Some("brain_1".into()),
+        || vec!["10.77.0.5".to_string()],
+        None,
+    ));
+    let gate = Arc::new(BrainGate::with_log(
+        &dir.path().join("gate.json"),
+        Arc::new(helper()),
+        quiet(),
+    ));
+    gate.connect(&gate::ConnectInput {
+        vm_id: "vm_a".into(),
+        ip: "172.31.251.10".into(),
+        scope: "read".into(),
+    })
+    .await
+    .expect("connect");
+
+    let (g, a, up) = (gate.clone(), auth.clone(), upstream.clone());
+    let slots = Arc::new(gate::RelaySlots::default());
+    let addr = serve(move |req| {
+        let (g, a, up, slots) = (g.clone(), a.clone(), up.clone(), slots.clone());
+        async move { gate::handle_relayed(&|vm| g.admit_vm(vm), &slots, &a, &up, &|_| {}, req).await }
+    })
+    .await;
+    let body = br#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search"}}"#;
+    let bearer = |t: String| format!("Bearer {t}");
+    let path = "/gbrain/mcp/vm_a";
+
+    // No token, or the agent's own: nothing reaches GBrain.
+    assert_eq!(send_body(&addr, "POST", path, None, body).await.0, 401);
+    assert_eq!(send_body(&addr, "POST", path, Some("Bearer stolen"), body).await.0, 401);
+    // The firewall's management purpose is not this one.
+    let t = keys.firewall_token("gbrain", "POST", path, Some(body));
+    assert_eq!(send_body(&addr, "POST", path, Some(&bearer(t)), body).await.0, 401);
+    assert!(seen.lock().expect("seen").is_empty());
+
+    // The firewall's token for this call: GBrain gets it with the agent's own token, at `/mcp`.
+    let t = keys.firewall_token("gbrain-mcp", "POST", path, Some(body));
+    let (status, _) = send_body(&addr, "POST", path, Some(&bearer(t.clone())), body).await;
+    assert_eq!(status, 200);
+    {
+        let s = seen.lock().expect("seen");
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].0, "/mcp");
+        assert_eq!(s[0].1, format!("Bearer {TOKEN_A}"));
+        assert_eq!(s[0].2.as_bytes(), body);
+    }
+    // Taken once.
+    assert_eq!(send_body(&addr, "POST", path, Some(&bearer(t)), body).await.0, 401);
+    // Another agent in the path than the one signed.
+    let t = keys.firewall_token("gbrain-mcp", "POST", path, Some(body));
+    assert_eq!(
+        send_body(&addr, "POST", "/gbrain/mcp/vm_b", Some(&bearer(t)), body)
+            .await
+            .0,
+        401
+    );
+    // Another body than the one signed.
+    let t = keys.firewall_token("gbrain-mcp", "POST", path, Some(body));
+    assert_eq!(send_body(&addr, "POST", path, Some(&bearer(t)), b"{}").await.0, 400);
+    assert_eq!(seen.lock().expect("seen").len(), 1);
+
+    // A signed call for an agent the brain does not have.
+    let other = "/gbrain/mcp/vm_b";
+    let t = keys.firewall_token("gbrain-mcp", "POST", other, Some(body));
+    let (status, text) = send_body(&addr, "POST", other, Some(&bearer(t)), body).await;
+    assert_eq!(status, 403);
+    assert!(text.contains("not connected"), "{text}");
+
+    // The brain's own lock.
+    gate.set_lock(gate::Lock {
+        all: false,
+        vm_ids: vec!["vm_a".into()],
+    })
+    .expect("lock");
+    let t = keys.firewall_token("gbrain-mcp", "POST", path, Some(body));
+    let (status, text) = send_body(&addr, "POST", path, Some(&bearer(t)), body).await;
+    assert_eq!(status, 403);
+    assert!(text.contains("emergency stop"), "{text}");
+    assert_eq!(seen.lock().expect("seen").len(), 1);
+
+    // Only the relayed path.
+    let t = keys.firewall_token("gbrain-mcp", "POST", "/mcp", Some(body));
+    assert_eq!(send_body(&addr, "POST", "/mcp", Some(&bearer(t)), body).await.0, 404);
+}
+
+/// The brain holds at most RELAY_IN_FLIGHT_PER_AGENT relayed calls for one agent, and
+/// RELAY_IN_FLIGHT_TOTAL in all; a slot is free again when it is dropped.
+#[test]
+fn relayed_calls_on_their_way_are_capped() {
+    let slots = gate::RelaySlots::default();
+    let mine: Vec<_> = (0..gate::RELAY_IN_FLIGHT_PER_AGENT)
+        .map(|_| slots.take("vm_a").expect("slot"))
+        .collect();
+    assert!(slots.take("vm_a").is_none(), "one agent's share");
+    let others: Vec<_> = (0..gate::RELAY_IN_FLIGHT_TOTAL - gate::RELAY_IN_FLIGHT_PER_AGENT)
+        .map(|i| {
+            slots
+                .take(&format!("vm_{}", i % 3))
+                .or_else(|| slots.take(&format!("vm_x{i}")))
+                .expect("slot")
+        })
+        .collect();
+    assert!(slots.take("vm_z").is_none(), "everyone's share");
+    drop(mine);
+    assert!(slots.take("vm_a").is_some(), "freed");
+    drop(others);
 }

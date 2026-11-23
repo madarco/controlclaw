@@ -548,7 +548,15 @@ export function FirewallPanel({ initial, update: initialUpdate = null, ai = null
         tone: "muted" as const,
         text: "Your firewall is installing new software. It stops reporting partway through. Until it finishes, your agents have no internet access, DNS or permission prompts.",
       }
-    : prov && !view.reachable
+    : view.box?.stop && !view.reachable
+      ? {
+          // Why it is off: a person, the plan, or nobody here (apps/saas/docs/features/stop-reasons.md).
+          // Before the provisioning branch: a box that is off is not being set up.
+          label: `Firewall ${view.box.stop.label.charAt(0).toLowerCase()}${view.box.stop.label.slice(1)}`,
+          tone: (view.box.stop.unexpected ? "block" : "ask") as "block" | "ask",
+          text: view.box.stop.detail,
+        }
+      : prov && !view.reachable
       ? {
           label:
             prov.stage === "failed"

@@ -5,6 +5,7 @@
 pub mod capture;
 pub mod chat;
 pub mod credentials;
+pub mod finding;
 pub mod firewall;
 pub mod fw_tools;
 pub mod gateway;
@@ -322,6 +323,7 @@ fn features(app: &Arc<App>, checks: bool, firewall: bool, terminal: bool) {
     core.beat.feature("doctor_v1", || true);
     core.beat.feature("template_repair", page(app));
     core.beat.feature("template_capture", page(app));
+    core.beat.feature("doctor_finding", page(app));
     core.beat.feature("doctor_chat", page(app));
     core.beat.feature("doctor_start", page(app));
     if firewall {

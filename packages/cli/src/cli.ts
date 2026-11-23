@@ -1,4 +1,5 @@
 import { createInterface } from "node:readline";
+import { brainConnect, brainDisconnect, brainInstall, brainStatus } from "./brain.js";
 import { parseArgs } from "node:util";
 import { connect, disconnect, doctor, type Io, realNet, status } from "./commands.js";
 import { type Ask, terminalAsk } from "./menu.js";
@@ -54,6 +55,21 @@ export const USAGE = `controlclaw ${VERSION}
   controlclaw doctor [--json]
       What this machine has, which modes it can do, and how much each protects.
 
+  controlclaw brain install [--firewall <url>] [--pages-name <host>] [--name <name>] [--vm-agent <path>] [--pages-ui <dir>]
+      A brain (GBrain) for the agents: GBrain and Postgres in Docker, the vm-agent next to them,
+      its traffic through the firewall. Without --firewall, the firewall installed here, no code; with
+      it, a code made for the brain (pair-code --role gbrain) and WireGuard. --pages-name: the name the
+      firewall relays the brain's pages under (PUT /api/brain/pages there). Needs sudo.
+
+  controlclaw brain connect [--firewall <url>] [--gbrain-unit <unit>] [--gbrain-port <port>] ...
+      The GBrain already running here as a systemd service, behind the firewall: the vm-agent and
+      GBrain's helpers next to it, and its traffic held to the firewall. Needs sudo.
+
+  controlclaw brain disconnect [--purge] [--force]
+      Undo brain install or brain connect. --purge also deletes what an installed brain learned.
+
+  controlclaw brain status [--json]
+
   Host mode and install --host need root (sudo). Docker mode needs a user who can use Docker (the
   docker group, which can do what root does). Proxy mode works without either.
 `;
@@ -70,6 +86,15 @@ export const UP_CHOICES = [
 /** Runs a command; `ask` is the menu's (swapped in tests). */
 export async function run(argv: string[], io: Io, sys: Sys = realSys(), ask: Ask = terminalAsk, net: HereNet = realNet): Promise<number> {
   let [command, ...rest] = argv;
+  // `brain install|connect|disconnect|status`: two words.
+  if (command === "brain") {
+    if (!["install", "connect", "disconnect", "status"].includes(rest[0] ?? "")) {
+      io.err("controlclaw brain install | connect | disconnect | status");
+      return 2;
+    }
+    command = `brain ${rest[0]}`;
+    rest = rest.slice(1);
+  }
   // `openclaw install`: one command of two words.
   if (command === "openclaw") {
     if (rest[0] !== "install") {
@@ -110,6 +135,10 @@ export async function run(argv: string[], io: Io, sys: Sys = realSys(), ask: Ask
         "firewall-image": { type: "string" },
         "openclaw-image": { type: "string" },
         dir: { type: "string" },
+        "pages-ui": { type: "string" },
+        "pages-name": { type: "string" },
+        "gbrain-unit": { type: "string" },
+        "gbrain-port": { type: "string" },
       },
     }));
   } catch (e) {
@@ -163,6 +192,15 @@ export async function run(argv: string[], io: Io, sys: Sys = realSys(), ask: Ask
       return uninstall(sys, io, { purge: b("purge"), force: b("force") }, net.post);
     case "status":
       return status(sys, io, { json: b("json") });
+    case "brain install":
+    case "brain connect": {
+      const bo = { firewall: s("firewall"), code: s("code"), codeFile: s("code-file"), name: s("name"), vmAgent: s("vm-agent"), pagesUi: s("pages-ui"), pagesName: s("pages-name"), gbrainUnit: s("gbrain-unit"), gbrainPort: s("gbrain-port") };
+      return command === "brain install" ? brainInstall(sys, io, bo, net) : brainConnect(sys, io, bo, net);
+    }
+    case "brain disconnect":
+      return brainDisconnect(sys, io, { purge: b("purge"), force: b("force") }, net.post);
+    case "brain status":
+      return brainStatus(sys, io, { json: b("json") });
     case "open":
       return open(sys, io, net.open);
     case "--version":

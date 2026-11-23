@@ -314,6 +314,30 @@ pub fn register(router: &mut Router, app: &Arc<App>) {
     if drive.is_none() {
         tracing::info!("[drive] cc-drive-apply is not on this box: Drive folders off until it is re-provisioned");
     }
+    // The agent learns where its Drive folders are from ControlClaw's instructions (outside the
+    // workspace, platform::controlclaw_agents), kept in line with what the reconcile mounted. The
+    // reconcile runs detached, so this follows it on a timer. Not on a box whose role cannot write them.
+    let ours = crate::platform::controlclaw_agents::Instructions::on_box();
+    if let Some(d) = drive.clone()
+        && ours.available()
+        && tokio::runtime::Handle::try_current().is_ok()
+    {
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(Duration::from_secs(30));
+            loop {
+                tick.tick().await;
+                let (d2, o2) = (d.clone(), ours.clone());
+                let synced = tokio::task::spawn_blocking(move || d2.sync_agents(&o2))
+                    .await
+                    .unwrap_or_else(|e| Err(e.to_string()));
+                match synced {
+                    Ok(true) => tracing::info!("[drive] instructions: the Drive folders brought up to date"),
+                    Ok(false) => {}
+                    Err(e) => tracing::error!("[drive] instructions: {e}"),
+                }
+            }
+        });
+    }
     let google = Arc::new(google::Google::new(
         app.runner.clone(),
         google::env_path(&state),

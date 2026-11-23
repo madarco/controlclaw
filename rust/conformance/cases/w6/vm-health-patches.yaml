@@ -18,7 +18,7 @@ steps:
         items:
           - {id: meetings_runtime, status: unknown, expected: null, actual: $any}
           - {id: meetings_plugin, status: missing, expected: null, actual: null}
-          - {id: phone_plugin, status: not_installed, expected: "2026.9.7"}
+          - {id: phone_plugin, status: not_installed, expected: "2026.11.3"}
           - {id: phone_runtime, status: missing, actual: $any}
           - {id: voice_adapter, status: missing}
           - {id: wake, status: $string}

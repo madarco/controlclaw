@@ -832,6 +832,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/brain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The brain, whether it answers, its model, the agents that may use it and how, and the locks */
+        get: operations["getBrain"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/brain/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Searches and saves today and over 30 days, per agent and per hour, the brain's page counts */
+        get: operations["getBrainOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/brain/agents/{vmId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Switch an agent on the brain, or change what it may do: read, or read and write */
+        put: operations["putBrainAgentsVmId"];
+        post?: never;
+        /** Switch an agent off the brain; its OpenClaw config is left as it was */
+        delete: operations["deleteBrainAgentsVmId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/brain/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Lock every agent out of the brain, or let them back; connections are kept */
+        put: operations["putBrainLock"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/brain/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the brain answers: GBrain and its database */
+        get: operations["getBrainStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/brain/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The brain's model, and the ones it takes */
+        get: operations["getBrainModel"];
+        /** Set the brain's model for its own work (the nightly run, rewording searches); it restarts once */
+        put: operations["putBrainModel"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/brain/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** The name the browser reaches the brain's pages at (HTTPS in front of BRAIN_PAGES_BIND); set once */
+        put: operations["putBrainPages"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/brain/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A one-time link (60 s) that signs this browser in to the brain's pages, or GBrain's admin page */
+        post: operations["postBrainOpen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/channels": {
         parameters: {
             query?: never;
@@ -1810,6 +1948,7 @@ export interface components {
             replace: boolean;
             /** Format: int64 */
             expires_at: number;
+            role: string;
         };
         /** @description What the admin says about the machine the code is for. */
         NewCodeBody: {
@@ -1831,10 +1970,17 @@ export interface components {
              */
             address?: string | null;
             /**
-             * @description Whether the machine may take the place of an agent already at its address.
+             * @description Whether the machine may take the place of an agent already at its address (for the brain:
+             *     of the brain this firewall has).
              * @default false
              */
             replace?: boolean;
+            /**
+             * @description `openclaw` (default): an OpenClaw machine (`controlclaw connect`); `gbrain`: the brain
+             *     (`controlclaw brain install` or `brain connect`). A code pairs only what it was made for.
+             * @default null
+             */
+            role?: string | null;
         };
         PendingCodes: {
             codes: components["schemas"]["PendingCode"][];
@@ -1850,6 +1996,7 @@ export interface components {
             expires_at: number;
             address?: string | null;
             replace: boolean;
+            role: string;
         };
         /** @description The address `controlclaw connect --firewall` takes, from what the firewall was set up with. */
         PairAddress: {
@@ -2050,6 +2197,204 @@ export interface components {
              */
             country?: string | null;
         };
+        PanelBrain: {
+            /** @description The brain paired with this firewall (role `gbrain`); null when there is none. */
+            brain?: components["schemas"]["BrainDetail"] | null;
+        };
+        BrainDetail: {
+            vmId: string;
+            name: string;
+            /** @description Where the firewall reaches its vm-agent. */
+            address?: string | null;
+            /** @description `install` or `connect`, when the brain's pairing said; null otherwise. */
+            origin?: string | null;
+            /** @description The brain's vm-agent answered. */
+            reachable: boolean;
+            /** @description GBrain's own service, when the vm-agent answered. */
+            service?: components["schemas"]["ServiceState"] | null;
+            /** @description No agent can search or save: the emergency stop for everyone, or the admin's lock. */
+            locked: boolean;
+            /** @description The admin's lock (`PUT /api/brain/lock`). */
+            lockedByAdmin: boolean;
+            /** @description The emergency stop for everyone. */
+            stoppedAll: boolean;
+            /** @description Its pages have a name, so they can be opened (`POST /api/brain/open`). */
+            pages: boolean;
+            /** @description `https://<name>` of its pages, when set. */
+            pagesUrl?: string | null;
+            hostname?: string | null;
+            /** @description GBrain's version, when the brain reported it. */
+            version?: string | null;
+            /** @description The model set from here; null until one was. */
+            model?: string | null;
+            models: components["schemas"]["BrainModelChoice"][];
+            /** @description No OpenAI or Vercel AI Gateway key on this firewall for the brain's calls. */
+            needsKey: boolean;
+            agents: components["schemas"]["BrainAgent"][];
+            /** @description Always null here: a change applies at once. */
+            change?: unknown;
+            /** @description What agents are given as their `gbrain` MCP entry; null when the tools gate is off. */
+            gateUrl?: string | null;
+            /** @description Why the brain could not be read, when it could not. */
+            brainError?: string | null;
+            autoSave: components["schemas"]["BrainAutoSave"];
+        };
+        ServiceState: {
+            active: boolean;
+        };
+        BrainModelChoice: {
+            id: string;
+            label: string;
+            blurb: string;
+        };
+        BrainAgent: {
+            vmId: string;
+            name: string;
+            running: boolean;
+            /** @description The firewall can reach its vm-agent, so it can be switched on. */
+            secured: boolean;
+            /** @description Null while it is off the brain. */
+            connection?: components["schemas"]["BrainConnection"] | null;
+            /** @description Under the emergency stop, on its own or with everyone. */
+            stopped: boolean;
+        };
+        BrainConnection: {
+            /** @description `read` or `read_write`. */
+            scope: string;
+            /** @description When it was switched on (ISO). */
+            since: string;
+            /** @description Always false here: "Save what it learns automatically" is not on a standalone firewall. */
+            autoCapture: boolean;
+        };
+        BrainAutoSave: {
+            available: boolean;
+            reason: string;
+        };
+        BrainOverview: {
+            /** @description ISO hour starts of the 24 points. */
+            hours: string[];
+            searches: components["schemas"]["BrainCount"];
+            /** @description Saves that went through. */
+            saves: components["schemas"]["BrainCount"];
+            answerMs: components["schemas"]["BrainAnswerMs"];
+            lastSavedAt?: string | null;
+            /** @description The newest reading of the brain's counts; null until the brain sends one. */
+            latest?: components["schemas"]["BrainReading"] | null;
+            /** @description Newest first: an agent's saves per quarter hour, and how the counts per kind moved. */
+            feed: components["schemas"]["BrainFeedItem"][];
+            /** @description 30 days, oldest first, ending today. */
+            growth: components["schemas"]["BrainGrowthDay"][];
+            /** @description Searches and saves per agent over 30 days, busiest first. */
+            agents: components["schemas"]["BrainAgentUsage"][];
+        };
+        BrainCount: {
+            /** Format: uint64 */
+            today: number;
+            /**
+             * Format: uint64
+             * @description Yesterday up to the same time of day.
+             */
+            yesterday: number;
+            /** @description The last 24 hours, oldest first, as `hours`. */
+            hourly: number[];
+        };
+        BrainAnswerMs: {
+            /** Format: int64 */
+            today?: number | null;
+            hourly: number[];
+        };
+        BrainReading: {
+            at: string;
+            /** Format: uint64 */
+            pageCount: number;
+            /** Format: uint64 */
+            chunkCount: number;
+            byType: {
+                [key: string]: number;
+            };
+            /** Format: uint64 */
+            diskUsedBytes?: number | null;
+            /** Format: uint64 */
+            diskFreeBytes?: number | null;
+        };
+        BrainFeedItem: {
+            /** @constant */
+            kind: "saves";
+            id: string;
+            at: string;
+            agentVmId?: string | null;
+            agentName?: string | null;
+            /** Format: uint64 */
+            count: number;
+        } | {
+            /** @constant */
+            kind: "changes";
+            id: string;
+            at: string;
+            changes: components["schemas"]["BrainTypeChange"][];
+        };
+        BrainTypeChange: {
+            key: string;
+            /** @description The key: the panel names it. */
+            label: string;
+            /** Format: int64 */
+            delta: number;
+        };
+        BrainGrowthDay: {
+            /** @description `YYYY-MM-DD`, UTC. */
+            day: string;
+            /**
+             * Format: uint64
+             * @description Pages at the day's last reading; null before the first one.
+             */
+            pages?: number | null;
+            /** Format: uint64 */
+            saves: number;
+        };
+        BrainAgentUsage: {
+            vmId: string;
+            /** Format: uint64 */
+            searches: number;
+            /** Format: uint64 */
+            saves: number;
+            lastAt?: string | null;
+        };
+        BrainAgentScope: {
+            scope: components["schemas"]["BrainScope"];
+        };
+        /** @enum {string} */
+        BrainScope: "read" | "read_write";
+        BrainLockBody: {
+            locked: boolean;
+        };
+        BrainModelView: {
+            /** @description The model last set from here; null until one was (the brain's own default then). */
+            model?: string | null;
+            models: components["schemas"]["BrainModelChoice"][];
+        };
+        BrainModelBody: {
+            model: string;
+        };
+        BrainPagesView: {
+            hostname: string;
+            url: string;
+        };
+        BrainPagesBody: {
+            /**
+             * @description A name with a dot and no port (`brain.example.com`), served on 443 by HTTPS in front of
+             *     `BRAIN_PAGES_BIND`; the brain's own `vm_hostname` must be the same.
+             */
+            hostname: string;
+        };
+        BrainOpenBody: {
+            page: components["schemas"]["BrainPage"];
+        };
+        /**
+         * @description Pages, Lately, Ask, Import and Export each open on the brain's Pages, where the others are a
+         *     click away; `admin` is GBrain's own admin page.
+         * @enum {string}
+         */
+        BrainPage: "pages" | "lately" | "ask" | "import" | "export" | "admin";
         ChannelsView: {
             channels: components["schemas"]["Channel"][];
             /** @description The firewall's own account of who gets codes (`code_recipients`): approved and allowed senders. */
@@ -4199,6 +4544,324 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommandAnswer"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getBrain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelBrain"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getBrainOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrainOverview"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    putBrainAgentsVmId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vmId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrainAgentScope"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandAnswer"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    deleteBrainAgentsVmId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vmId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandAnswer"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    putBrainLock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrainLockBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandAnswer"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getBrainStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandAnswer"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getBrainModel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrainModelView"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    putBrainModel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrainModelBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrainModelView"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    putBrainPages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrainPagesBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrainPagesView"];
+                };
+            };
+            /** @description Refused: `{error}` */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    postBrainOpen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrainOpenBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenLink"];
                 };
             };
             /** @description Refused: `{error}` */

@@ -33,7 +33,7 @@ type Rule = { match: RegExp; say: (m: RegExpMatchArray) => string };
  */
 const RULES: Rule[] = [
   {
-    // `packages/vm-agent/src/gateway.ts`: the gateway RPC ran past its budget. Since T-86 a write
+    // `rust/bins/vm-agent/src/platform/gateway.rs`: the gateway RPC ran past its budget. Since T-86 a write
     // that does this is confirmed from the box rather than failed, so what is left here is a read.
     match: /gateway call ([\w.]+) timed out/i,
     say: () => "Your agent took too long to answer. It is usually busy rather than broken — wait a moment and try again.",

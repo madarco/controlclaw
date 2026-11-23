@@ -13,7 +13,7 @@
 //! firewall's alone.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
@@ -369,6 +369,89 @@ pub fn channel_block(input: &ApplyInput) -> Option<Value> {
             Some(Value::Object(b))
         }
     }
+}
+
+/// The marker in every stand-in the firewall gives an agent instead of a bot's token
+/// (`__cc_<type>_<which>_<connection>`); the proxy swaps the real token in on the way out.
+const STAND_IN_MARK: &str = "__cc_";
+/// How long after a channel write OpenClaw's config copies are looked at: its reload, which rotates
+/// them, is done by then.
+const SCRUB_AFTER_WRITE: Duration = Duration::from_secs(30);
+
+/// After a bot's token became a stand-in, OpenClaw's own copies of its config
+/// (`openclaw.json.bak`, `.bak.1`…, `.last-good`) still hold the token the agent had before, until
+/// enough later writes push them out. Each copy gets the stand-in the live `openclaw.json` holds
+/// in its place, so it still works if OpenClaw goes back to it, and the token is not left on the
+/// box. A copy that is not plain JSON is left alone. The number of copies changed.
+pub fn scrub_config_copies(dir: &Path) -> usize {
+    let read = |p: &Path| {
+        std::fs::read_to_string(p)
+            .ok()
+            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+    };
+    let Some(live) = read(&dir.join("openclaw.json")) else {
+        return 0;
+    };
+    let mut stand_ins = Vec::new();
+    for t in ["telegram", "slack"] {
+        for key in ["botToken", "appToken"] {
+            if let Some(v) = at(&live, &["channels", t, key]).and_then(Value::as_str)
+                && v.contains(STAND_IN_MARK)
+            {
+                stand_ins.push((t, key, v.to_string()));
+            }
+        }
+    }
+    if stand_ins.is_empty() {
+        return 0;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    let mut changed = 0;
+    for e in entries.flatten() {
+        let name = e.file_name().to_string_lossy().to_string();
+        let copy = name.strip_prefix("openclaw.json.").is_some_and(|rest| {
+            rest == "last-good"
+                || rest == "bak"
+                || rest
+                    .strip_prefix("bak.")
+                    .is_some_and(|n| n.bytes().all(|c| c.is_ascii_digit()))
+        });
+        if !copy {
+            continue;
+        }
+        let path = e.path();
+        let Some(mut config) = read(&path) else { continue };
+        let mut dirty = false;
+        for (t, key, stand_in) in &stand_ins {
+            if let Some(block) = config
+                .get_mut("channels")
+                .and_then(|c| c.get_mut(*t))
+                .and_then(Value::as_object_mut)
+                && let Some(old) = block.get(*key).and_then(Value::as_str)
+                && !old.contains(STAND_IN_MARK)
+            {
+                block.insert((*key).to_string(), json!(stand_in));
+                dirty = true;
+            }
+        }
+        if !dirty {
+            continue;
+        }
+        let Ok(meta) = std::fs::metadata(&path) else { continue };
+        let mode = std::os::unix::fs::PermissionsExt::mode(&meta.permissions()) & 0o777;
+        // OpenClaw's owner stays: a copy this process could not give back to it is left alone.
+        let owner = Some((
+            std::os::unix::fs::MetadataExt::uid(&meta),
+            std::os::unix::fs::MetadataExt::gid(&meta),
+        ));
+        let body = format!("{}\n", serde_json::to_string_pretty(&config).unwrap_or_default());
+        if cc_store::write_atomic_owned(&path, body.as_bytes(), mode, cc_store::TmpName::Suffix, owner).is_ok() {
+            changed += 1;
+        }
+    }
+    changed
 }
 
 /// `parseClickClackSettings`: Team chat settings, with the API on this box's own firewall's gate.
@@ -1142,6 +1225,9 @@ impl ChannelsService {
                 Ok(()) => {
                     me.note_apply(&tt, "applied", &idc, what, None);
                     me.deps.log(&format!("[channels] {wt}"));
+                    if has_block {
+                        me.scrub_copies(SCRUB_AFTER_WRITE);
+                    }
                     if !has_block && tt != "clickclack" {
                         me.forget_approved(&tt);
                     }
@@ -1356,9 +1442,35 @@ impl ChannelsService {
     }
 
     /// On every connect: install the plugin of any enabled channel that has none.
+    /// `scrub_config_copies` on this box's OpenClaw folder. Not where OpenClaw's files are only read
+    /// through a copy (an unmanaged OpenClaw in a container).
+    /// After `after` (a write's: OpenClaw rotates its copies while it reloads), off the async
+    /// threads.
+    fn scrub_copies(self: &Arc<Self>, after: Duration) {
+        if self.copy_out.is_some() {
+            return;
+        }
+        let Some(dir) = self.credentials_dir.parent().map(Path::to_path_buf) else {
+            return;
+        };
+        let me = self.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(after).await;
+            let n = tokio::task::spawn_blocking(move || scrub_config_copies(&dir))
+                .await
+                .unwrap_or(0);
+            if n > 0 {
+                me.deps.log(&format!(
+                    "[channels] {n} of OpenClaw's config copies held a bot token; they hold its stand-in now"
+                ));
+            }
+        });
+    }
+
     pub fn reconcile(self: &Arc<Self>) -> cc_http::BoxFuture<()> {
         let me = self.clone();
         Box::pin(async move {
+            me.scrub_copies(Duration::ZERO);
             let config = match me.config().await {
                 Ok(c) => c,
                 Err(e) => {
@@ -1898,6 +2010,44 @@ mod tests {
 
     fn args(t: &T) -> Vec<Vec<String>> {
         t.runner.calls().into_iter().map(|c| c.args).collect()
+    }
+
+    #[test]
+    fn config_copies_get_the_stand_in_instead_of_the_token() {
+        let d = tempfile::tempdir().expect("dir");
+        let w = |name: &str, token: &str| {
+            let body = json!({"channels": {"telegram": {"enabled": true, "botToken": token}}, "x": 1});
+            std::fs::write(d.path().join(name), body.to_string()).expect("write");
+        };
+        let token = |name: &str| -> Value {
+            let raw = std::fs::read_to_string(d.path().join(name)).expect("read");
+            serde_json::from_str::<Value>(&raw).expect("json")["channels"]["telegram"]["botToken"].clone()
+        };
+        // The live config holds the token: nothing is touched.
+        w("openclaw.json", "123:real");
+        w("openclaw.json.bak", "123:real");
+        assert_eq!(scrub_config_copies(d.path()), 0);
+        // The live config holds the stand-in: every copy that holds a token gets it.
+        w("openclaw.json", "123:__cc_telegram_bot_c1");
+        w("openclaw.json.bak.2", "123:older");
+        w("openclaw.json.last-good", "123:__cc_telegram_bot_c1");
+        w("openclaw.json.tmp", "123:real");
+        std::fs::write(d.path().join("openclaw.json.bak.3"), "{ json5: 'not plain' }").expect("write");
+        assert_eq!(scrub_config_copies(d.path()), 2);
+        assert_eq!(token("openclaw.json.bak"), json!("123:__cc_telegram_bot_c1"));
+        assert_eq!(token("openclaw.json.bak.2"), json!("123:__cc_telegram_bot_c1"));
+        assert_eq!(
+            token("openclaw.json.tmp"),
+            json!("123:real"),
+            "not one of OpenClaw's copies"
+        );
+        let raw = std::fs::read_to_string(d.path().join("openclaw.json.bak")).expect("read");
+        assert_eq!(
+            serde_json::from_str::<Value>(&raw).expect("json")["x"],
+            json!(1),
+            "the rest is kept"
+        );
+        assert_eq!(scrub_config_copies(d.path()), 0, "done once");
     }
 
     #[test]

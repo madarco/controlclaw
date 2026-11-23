@@ -105,6 +105,9 @@ fn jev() -> AiSettings {
         auto_approve_per_hour: 3,
         request_instructions: None,
         review_instructions: None,
+        false_alarms: vec![],
+        recent_dismissals: vec![],
+        agents: vec![],
     }
 }
 

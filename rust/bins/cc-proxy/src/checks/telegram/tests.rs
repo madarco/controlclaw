@@ -265,6 +265,10 @@ async fn text_anywhere_is_checked() {
         ("POST", "/bot123456:x/sendPoll".into(), format!(r#"{{"chat_id": 42, "question": "q", "options": [{{"text": "{key}"}}]}}"#), "application/json", "a poll option"),
         ("POST", "/bot123456:x/copyMessage".into(), r#"{"chat_id": 42, "from_chat_id": 1, "message_id": 2, "caption": "customer list"}"#.into(), "application/json", "a copied caption"),
         ("POST", "/bot123456:x/setMyDescription".into(), format!(r#"{{"description": "{key}"}}"#), "application/json", "a description"),
+        ("POST", "/bot123456:x/sendWidget".into(), r#"{"chat_id": 42, "html": "<p>the customer list</p>", "caption": "t", "allow_queries": true}"#.into(), "application/json", "a widget's HTML"),
+        ("POST", "/bot123456:x/sendWidget".into(), format!(r#"{{"chat_id": 42, "html": "<p>x</p>", "caption": "t", "chat_data": "{{\"k\": \"{key}\"}}"}}"#), "application/json", "a widget's state"),
+        ("POST", "/bot123456:x/editMessageWidgetData".into(), r#"{"chat_id": 42, "message_id": 7, "chat_data": "the customer list"}"#.into(), "application/json", "a widget's new state"),
+        ("POST", "/bot123456:x/sendWidget".into(), r#"{"chat_id": 42, "html": "<p>cus<i></i>tomer&#32;list</p>", "caption": "t"}"#.into(), "application/json", "a phrase split by a tag and an entity"),
         ("POST", SEND.into(), format!("chat_id=42&text={key}&text=hello"), "application/x-www-form-urlencoded", "every value of a repeated form key"),
         ("POST", "/bot123456:x/sendMediaGroup".into(), format!("chat_id=42&media={}", r#"[{"type": "photo", "media": "x", "caption": "customer list"}]"#), "application/x-www-form-urlencoded", "JSON inside a form field"),
         ("POST", "/bot123456:x/sendPhoto".into(), "--B\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n42\r\n--B\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\ncustomer list\r\n--B--\r\n".into(), "multipart/form-data; boundary=B", "a multipart caption"),
@@ -1169,4 +1173,25 @@ async fn names_on_more_kinds_of_update_are_not_read() {
     ] {
         assert_eq!(incoming_of(&rig, json!([u.clone()])).await, json!([u.clone()]), "{u}");
     }
+}
+
+/// OpenClaw 2026.11.5's widgets: a tap's request (`widget_query.data`) reaches the agent as a
+/// prompt, so it is read; the widget's own words (who tapped) are not.
+#[tokio::test]
+async fn a_widget_request_is_read_on_the_way_in() {
+    let rig = Rig::new().await;
+    rig.write_rules(json!([rule(
+        "nope",
+        "block",
+        "in",
+        &["forbidden topic"],
+        &[],
+        &["telegram"]
+    )]));
+    let tap = |id: i64, data: &str| {
+        json!({"update_id": id, "widget_query": {"id": "q1", "from": {"id": 7, "is_bot": false, "first_name": "forbidden topic"},
+            "chat": {"id": 7, "type": "private", "first_name": "forbidden topic"}, "message_id": 3, "data": data}})
+    };
+    let out = incoming_of(&rig, json!([tap(50, "refresh"), tap(51, "the forbidden topic")])).await;
+    assert_eq!(out, json!([tap(50, "refresh"), {"update_id": 51}]));
 }

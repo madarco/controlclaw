@@ -51,7 +51,8 @@ const plural = (n: number, one: string, many = `${one}s`) => `${countLabel(n)} $
 
 /**
  * The four cards across the top: Requests / min, Blocked today, Typical response time (each with
- * the last 24 hours as a line and a change against yesterday), and This month.
+ * the last 24 hours, as bars for Blocked and a line for the others, and a change against
+ * yesterday), and This month.
  */
 export function StatCards({ view, allowance }: { view: FirewallOverviewView; allowance?: number | null }) {
   const off = !view.running;
@@ -76,6 +77,7 @@ export function StatCards({ view, allowance }: { view: FirewallOverviewView; all
         yesterday={off ? undefined : view.blocked.yesterday}
         upIsBad
         tone="block"
+        chart="bars"
         data-testid="firewall-card-blocked"
       />
       <SparkStatCard

@@ -24,6 +24,8 @@ import type { CatalogResult } from "../firewall/integrations/CatalogBrowser";
 import type { RuleActivityItem, RuleMetricRange, RuleOverviewItem } from "./rule-metrics";
 import type { SecurityRuleListItem, createSecurityRuleInputSchema, updateSecurityRuleInputSchema } from "./security-schema";
 import type { AutoApproveChange, AutoApproveSnapshot } from "./auto-approve-schema";
+import type { BrainChangeView, BrainScopeId } from "./brain-view";
+import type { BrainOverviewView } from "./brain-stats";
 
 /**
  * What the shared views read and change, by area. The console passes its oRPC client (whose
@@ -67,6 +69,8 @@ export interface ConsoleApi {
     updateEgressAiInstructions(input: UpdateEgressAiInstructionsInput): Promise<EgressAiView>;
     scanEgressNow(): Promise<unknown>;
     openAiReviewHistory(input: { vmId?: string | null }): Promise<{ url: string }>;
+    /** AI Log Review's false alarms. Left out where the control plane keeps none. */
+    removeAiFalseAlarm?(input: { id: string }): Promise<unknown>;
   };
   /** The site rules (Internet access, Security rules → Websites). */
   egressRules: EgressRuleSource;
@@ -149,6 +153,23 @@ export interface ConsoleApi {
   };
   emailRules: RulesChangeRpc<EmailChange, EmailRulesSnapshot> & {
     get(): Promise<EmailRulesSnapshot>;
+  };
+  /**
+   * The brain's Overview, Agents and Model (`@controlclaw/console-ui/brain`). Connecting an agent,
+   * or letting a read-only one write, may wait for a code (`getChange`); a control plane that
+   * applies it at once answers with no change id. Left out where there is no brain.
+   */
+  brain?: FirewallChangeRpc<BrainChangeView> & {
+    /** Counts and page type names only; `timeZone` is the reader's, for "today". */
+    overview(input: { timeZone?: string }): Promise<BrainOverviewView>;
+    connect(input: { agentVmId: string; scope: BrainScopeId }): Promise<{ changeId: string | null }>;
+    disconnect(input: { agentVmId: string }): Promise<unknown>;
+    setModel(input: { model: string }): Promise<unknown>;
+    /**
+     * "Save what it learns automatically" for one agent. Left out where the agents do not have the
+     * plugin it needs (a standalone firewall): the switch says so instead.
+     */
+    setCapture?(input: { agentVmId: string; enabled: boolean }): Promise<unknown>;
   };
 }
 

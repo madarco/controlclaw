@@ -9,7 +9,7 @@
  * light/dark come from one place. A class used here that neither build scans has no CSS.
  *
  * Each box says where its stylesheet and theme script are (`ShellAssets`) and which pages it has:
- * `packages/vm-agent/src/routes/cc-shell.ts` and `packages/mitm-agent/src/fw-shell.ts`.
+ * `rust/bins/vm-agent/src/boxside/shell.rs` and `rust/bins/mitm-agent/src/core/fw_shell.rs`.
  */
 
 export const ICONS = {

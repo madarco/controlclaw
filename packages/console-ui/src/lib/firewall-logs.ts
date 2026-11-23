@@ -1,4 +1,4 @@
-import type { FwLogLine, FwLogsResponse, FwRange, FwServiceId, FwServiceState } from "@controlclaw/console-ui/lib/agent/fw-logs-types";
+import type { FwLogLine, FwLogsResponse, FwRange, FwServiceId, FwServiceState } from "./agent/fw-logs-types";
 
 export type { FwLogsResponse, FwRange };
 

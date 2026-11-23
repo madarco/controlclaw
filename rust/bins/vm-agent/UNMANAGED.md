@@ -144,11 +144,17 @@ On: `/health`, `/status`, `/start`, `/stop`, `/restart`, `/llm/*` (models), `/ch
   container the file is read and written inside it (`docker exec`, as the container's own user);
   on this machine, by the agent as OpenClaw's user (refused as root), following no link;
 - `/mcp-servers/*`: each server at the firewall's gate on `firewall.gate`;
+- `/gbrain/apply`: the organization's brain as `mcp.servers.gbrain`, at
+  `http://<firewall.gate>:3940/brain/mcp`, the firewall's tools gate, which relays each call to the
+  brain ([`docs/standalone/brain.md`](../../../docs/standalone/brain.md)). Only that address is
+  taken, and it is written on this agent's own `firewall.gate`; without one the route answers 503.
+  `{remove: true}` writes the entry away. "Save what it learns automatically" stays off here: it
+  needs the `cc-instructions` plugin;
 - `/connectors/*`: the relay on `127.0.0.1:3111` to the 3900 gate on `firewall.gate`. Not for an
   OpenClaw in a container yet: it cannot reach this machine's loopback, so those routes answer 503.
 
 Off: everything that needs our Ansible role or the SaaS: the bootstrap (CA install, `cc-install-ca`,
-egress, register, ready report), the pool, templates, backups, gbrain, disk and storage, Doctor,
+egress, register, ready report), the pool, templates, backups, the brain's own service and "Save what it learns automatically", disk and storage, Doctor,
 the watchdog, update, meetings, phone, the agent's own pages and sign-in, files, website logins,
 Drive, Google, AgentMail, SSH, Tailscale, logs, skills, and the activity, metrics, audit and
 approvals reports.
@@ -216,3 +222,43 @@ A Mac needs a proxy-only mode:
   through the same CLI writer, instead of capture rules;
 - the firewall's CA in the login keychain;
 - a macOS build of the agent: no `/proc`, no systemd, no Linux-only file system calls.
+
+## A standalone brain (`"mode": "brain"`)
+
+The same file runs the vm-agent next to a GBrain, for a standalone firewall
+(`gbrain/standalone.rs`, [`docs/standalone/brain.md`](../../../docs/standalone/brain.md)).
+`controlclaw brain install` and `brain connect` write it:
+
+```json
+{
+  "mode": "brain",
+  "listen": "172.31.252.1:3103",
+  "state_dir": "/var/lib/controlclaw/brain",
+  "agent_id": "agent_…",
+  "firewall": { "url": "…", "public_key": "…", "hostnames": ["172.31.252.1"], "allow_from": ["172.31.252.2"] },
+  "gbrain": {
+    "port": 3130,
+    "exec": ["docker", "exec", "-i", "-u", "0", "controlclaw-brain-gbrain-1"],
+    "pages_name": "brain.example.com",
+    "panel_url": "http://localhost:8800",
+    "name": "brain"
+  }
+}
+```
+
+| Field | What it does |
+| --- | --- |
+| `gbrain.port` | GBrain's HTTP port on this machine's loopback. Default 3130. |
+| `gbrain.exec` | What the root helpers (`cc-gbrain-token`, `-key`, `-model`, `-pages`) run behind: `docker exec` into GBrain's container, `[]` when the agent is root next to GBrain. Default `["sudo"]`. |
+| `gbrain.pages_name` | The name the firewall relays the brain's pages under (`PUT /api/brain/pages` there): a hostname with a dot and no port. It is the brain's `vm_hostname`, so the pages' sign-in takes `https://<name>` as their origin. |
+| `gbrain.panel_url` | The panel, for the pages' "Back" link. |
+| `gbrain.name` | The brain's name on the firewall, shown on its pages when it has no `pages_name`. |
+
+The firewall's key opens every route, as above: bound tokens for the paired address (`h`), and the
+console's (`/health`, `/status`, `/brain/model`) signed with the same key. A brain has no `openclaw`
+section. On: `/health`, `/status`, `/llm/apply` (the panel's OpenAI or AI Gateway placeholder with that
+provider's base URL; never the included AI's), `/gbrain/*`, `/brain/model`, agents' calls relayed by
+the firewall (`/gbrain/mcp/<vmId>`, `GateMode::Relayed`, no 3131 listener), the brain's pages and their
+sign-in (`/__cc/*`, `/access/*`), GBrain's admin page behind that sign-in (`/admin`), all on the one
+listener the firewall's address alone reaches. Off: the first boot (CA, egress, ready), outside AI
+apps, backups, Activity, updates, start/stop/restart.

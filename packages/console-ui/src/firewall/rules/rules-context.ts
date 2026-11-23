@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { CONTENT_CHANNELS, type ContentChannel } from "@controlclaw/console-ui/lib/agent/content-rules-schema";
+import { CONTENT_CHANNELS, type ContentChannel } from "../../lib/agent/content-rules-schema";
 
 /**
  * What the rules views say and offer on this control plane. The console: changes wait for a code

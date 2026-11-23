@@ -21,6 +21,7 @@ pub mod connectors;
 pub mod drive;
 pub mod email;
 pub mod exit;
+pub mod gbrain;
 pub mod google;
 pub mod health;
 pub mod kill;
@@ -139,6 +140,7 @@ actions! {
     "agentmail.read" => Both(Empty),
     "agentmail.senders" => Both(agentmail::Senders),
     "agentmail.signup" => Both(agentmail::Signup),
+    "ai.relay" => Both(ai::Relay),
     "ai.scan" => Both(Empty),
     "apply.cancel" => SaasOnly,
     "apply.confirm" => SaasOnly,
@@ -201,10 +203,17 @@ actions! {
     "firewall-update.cancel" => SaasOnly,
     "firewall-update.confirm" => SaasOnly,
     "firewall-update.propose" => SaasOnly,
-    "gbrain.cancel" => SaasOnly,
-    "gbrain.confirm" => SaasOnly,
-    "gbrain.disconnect" => SaasOnly,
-    "gbrain.propose" => SaasOnly,
+    "gbrain.cancel" => Both(gbrain::Cancel),
+    "gbrain.client.confirm" => SaasOnly,
+    "gbrain.client.disconnect" => SaasOnly,
+    "gbrain.client.propose" => SaasOnly,
+    "gbrain.confirm" => Both(gbrain::Confirm),
+    "gbrain.disconnect" => Both(gbrain::Disconnect),
+    "gbrain.lock" => Both(gbrain::Lock),
+    "gbrain.model" => Both(gbrain::Model),
+    "gbrain.propose" => Both(gbrain::Propose),
+    "gbrain.read" => Both(Empty),
+    "gbrain.status" => Both(Empty),
     "google.callback" => Both(google::Callback),
     "google.cancel" => Both(Cancel),
     "google.confirm" => Both(Confirm),

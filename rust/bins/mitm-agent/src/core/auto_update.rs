@@ -47,12 +47,6 @@ impl AutoUpdateStore {
     }
 
     /// Saved first, then kept: a write that fails leaves the old state.
-    /// Save what was loaded, unchanged (the TS ↔ Rust store round trip).
-    #[cfg(test)]
-    pub fn resave(&self) {
-        self.put(self.confirmed_at()).expect("save");
-    }
-
     fn put(&self, confirmed_at: Option<String>) -> Result<(), String> {
         let mut c = self.confirmed_at.lock().unwrap_or_else(|e| e.into_inner());
         cc_crypto::enc_file::save_store(

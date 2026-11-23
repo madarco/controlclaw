@@ -693,8 +693,9 @@ where
 }
 
 /// The control plane: held to its own name by the destination check, sent on with no rule, check
-/// or swap, and no record (owner, 2026-10-28; it was passed through before). Allowed under the kill
-/// switch. Over TLS on 443 only, as the passthrough it replaces: anything else is an ordinary
+/// or swap (owner, 2026-10-28; it was passed through before). Allowed under the kill switch. It
+/// still gets a record ([`record_builtin`], rule `control_plane`), which the AI log review and
+/// Activity leave out. Over TLS on 443 only, as the passthrough it replaces: anything else is an ordinary
 /// request. Marks the flow and says whether it is.
 pub(crate) fn mark_control_plane(conn: &Conn, flow: &mut Flow) -> bool {
     let control_plane = backup::is_control_plane(conn, flow);

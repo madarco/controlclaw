@@ -21,6 +21,7 @@ pub mod channels;
 pub mod common;
 pub mod connectors;
 pub mod console_mcp;
+pub mod controlclaw_agents;
 pub mod cpu;
 // The host key is for `/doctor/status` (G7).
 #[allow(dead_code)]
@@ -37,11 +38,13 @@ pub mod llm;
 pub mod mcp_servers;
 pub mod metrics;
 mod openclaw;
+pub mod openclaw_doctor;
 pub mod patch_check;
 /// Public for the brain's first boot (W8's `gbrain::boot`).
 mod ready;
 /// The brain's first boot reports ready the same way (W8, gbrain/boot.rs).
 pub use ready::report_ready;
+pub mod llm_usage;
 pub mod run_titles;
 pub mod search;
 pub mod secrets;
@@ -176,6 +179,7 @@ pub fn start(app: &Arc<App>) {
         start_audit(app);
         start_watchdog(app);
         start_sessions(app);
+        start_llm_usage(app);
         let state = app.config.state_dir.clone();
         let ca = app.config.keys_dir.join("mitm-ca.crt");
         // The phone's reply model follows the primary (W8's phone-model.ts, `phoneModelEntry`).
@@ -586,6 +590,35 @@ fn start_sessions(app: &Arc<App>) {
     });
 }
 
+/// Token usage for the console's AI usage page (`llm_usage.rs`): every 5 minutes, with the gateway
+/// bridge (an agent of an organization, with somewhere to report).
+fn start_llm_usage(app: &Arc<App>) {
+    if app.config.pool_marker.exists() || app.contracts.openclaw.get().is_none() {
+        return;
+    }
+    let Some(base) = gateway::saas_base_url(app) else {
+        return;
+    };
+    let shipper = Arc::new(llm_usage::UsageShipper::new(
+        app.config.home.join(".openclaw"),
+        app.config.state_dir.join("llm-usage.json"),
+        metrics::activity_post(base, app.keys.clone(), app.http.clone()),
+    ));
+    tokio::spawn(async move {
+        // The first pass a minute after start, out of OpenClaw's way while it starts; then every 5
+        // minutes.
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        let mut every = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            every.tick().await;
+            let s = shipper.clone();
+            if tokio::spawn(async move { s.tick().await }).await.is_err() {
+                tracing::error!("[llm-usage] tick failed");
+            }
+        }
+    });
+}
+
 /// The watchdog (`watchdog.rs`) with the real probes, every 30 s. Not on a box still in the pool.
 /// The redirector restart needs the sudoers line the role adds with it; on an older role sudo
 /// refuses, and the watchdog logs that once and does not ask again.
@@ -862,6 +895,7 @@ pub fn register(router: &mut Router, app: &Arc<App>) {
     health::register(router, app);
     openclaw::register(router, app);
     openclaw::register_poke(router, app);
+    openclaw_doctor::register(router, app);
     llm::register(router, app);
     search::register(router, app);
     secrets::register(router, app);

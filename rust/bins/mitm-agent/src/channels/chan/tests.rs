@@ -246,6 +246,18 @@ impl World {
     }
 
     fn make(&self, placeholder: bool) -> Arc<ChannelsFirewall> {
+        self.make_swap(if placeholder {
+            PlaceholderSwap::ALL
+        } else {
+            PlaceholderSwap::default()
+        })
+    }
+
+    fn make_swap(&self, placeholder: PlaceholderSwap) -> Arc<ChannelsFirewall> {
+        self.make_with(placeholder, false)
+    }
+
+    fn make_with(&self, placeholder: PlaceholderSwap, unrecorded_stand_in: bool) -> Arc<ChannelsFirewall> {
         let (codes, ids, now, changed) = (
             self.codes.clone(),
             self.identities.clone(),
@@ -261,6 +273,7 @@ impl World {
             agent: Arc::new(self.agent.clone()),
             identities: Arc::new(move || ids.lock().unwrap().clone()),
             placeholder_swap: placeholder,
+            unrecorded_stand_in,
             dev: self.dev,
             codes: Arc::new(move || Some(codes.clone() as Arc<dyn ConsentCodes>)),
             on_credentials_changed: Arc::new(move || {
@@ -492,7 +505,124 @@ async fn placeholders_and_proxy_credentials() {
     );
     assert_eq!(fw.telegram_token("123456").as_deref(), Some("123456:AAtoken"));
     assert_eq!(fw.telegram_token_for_agent("123456", "vm2"), None);
-    assert!(w.make(false).credentials().is_empty(), "plain mode: nothing to swap");
+    // Plain mode swaps only for an agent that still holds a stand-in, until the tick moves it.
+    let plain = w.make(false);
+    assert_eq!(plain.credentials().len(), 1);
+    plain.tick().await;
+    assert!(plain.credentials().is_empty(), "plain mode: nothing to swap");
+}
+
+#[tokio::test]
+async fn the_default_swaps_telegram_and_leaves_slack_its_tokens() {
+    let w = World::new();
+    let fw = w.make_swap(PlaceholderSwap::parse(""));
+    fw.propose(add("c1", "conn-1", Some(bot()))).await.unwrap();
+    let mut slack = add("c2", "conn-2", Some(bot()));
+    slack.insert("type".into(), json!("slack"));
+    slack.insert(
+        "secret".into(),
+        json!({"botToken": "xoxb-1-2-x", "appToken": "xapp-1-A1-x"}),
+    );
+    fw.propose(slack).await.unwrap();
+    let calls = w.agent.calls();
+    assert_eq!(
+        calls[0].body["secrets"]["botToken"],
+        json!("123456:__cc_telegram_bot_conn_1")
+    );
+    assert_eq!(
+        calls[1].body["secrets"],
+        json!({"botToken": "xoxb-1-2-x", "appToken": "xapp-1-A1-x"})
+    );
+    let creds = fw.credentials();
+    assert_eq!(creds.len(), 1, "only Telegram goes to the proxy: {creds:?}");
+    assert_eq!(creds[0]["match_domain"], json!("api.telegram.org"));
+}
+
+#[tokio::test]
+async fn turning_the_switch_moves_agents_that_already_have_the_connection() {
+    let w = World::new();
+    let applies = |w: &World| -> Vec<Value> {
+        w.agent
+            .calls()
+            .into_iter()
+            .filter(|c| c.body.get("secrets").is_some())
+            .map(|c| c.body["secrets"]["botToken"].clone())
+            .collect()
+    };
+    // Connected while the switch was off: the agent holds the token.
+    w.make(false).propose(add("c1", "conn-1", Some(bot()))).await.unwrap();
+    assert_eq!(applies(&w), vec![json!("123456:AAtoken")]);
+    // Off, nothing to do.
+    w.agent.clear();
+    w.make(false).tick().await;
+    assert!(applies(&w).is_empty());
+
+    // The switch on (the SaaS default): the next tick gives the agent the stand-in, once.
+    let on = w.make_swap(PlaceholderSwap::parse(""));
+    w.agent.clear();
+    on.tick().await;
+    assert_eq!(applies(&w), vec![json!("123456:__cc_telegram_bot_conn_1")]);
+    w.agent.clear();
+    on.tick().await;
+    w.make_swap(PlaceholderSwap::parse("")).tick().await;
+    assert!(applies(&w).is_empty(), "recorded, so not again (also after a restart)");
+
+    // And back: the switch off gives it the token again. Until then the proxy keeps swapping, or
+    // the agent's bot would be down.
+    let off = w.make(false);
+    assert_eq!(off.credentials().len(), 1, "the agent still holds the stand-in");
+    off.tick().await;
+    assert_eq!(applies(&w), vec![json!("123456:AAtoken")]);
+    assert!(off.credentials().is_empty());
+}
+
+#[tokio::test]
+async fn a_standalone_firewalls_unrecorded_connections_already_hold_a_stand_in() {
+    let w = World::new();
+    w.make(true).propose(add("c1", "conn-1", Some(bot()))).await.unwrap();
+    // As a firewall from before `appliedAs` wrote it.
+    let fw = w.make(true);
+    {
+        let mut st = fw.state.lock().await;
+        st.connections.get_mut("conn-1").unwrap().applied_as = None;
+        fw.save(&st).unwrap();
+    }
+    let standalone = w.make_with(PlaceholderSwap::ALL, true);
+    w.agent.clear();
+    standalone.tick().await;
+    assert!(
+        w.agent.calls().iter().all(|c| c.body.get("secrets").is_none()),
+        "not re-applied"
+    );
+}
+
+#[test]
+fn the_switch() {
+    assert_eq!(
+        PlaceholderSwap::parse(""),
+        PlaceholderSwap {
+            telegram: true,
+            slack: false
+        }
+    );
+    assert_eq!(PlaceholderSwap::parse("1"), PlaceholderSwap::ALL);
+    assert_eq!(PlaceholderSwap::parse("0"), PlaceholderSwap::default());
+    assert_eq!(PlaceholderSwap::parse(" Slack , telegram"), PlaceholderSwap::ALL);
+    assert_eq!(PlaceholderSwap::parse("true"), PlaceholderSwap::ALL);
+    assert_eq!(PlaceholderSwap::parse("off"), PlaceholderSwap::default());
+    assert_eq!(
+        PlaceholderSwap::parse("fax"),
+        PlaceholderSwap::DEFAULT,
+        "a typo is not off"
+    );
+    assert_eq!(
+        PlaceholderSwap::parse("slack"),
+        PlaceholderSwap {
+            telegram: false,
+            slack: true
+        }
+    );
+    assert!(!PlaceholderSwap::ALL.on("whatsapp"));
 }
 
 #[tokio::test]

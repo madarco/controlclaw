@@ -40,6 +40,9 @@ terminal or with `CI` set, and asks on at most two runs. The answer is kept in
 | `disconnect [--restore-config]` | Undoes everything `connect` did. `--restore-config` also puts back OpenClaw's config as it was before `connect`. |
 | `uninstall [--purge]` | Runs `disconnect`, then removes the firewall installed here. Its data (rules, the panel's password, the CA) goes only with `--purge`. |
 | `doctor [--json]` | Shows the OS, root access, nftables, Docker, redsocks, DNS, Chrome, WireGuard and the vm-agent, and OpenClaw's CLI, version, config and how it runs. Says which modes this machine can use and how much each one protects. |
+| `brain install [--firewall <url>]` | A brain (GBrain) your agents share: GBrain and Postgres in Docker, the vm-agent in brain mode next to them, its traffic through the firewall. See [`docs/standalone/brain.md`](../../docs/standalone/brain.md). |
+| `brain connect [--firewall <url>]` | The GBrain already running here as a systemd service, behind the firewall: the vm-agent and GBrain's helpers next to it. |
+| `brain disconnect [--purge]`, `brain status` | Undo `brain install` or `brain connect` (`--purge`: an installed brain's data too); what is up. |
 
 Host and remote mode, `install --host` and `openclaw install --host` need root (sudo). Docker mode
 needs root or a member of the `docker` group. Proxy mode needs neither.
@@ -418,7 +421,7 @@ sudo npx controlclaw openclaw install --host                         # installs 
 
 - `--docker` (the default) makes a Compose project like OpenClaw's own `docker-compose.yml` (one
   service, `openclaw-gateway`) in `/opt/openclaw` (`~/openclaw` without sudo, `--dir` for another
-  folder), with `ghcr.io/openclaw/openclaw:2026.10.9` (`--openclaw-image` for another). Its Control UI
+  folder), with `ghcr.io/openclaw/openclaw:2026.11.5` (`--openclaw-image` for another). Its Control UI
   is published on this machine's loopback only. `openclaw install` prints its address with the gateway
   token.
 - `--host` runs OpenClaw's own installer (`https://openclaw.ai/install.sh --no-onboard --no-prompt`) as

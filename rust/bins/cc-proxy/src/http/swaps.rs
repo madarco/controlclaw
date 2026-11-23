@@ -781,6 +781,111 @@ mod tests {
         );
     }
 
+    /// A bot token in the URL path (Telegram, when the firewall holds the token) is reported in
+    /// `swapped` as a header swap is, so the bot's polling and the ChatGPT sign-in's calls through
+    /// their managed rules are routine (`cc_contracts::managed::is_routine`). The record keeps the
+    /// path as the agent sent it, the token redacted.
+    #[tokio::test]
+    async fn path_and_header_swaps_are_on_the_record_and_routine() {
+        use crate::flow::testing::request_flow;
+        use crate::http::policy::{MatchRule, Policy};
+
+        let dir = std::env::temp_dir().join(format!("cc-proxy-swaps-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("a temp dir");
+        let mut rules = cc_contracts::managed::rules(
+            cc_contracts::managed::source("telegram").expect("telegram"),
+            Some("vm_test"),
+        );
+        rules.extend(cc_contracts::managed::rules(
+            cc_contracts::managed::source("openai_codex").expect("codex"),
+            None,
+        ));
+        std::fs::write(dir.join("rules.json"), Value::Array(rules).to_string()).expect("rules.json");
+        let tg_ph = "123456:__cc_telegram_bot_c1";
+        std::fs::write(
+            dir.join("credentials.json"),
+            json!([
+                {"placeholder": tg_ph, "match_domain": "api.telegram.org", "secret": "123456:AAsecrettokensecrettokensecret",
+                 "locations": ["path"], "vm_id": "vm_test"},
+                {"placeholder": "CC-CODEX-1", "match_domain": "chatgpt.com", "secret": "real-access-token",
+                 "locations": ["header:authorization"]},
+            ])
+            .to_string(),
+        )
+        .expect("credentials.json");
+        let vars: std::collections::HashMap<String, String> = [
+            ("MITM_RULES_PATH", "rules.json"),
+            ("MITM_CREDENTIALS_PATH", "credentials.json"),
+            ("MITM_IDENTITIES_PATH", "identities.json"),
+            ("MITM_GRANTS_PATH", "grants.json"),
+            ("MITM_PENDING_PATH", "pending.jsonl"),
+            ("MITM_LOG_FILE", "traffic.jsonl"),
+        ]
+        .into_iter()
+        .map(|(k, f)| (k.to_owned(), dir.join(f).display().to_string()))
+        .chain([("MITM_CA_DIR".to_owned(), "/nonexistent".to_owned())])
+        .collect();
+        let config =
+            crate::config::Config::from_vars("127.0.0.1:0".parse().expect("an address"), &vars).expect("a config");
+        let ctx = Arc::new(Ctx::new(config));
+        let rule = MatchRule(Arc::new(Policy::new(ctx.clone())));
+        let swaps = Swaps {
+            ctx: ctx.clone(),
+            creds: Arc::new(Credentials::new(&dir.join("credentials.json"))),
+        };
+
+        // (url, header, the request's path once swapped, the record's path, the swapped list)
+        let cases: [(&str, Option<&str>, &str, &str, &str); 2] = [
+            (
+                "https://api.telegram.org/bot123456:__cc_telegram_bot_c1/getUpdates",
+                None,
+                "/bot123456:AAsecrettokensecrettokensecret/getUpdates",
+                "/bot<redacted>/getUpdates",
+                tg_ph,
+            ),
+            (
+                "https://chatgpt.com/backend-api/codex/models?client_version=1",
+                Some("Bearer CC-CODEX-1"),
+                "/backend-api/codex/models",
+                "/backend-api/codex/models",
+                "CC-CODEX-1",
+            ),
+        ];
+        for (url, auth, sent, logged, placeholder) in cases {
+            let mut flow = request_flow(if auth.is_some() { "GET" } else { "POST" }, url, b"");
+            flow.meta.insert("tls", Value::Bool(true));
+            if let (Some(a), Some(r)) = (auth, flow.request.as_mut()) {
+                r.headers_mut()
+                    .insert(http::header::AUTHORIZATION, HeaderValue::from_str(a).expect("a header"));
+            }
+            assert!(matches!(rule.run(Hook::Request, &mut flow).await, Verdict::Continue));
+            assert!(matches!(swaps.run(Hook::Request, &mut flow).await, Verdict::Continue));
+            let r = flow.request.as_ref().expect("the request");
+            assert_eq!(r.uri().path(), sent, "{url}");
+            if auth.is_some() {
+                assert_eq!(r.headers()[http::header::AUTHORIZATION], "Bearer real-access-token");
+            }
+            let mut rec = record::allow_record(&ctx, &flow);
+            rec.status = Maybe::Value(200u64.into());
+            let v = serde_json::to_value(&rec).expect("a record");
+            assert_eq!(v["swapped"], json!([placeholder]), "{url}");
+            assert_eq!(
+                v["path"].as_str().map(|p| p.split('?').next()),
+                Some(Some(logged)),
+                "{url}"
+            );
+            assert!(v["managed"].is_string(), "{url}: {v}");
+            assert!(cc_contracts::managed::is_routine(&v), "{url}: {v}");
+            // The websocket's handshake (101) is routine too.
+            rec.status = Maybe::Value(101u64.into());
+            assert!(cc_contracts::managed::is_routine(
+                &serde_json::to_value(&rec).expect("a record")
+            ));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn body_swaps_keep_the_other_bytes() {
         let body = b"\xff\xfe__T\x00end";

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { APP_EFFECTS, APP_OPERATIONS, appMatch, appRuleName, appRulesChange, isMcpService, serviceId } from "@controlclaw/console-ui/lib/agent/apps-rules-schema";
+import { APP_EFFECTS, APP_OPERATIONS, appMatch, appRuleName, appRulesChange, isMcpService, serviceId } from "./agent/apps-rules-schema";
 
 export {
   APP_EFFECTS,
@@ -22,7 +22,7 @@ export {
   type AppRule,
   type AppRulesChange,
   type AppRulesSnapshot,
-} from "@controlclaw/console-ui/lib/agent/apps-rules-schema";
+} from "./agent/apps-rules-schema";
 
 export const appRulesChangeInput = z.object({ change: appRulesChange });
 export const appRulesChangeId = z.object({ changeId: z.string().min(1).max(100) });

@@ -233,7 +233,7 @@ async fn the_swap_the_refusals_the_stop_the_cap_and_the_metadata_line() {
         .await
         .expect("send");
     assert_eq!(r.status(), 200);
-    r.text().await.expect("text");
+    let answer = r.text().await.expect("text");
     tokio::time::sleep(Duration::from_millis(50)).await;
     let rec = g.records().last().cloned().expect("line");
     assert_eq!(
@@ -252,7 +252,10 @@ async fn the_swap_the_refusals_the_stop_the_cap_and_the_metadata_line() {
             &json!(200)
         )
     );
-    assert!(rec["bytes_in"].as_u64().unwrap_or(0) > 0);
+    // As the proxy's records: what the agent sent is `bytes_out`, the answer `bytes_in`.
+    assert_eq!(rec["bytes_out"], json!(r#"{"body":"the secret plan"}"#.len()));
+    assert_eq!(rec["bytes_in"], json!(answer.len()));
+    assert_eq!(rec["sizes"], "out_is_sent");
     let text = std::fs::read_to_string(&g.log).expect("log");
     assert!(
         !text.contains("secret plan") && !text.contains("hello"),

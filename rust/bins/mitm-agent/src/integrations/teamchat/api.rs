@@ -64,7 +64,7 @@ pub struct ChannelInfo {
     pub name: String,
     pub kind: Option<String>,
     pub last_seq: i64,
-    /// Only when ClickClack's list says so; 0.7.1 keeps it in the database alone.
+    /// Only when ClickClack's list says so; 0.9.4 (as 0.7.1) keeps it in the database alone.
     pub archived: bool,
 }
 

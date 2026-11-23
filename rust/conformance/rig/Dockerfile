@@ -1,7 +1,6 @@
-# The conformance rig: Ubuntu 24.04 with Node 24 from NodeSource, as the role installs it, the
-# built TS bundles and the static Rust binaries. Running as root here lets the runner create the
-# system paths the TS agents read (`/etc/controlclaw/pool-unclaimed`, a case's `system_bins`).
-# openssh-client: the Doctor key store runs ssh-keygen at start (w5/fw-doctor-ts,
+# The conformance rig: Ubuntu 24.04 with Node 24 from NodeSource, as the role installs it, and the
+# static Rust binaries. Running as root here lets the runner clear the agents' default state folder
+# between cases. openssh-client: the Doctor key store runs ssh-keygen at start (w5/fw-doctor-ts,
 # w5/fw-doctor-installed). Built by conformance/run.sh from a staged context, never from the
 # repository root.
 FROM ubuntu:24.04

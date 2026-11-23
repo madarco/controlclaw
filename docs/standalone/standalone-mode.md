@@ -64,11 +64,12 @@ In standalone mode:
     path.
 - **Modules that stay off.** Phone and meetings run on ControlClaw's Twilio account and speech billing,
   so they are off. Team chat and Doctor (with its template checks) are off too. Included AI,
-  backups, the brain (gbrain), templates, Tailscale, devices, support SSH and updates are the SaaS's,
-  so they are off as well.
+  backups, templates, Tailscale, devices, support SSH and updates are the SaaS's, so they are off as
+  well. So are the brain's outside AI apps (`gbrain.client.*`).
 - **Modules that run.** With the local control plane as its control channel, a standalone firewall
   runs the content rules, the Auto approve rules (kept in the firewall's own store, as the Integrations rules), the emergency stop, web search, the exit proxy (your own account with a
-  proxy provider, not ControlClaw's relay) and the MCP servers (with `CONNECTOR_GATE_BIND` set); the
+  proxy provider, not ControlClaw's relay), the MCP servers and the brain (both with
+  `CONNECTOR_GATE_BIND` set; the brain's pages on `BRAIN_PAGES_BIND`, [`brain.md`](brain.md)); the
   panel's API sets them (`panel-api.md`). OAuth sign-ins come back to `LOCAL_PANEL_URL`, which
   Google takes only as `https://` or `http://localhost`: use an SSH tunnel to localhost, or set it
   to the panel's `https://` address. The tools
@@ -98,7 +99,7 @@ In standalone mode:
   - Without the paths, the proxy looks in `/config/` and refuses every request with
     `rules_unavailable`.
   - The proxy writes its traffic log to `MITM_LOG_FILE`. With no control plane, nothing ships it.
-  - The CA is the one `packages/mitm-proxy/gen-ca.sh` writes (`mitmproxy-ca.pem`). Clients trust
+  - The CA is the one `rust/bins/cc-proxy/gen-ca.sh` writes (`mitmproxy-ca.pem`). Clients trust
     its `ca-cert.pem`.
 - **Ports.** The agent's port 3100 listens on `MITM_AGENT_LISTEN`: loopback (`127.0.0.1`) in
   standalone mode, every address on a console firewall (where the cloud firewall closes it). On
@@ -221,6 +222,18 @@ HTTP, are in [`packages/cli/README.md`](../../packages/cli/README.md#pairing).
     gets the stand-in.
   - Migrations 2 and 3 add `pairing_codes` and `agents.paired_at`, then the code's `address` and
     `replace` and `agents.unpair_sha256`. A later one adds `agents.agent_addr`.
+  - **The brain.** A code made with `--role gbrain` (`pair-code --role gbrain`, or `role` on `POST
+    /api/pairing/codes`) pairs the brain (`controlclaw brain install` or `brain connect`,
+    [`brain.md`](brain.md)), recorded with role `gbrain`; the request says `role` too, under the
+    proof. A code for an agent pairs no brain and the other way round: refused, and the code is
+    spent. One brain per firewall: a second is refused unless its code says `replace`, which removes
+    the first. `POST /unpair` takes a brain as it takes an agent. A later migration adds
+    `pairing_codes.role`.
+  - **The brain's model key.** Within 30 seconds of a brain pairing, of a model key added, replaced or
+    removed, and every hour, the firewall sends the brain an `llm.push` that names your AI Gateway key
+    (else your OpenAI key) as its payer, with the brain's three models as the only ones allowed on
+    it (`cc_local::brain_key`). With neither key, the push takes the brain's key away. When the brain is unpaired or replaced, its entry comes off the firewall at the next look (the brains
+    that had a key are kept in `local.db`, so this also happens after a restart).
   - The proxy knows the new agent at its next sync (`SYNC_INTERVAL_MS`, a minute). `PUT
     /api/agents` keeps an agent's key, `paired_at` and `agent_addr` when the list names it by its
     `vm_id` (an `agent_addr` in the list replaces it).

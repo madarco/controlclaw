@@ -108,6 +108,7 @@ async fn signs_for_the_agent_at_the_callers_address_with_the_bodys_hash_and_drop
     let body = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).to_string();
     let r = post(&g.base, "/mcp", &body, &[("mcp-protocol-version", "2025-06-18")]).await;
     assert_eq!(r.status(), 200);
+    let answer = r.bytes().await.expect("answer");
     let seen = g.cp.got();
     assert_eq!(seen.len(), 1);
     assert_eq!(seen[0].path, "/api/mcp/agent");
@@ -137,6 +138,10 @@ async fn signs_for_the_agent_at_the_callers_address_with_the_bodys_hash_and_drop
         (line["host"].clone(), line["effect"].clone(), line["rule"].clone()),
         (json!("controlplane-mcp"), json!("allow"), json!("controlclaw tools"))
     );
+    // As the proxy's records: what the agent sent is `bytes_out`, the answer `bytes_in`.
+    assert_eq!(line["bytes_out"], json!(body.len()));
+    assert_eq!(line["bytes_in"], json!(answer.len()));
+    assert_eq!(line["sizes"], "out_is_sent");
 }
 
 #[tokio::test]
@@ -820,4 +825,225 @@ async fn permission_has_a_budget_of_its_own() {
     for _ in 0..(GATE_CALLS_PER_MINUTE + 5) {
         assert_eq!(get().await, 200);
     }
+}
+
+// ---- `/brain/mcp`: a standalone firewall relays agents' calls to the brain ----
+
+/// The brain module as the gate sees it: who may call, and the call sent on to a fake brain.
+struct FakeBrain {
+    allow: Mutex<Result<String, &'static str>>,
+    brain_url: String,
+    sent: Mutex<Vec<(String, String, Vec<String>)>>,
+}
+
+impl crate::contracts::BrainRelay for FakeBrain {
+    fn relay_for(&self, _agent_vm: &str) -> Result<String, &'static str> {
+        self.allow.lock().expect("allow").clone()
+    }
+
+    fn send(
+        &self,
+        brain_vm: String,
+        agent_vm: String,
+        method: String,
+        headers: Vec<(&'static str, HeaderValue)>,
+        body: Bytes,
+    ) -> BoxFuture<Result<reqwest::Response, String>> {
+        self.sent.lock().expect("sent").push((
+            brain_vm,
+            agent_vm.clone(),
+            headers.iter().map(|(n, _)| n.to_string()).collect(),
+        ));
+        let url = format!("{}/gbrain/mcp/{agent_vm}", self.brain_url);
+        Box::pin(async move {
+            let mut r = reqwest::Client::new().request(method.parse().expect("method"), url);
+            for (n, v) in headers {
+                r = r.header(n, v);
+            }
+            r.body(body).send().await.map_err(|e| e.to_string())
+        })
+    }
+}
+
+struct BrainRig {
+    g: G,
+    fake: Arc<FakeBrain>,
+    brain: FakeServer,
+    ids: Arc<Identities>,
+    _dir: tempfile::TempDir,
+}
+
+async fn brain_gate() -> BrainRig {
+    brain_gate_with(0).await
+}
+
+/// The rig with a brain that takes `delay_ms` to answer.
+async fn brain_gate_with(delay_ms: u64) -> BrainRig {
+    let dir = tempfile::tempdir().expect("dir");
+    let app = testing::app(dir.path());
+    let ids = Identities::of(&[("agent-1", "127.0.0.1", "One")]);
+    app.contracts.identities.set(ids.clone());
+    let brain = FakeServer::start(move |_| {
+        let mut a = Answer::typed(
+            200,
+            "text/event-stream",
+            b"event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n".to_vec(),
+        );
+        a.headers.push(("mcp-session-id".into(), "s-1".into()));
+        a.delay_ms = delay_ms;
+        a
+    })
+    .await;
+    let fake = Arc::new(FakeBrain {
+        allow: Mutex::new(Ok("brain_1".into())),
+        brain_url: brain.url(),
+        sent: Mutex::new(Vec::new()),
+    });
+    app.contracts.brain_relay.set(fake.clone());
+    let g = gate(None, Some(app)).await;
+    BrainRig {
+        g,
+        fake,
+        brain,
+        ids,
+        _dir: dir,
+    }
+}
+
+#[tokio::test]
+async fn brain_calls_go_to_the_brain_for_a_connected_agent_with_no_credential_of_its_own() {
+    let BrainRig { g, fake, brain, .. } = brain_gate().await;
+    let body = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "search", "arguments": {"query": "secret-cats"}}})
+        .to_string();
+    let r = post(
+        &g.base,
+        BRAIN_PATH,
+        &body,
+        &[("mcp-session-id", "s-1"), ("accept", "text/event-stream")],
+    )
+    .await;
+    assert_eq!(r.status(), 200);
+    assert_eq!(r.headers()["content-type"], "text/event-stream");
+    assert_eq!(r.headers()["mcp-session-id"], "s-1");
+    let text = r.text().await.expect("text");
+    assert!(text.contains("\"result\""), "{text}");
+    let got = brain.got();
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].path, "/gbrain/mcp/agent-1");
+    assert_eq!(got[0].body, body.as_bytes());
+    // The agent's own authorization and cookies never go on; only the MCP headers.
+    assert!(got[0].headers.get("authorization").is_none());
+    assert!(got[0].headers.get("cookie").is_none());
+    assert_eq!(got[0].headers["mcp-session-id"], "s-1");
+    let sent = fake.sent.lock().expect("sent").clone();
+    assert_eq!(sent[0].0, "brain_1");
+    assert_eq!(sent[0].1, "agent-1");
+    // One activity row, once the answer ended: the agent, the path, what went each way.
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    let rows: Vec<Value> = std::fs::read_to_string(&g.traffic)
+        .expect("traffic")
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("row"))
+        .collect();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0]["path"], BRAIN_PATH);
+    assert_eq!(rows[0]["vm_id"], "agent-1");
+    assert_eq!(rows[0]["status"], 200);
+    assert_eq!(rows[0]["bytes_out"], body.len());
+    assert!(rows[0]["bytes_in"].as_u64().expect("in") > 0);
+    // The tool's name, for the Brain counts; never its arguments or the answer.
+    assert_eq!(rows[0]["tool"], "search");
+    assert!(!rows[0].to_string().contains("secret-cats"), "no content in the row");
+    assert_eq!(rows[0]["effect"], "allow");
+}
+
+#[tokio::test]
+async fn brain_calls_are_refused_when_not_connected_locked_stopped_or_too_large() {
+    let BrainRig {
+        g, fake, brain, ids, ..
+    } = brain_gate().await;
+    let body = "{}";
+    *fake.allow.lock().expect("allow") = Err("not connected");
+    assert_eq!(post(&g.base, BRAIN_PATH, body, &[]).await.status(), 403);
+    *fake.allow.lock().expect("allow") = Err("locked");
+    assert_eq!(post(&g.base, BRAIN_PATH, body, &[]).await.status(), 403);
+    *fake.allow.lock().expect("allow") = Ok("brain_1".into());
+    // The emergency stop, before anything is asked of the brain module.
+    g.stop.0.store(true, Ordering::SeqCst);
+    assert_eq!(post(&g.base, BRAIN_PATH, body, &[]).await.status(), 403);
+    g.stop.0.store(false, Ordering::SeqCst);
+    // Over the cap, by its length.
+    let big = "x".repeat(BRAIN_MAX_BODY + 1);
+    assert_eq!(post(&g.base, BRAIN_PATH, &big, &[]).await.status(), 413);
+    // Only MCP's methods.
+    let r = reqwest::Client::new()
+        .put(format!("{}{BRAIN_PATH}", g.base))
+        .send()
+        .await
+        .expect("put");
+    assert_eq!(r.status(), 405);
+    // Not an agent of this firewall.
+    ids.0.lock().expect("ids").clear();
+    assert_eq!(post(&g.base, BRAIN_PATH, body, &[]).await.status(), 403);
+    assert!(brain.got().is_empty(), "nothing reached the brain");
+    assert!(fake.sent.lock().expect("sent").is_empty());
+}
+
+#[tokio::test]
+async fn no_brain_module_no_brain_path() {
+    let g = gate(None, None).await;
+    assert_eq!(post(&g.base, BRAIN_PATH, "{}", &[]).await.status(), 404);
+}
+
+/// One agent has at most BRAIN_IN_FLIGHT_PER_AGENT calls on their way: the next is refused at once,
+/// with words it can read, and a slot is free again once the brain has a call.
+#[tokio::test]
+async fn brain_calls_on_their_way_are_capped_per_agent() {
+    let BrainRig { g, brain, .. } = brain_gate_with(1_500).await;
+    let base = g.base.clone();
+    let calls: Vec<_> = (0..BRAIN_IN_FLIGHT_PER_AGENT)
+        .map(|_| {
+            let b = base.clone();
+            tokio::spawn(async move { post(&b, BRAIN_PATH, "{}", &[]).await.status().as_u16() })
+        })
+        .collect();
+    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+    let r = post(&base, BRAIN_PATH, "{}", &[]).await;
+    assert_eq!(r.status(), 429);
+    assert_eq!(r.headers()["retry-after"], "1");
+    let body: Value = r.json().await.expect("json");
+    assert!(
+        body["error"].as_str().unwrap_or_default().contains("on their way"),
+        "{body}"
+    );
+    for c in calls {
+        assert_eq!(c.await.expect("call"), 200);
+    }
+    assert_eq!(
+        brain.got().len(),
+        BRAIN_IN_FLIGHT_PER_AGENT,
+        "the refused one never reached the brain"
+    );
+    assert_eq!(post(&base, BRAIN_PATH, "{}", &[]).await.status(), 200, "free again");
+}
+
+/// Over its budget an agent is refused before anything else is looked at, and leaves no Activity
+/// row: an agent that is not connected cannot flood the log.
+#[tokio::test]
+async fn an_agent_over_its_budget_leaves_no_rows() {
+    let BrainRig { g, fake, .. } = brain_gate().await;
+    *fake.allow.lock().expect("allow") = Err("not connected");
+    let rows = || {
+        std::fs::read_to_string(&g.traffic)
+            .map(|t| t.lines().count())
+            .unwrap_or(0)
+    };
+    for _ in 0..BRAIN_CALLS_PER_MINUTE {
+        assert_eq!(post(&g.base, BRAIN_PATH, "{}", &[]).await.status(), 403);
+    }
+    assert_eq!(rows(), BRAIN_CALLS_PER_MINUTE as usize);
+    for _ in 0..20 {
+        assert_eq!(post(&g.base, BRAIN_PATH, "{}", &[]).await.status(), 429);
+    }
+    assert_eq!(rows(), BRAIN_CALLS_PER_MINUTE as usize, "no row past the budget");
 }

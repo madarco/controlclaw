@@ -21,7 +21,8 @@ pub use error::{LlmError, failure_message};
 pub use evaluation::{Answer, Evaluation, Question, Questions, Rounding, Usage, validate_answers, validate_input};
 pub use gateway::{GATEWAY_BASE_URL, GatewayClient, USER_AGENT};
 pub use settings::{
-    AiSettings, Provider, clean_instructions, is_decision_model, key_fingerprint, provider_options_for,
+    AgentContext, AiSettings, FALSE_ALARMS_MAX, FalseAlarm, Provider, clean_instructions, is_decision_model,
+    key_fingerprint, provider_options_for,
 };
 
 /// Which way an organization's model answers typed questions.

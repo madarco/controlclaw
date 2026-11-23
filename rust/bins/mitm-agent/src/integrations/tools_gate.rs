@@ -8,6 +8,12 @@
 //!    carrying the agent's id and the body's sha256 (`purpose: "agent-mcp"`);
 //! 4. posts the same body to the control plane and hands the answer back.
 //!
+//! On a standalone firewall it also relays agents' calls to the organization's brain
+//! (`/brain/mcp`, docs/plans/standalone-brain.md B): only for an agent connected to it, not under
+//! the emergency stop or the admin's brain lock, at most [`BRAIN_MAX_BODY`] a call and
+//! [`BRAIN_IN_FLIGHT_PER_AGENT`] calls on their way per agent, with the answer
+//! streamed back and [`BRAIN_IDLE`] of silence allowed.
+//!
 //! The same listener serves the agent's website logins tools (`/logins/mcp`, answered here) and the
 //! organization's MCP servers (`/servers/<name>/mcp`, the server gate). It trusts the source
 //! address alone (plan §3, a quirk kept).
@@ -36,6 +42,25 @@ pub const GATE_CALLS_PER_MINUTE: u32 = 120;
 /// `/permission`'s calls a minute from one address (its own budget).
 pub const PERMISSION_CALLS_PER_MINUTE: u32 = 600;
 const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(60);
+/// The brain's path on this listener.
+pub const BRAIN_PATH: &str = "/brain/mcp";
+/// A call to the brain is held whole until it is sent (the token names its body's hash): at most
+/// this much, read within [`BRAIN_BODY_WITHIN`]. A long page is well under it.
+pub const BRAIN_MAX_BODY: usize = 4 * 1024 * 1024;
+/// A body that trickles in holds a slot: it gets this long, not the listener's five minutes.
+pub const BRAIN_BODY_WITHIN: Duration = Duration::from_secs(30);
+/// Brain calls one agent may have on their way at once (read, held and sent), and all agents
+/// together: with the body cap, what the firewall holds for the brain at most.
+pub const BRAIN_IN_FLIGHT_PER_AGENT: usize = 4;
+pub const BRAIN_IN_FLIGHT_TOTAL: usize = 16;
+/// A brain answer can be a stream, and a `think` runs for minutes: this much silence is allowed.
+pub const BRAIN_IDLE: Duration = Duration::from_secs(600);
+/// Brain calls a minute from one address: its own budget, as searches come in bursts.
+pub const BRAIN_CALLS_PER_MINUTE: u32 = 600;
+/// Brain calls a minute from every agent together. Each takes a one-time id the brain keeps about
+/// three minutes, and the brain keeps at most 12,000 of those for relayed calls (cc-auth): this
+/// stays well under, so the brain never refuses the firewall's own calls as busy.
+pub const BRAIN_CALLS_PER_MINUTE_TOTAL: u32 = 3_000;
 /// Request headers the control plane may see. Never the caller's own authorization or cookies.
 const FORWARD: &[&str] = &[
     "content-type",
@@ -86,6 +111,10 @@ pub struct ToolsGate {
     windows: Mutex<HashMap<String, (i64, u32)>>,
     /// `/permission`'s own budget: an agent polling its approvals never starves its MCP calls.
     permission_windows: Mutex<HashMap<String, (i64, u32)>>,
+    /// `/brain/mcp`'s own budget.
+    brain_windows: Mutex<HashMap<String, (i64, u32)>>,
+    /// Brain calls on their way, per agent address and in all.
+    brain_in_flight: Arc<Mutex<HashMap<String, usize>>>,
     http: reqwest::Client,
 }
 
@@ -112,6 +141,8 @@ impl ToolsGate {
             servers,
             windows: Mutex::new(HashMap::new()),
             permission_windows: Mutex::new(HashMap::new()),
+            brain_windows: Mutex::new(HashMap::new()),
+            brain_in_flight: Arc::new(Mutex::new(HashMap::new())),
             // `redirect: "manual"`.
             http: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
@@ -207,28 +238,55 @@ impl ToolsGate {
         vm_id: &str,
         method: &str,
         status: u16,
-        bytes_in: usize,
-        bytes_out: usize,
+        sent: usize,
+        answered: usize,
         started_at: i64,
         refused: Option<&str>,
     ) {
+        self.record_at("/mcp", vm_id, method, status, sent, answered, started_at, refused, None);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn record_at(
+        &self,
+        path: &str,
+        vm_id: &str,
+        method: &str,
+        status: u16,
+        sent: usize,
+        answered: usize,
+        started_at: i64,
+        refused: Option<&str>,
+        brain: Option<(&str, Option<&str>)>,
+    ) {
+        use crate::channels::ai::internal::{SIZES_FIELD, SIZES_OUT_IS_SENT, TOOLS_FLOW, TOOLS_HOST, TOOLS_RULE};
         let Some(p) = &self.log_path else { return };
         let now = js::now_ms();
-        let rec = json!({
+        let mut rec = json!({
             "source": "egress",
-            "flow_id": format!("cpm-{}", hex::encode(rand::random::<[u8; 10]>())),
+            "flow_id": format!("{TOOLS_FLOW}{}", hex::encode(rand::random::<[u8; 10]>())),
             "ts": now as f64 / 1000.0,
             "method": super::mcp::client::cut(method, 16),
-            "host": "controlplane-mcp",
-            "path": "/mcp",
+            "host": TOOLS_HOST,
+            "path": path,
             "vm_id": vm_id,
             "effect": if refused.is_some() { "drop" } else { "allow" },
             "status": status,
-            "bytes_in": bytes_in,
-            "bytes_out": bytes_out,
+            // As the proxy's records: `bytes_out` is what the agent sent, `bytes_in` the answer.
+            "bytes_out": sent,
+            "bytes_in": answered,
+            SIZES_FIELD: SIZES_OUT_IS_SENT,
             "duration_ms": (now - started_at).max(0),
-            "rule": match refused { Some(r) => format!("controlclaw tools: {r}"), None => "controlclaw tools".into() },
+            "rule": match refused { Some(r) => format!("{TOOLS_RULE}: {r}"), None => TOOLS_RULE.into() },
         });
+        // A brain call's tool, by name only, and the agent's scope there: the panel's Brain counts
+        // read them.
+        if let Some((scope, tool)) = brain {
+            rec["scope"] = json!(scope);
+            if let Some(t) = tool {
+                rec["tool"] = json!(t);
+            }
+        }
         // Activity must never be what fails a call.
         use std::io::Write;
         if let Ok(mut f) = std::fs::OpenOptions::new().append(true).create(true).open(p) {
@@ -242,6 +300,31 @@ impl ToolsGate {
 
     fn over_permission_budget(&self, address: &str) -> bool {
         over(&self.permission_windows, address, PERMISSION_CALLS_PER_MINUTE)
+    }
+
+    fn over_brain_budget(&self, address: &str) -> bool {
+        over(&self.brain_windows, address, BRAIN_CALLS_PER_MINUTE)
+    }
+
+    /// Every agent's brain calls together, counted only for calls that go on to the brain.
+    fn over_brain_total(&self) -> bool {
+        over(&self.brain_windows, "", BRAIN_CALLS_PER_MINUTE_TOTAL)
+    }
+
+    /// A slot for one brain call from `address`, or `None` when that agent, or every agent
+    /// together, already has as many on their way as allowed. Freed when the slot is dropped.
+    fn brain_slot(&self, address: &str) -> Option<BrainSlot> {
+        let mut m = self.brain_in_flight.lock().unwrap_or_else(|e| e.into_inner());
+        let total: usize = m.values().sum();
+        let mine = m.get(address).copied().unwrap_or(0);
+        if total >= BRAIN_IN_FLIGHT_TOTAL || mine >= BRAIN_IN_FLIGHT_PER_AGENT {
+            return None;
+        }
+        m.insert(address.to_string(), mine + 1);
+        Some(BrainSlot {
+            map: self.brain_in_flight.clone(),
+            address: address.to_string(),
+        })
     }
 }
 
@@ -278,7 +361,14 @@ impl ToolsGate {
         // OpenClaw's own approvals (`core/auto_approve.rs`): answered here once this firewall keeps
         // the rules; what it says before that is marked, so the agent tells it from an older firewall.
         let permissions = (path == PERMISSION_PATH).then(|| self.app.contracts.agent_permissions.get());
-        if path != "/mcp" && local.is_none() && servers.is_none() && ca.is_none() && permissions.is_none() {
+        let brain = self.app.contracts.brain_relay.get().filter(|_| path == BRAIN_PATH);
+        if path != "/mcp"
+            && local.is_none()
+            && servers.is_none()
+            && ca.is_none()
+            && permissions.is_none()
+            && brain.is_none()
+        {
             return refuse(404);
         }
         // No identity map yet: nobody is known, so every caller is refused.
@@ -325,6 +415,9 @@ impl ToolsGate {
         if (self.locked)(&vm_id) {
             self.record(&vm_id, &method, 403, 0, 0, started_at, Some("emergency stop"));
             return refuse(403);
+        }
+        if let Some(b) = brain {
+            return self.brain(b, &vm_id, &address, req, started_at).await;
         }
         if let Some(s) = servers {
             if self.over_budget(&address) {
@@ -469,6 +562,221 @@ impl ToolsGate {
             }
         }
     }
+}
+
+impl ToolsGate {
+    /// `/brain/mcp`: one call relayed to the brain for `vm_id` (told by its address, not stopped).
+    async fn brain(
+        self: &Arc<Self>,
+        relay: Arc<dyn crate::contracts::BrainRelay>,
+        vm_id: &str,
+        address: &str,
+        req: Req,
+        started_at: i64,
+    ) -> Resp {
+        let method = req.method().as_str().to_string();
+        let rec = |status: u16, sent: usize, why: Option<&str>| {
+            self.record_at(BRAIN_PATH, vm_id, &method, status, sent, 0, started_at, why, None);
+        };
+        if !matches!(method.as_str(), "POST" | "GET" | "DELETE") {
+            let mut r = refuse(405);
+            r.headers_mut()
+                .insert(http::header::ALLOW, HeaderValue::from_static("POST, GET, DELETE"));
+            return r;
+        }
+        // The budget first, and no Activity row past it: an agent refused for another reason
+        // cannot flood the log either.
+        if self.over_brain_budget(address) {
+            return brain_refusal(429, "Too many brain calls a minute. Wait a moment and try again.");
+        }
+        let brain_vm = match relay.relay_for(vm_id) {
+            Ok(b) => b,
+            Err(why) => {
+                tracing::info!("[gbrain] refused a brain call from {vm_id}: {why}");
+                rec(403, 0, Some(why));
+                return refuse(403);
+            }
+        };
+        if self.over_brain_total() {
+            return brain_refusal(
+                429,
+                "The brain is taking too many calls a minute. Wait a moment and try again.",
+            );
+        }
+        let Some(slot) = self.brain_slot(address) else {
+            return brain_refusal(
+                429,
+                "Too many brain calls on their way at once. Wait for one to finish and try again.",
+            );
+        };
+        let declared = req
+            .headers()
+            .get(http::header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .unwrap_or(0);
+        if declared > BRAIN_MAX_BODY as u64 {
+            rec(413, 0, Some("too large"));
+            return brain_refusal(413, "A brain call is at most 4 MB.");
+        }
+        let (parts, body) = req.into_parts();
+        let Ok(Some(body)) = tokio::time::timeout(BRAIN_BODY_WITHIN, cc_http::read_body(body, BRAIN_MAX_BODY)).await
+        else {
+            rec(413, BRAIN_MAX_BODY + 1, Some("too large or too slow"));
+            let mut r = brain_refusal(413, "A brain call is at most 4 MB, sent within 30 seconds.");
+            r.headers_mut()
+                .insert(http::header::CONNECTION, HeaderValue::from_static("close"));
+            return r;
+        };
+        let headers: Vec<(&'static str, HeaderValue)> = FORWARD
+            .iter()
+            .filter_map(|h| {
+                let all: Vec<&HeaderValue> = parts.headers.get_all(*h).iter().collect();
+                (all.len() == 1).then(|| (*h, all[0].clone()))
+            })
+            .collect();
+        let sent = body.len();
+        let tool = brain_tool(&body);
+        let scope = relay.scope_of(vm_id).unwrap_or_default();
+        let up = relay
+            .send(brain_vm, vm_id.to_string(), method.clone(), headers, body)
+            .await;
+        // The brain has the call (or refused it): its body is no longer held here.
+        drop(slot);
+        let up = match up {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::info!("[gbrain] relaying {vm_id}'s call failed: {e}");
+                rec(502, sent, None);
+                return refuse(502);
+            }
+        };
+        let status = up.status().as_u16();
+        let mut out = http::Response::builder().status(status);
+        for name in ANSWER {
+            if let Some(v) = up.headers().get(*name) {
+                out = out.header(*name, v.clone());
+            }
+        }
+        if let Some(v) = up.headers().get(http::header::CACHE_CONTROL) {
+            out = out.header(http::header::CACHE_CONTROL, v.clone());
+        }
+        // The answer as it comes (an SSE stream, a long `think`), and the row once it ended.
+        let done = BrainCallDone {
+            gate: self.clone(),
+            vm_id: vm_id.to_string(),
+            method,
+            status,
+            sent,
+            answered: 0,
+            started_at,
+            tool,
+            scope,
+        };
+        let frames = futures_util::stream::unfold(
+            (Box::pin(up.bytes_stream()), done),
+            |(mut stream, mut done)| async move {
+                use futures_util::StreamExt;
+                match tokio::time::timeout(BRAIN_IDLE, stream.next()).await {
+                    Ok(Some(Ok(chunk))) => {
+                        done.answered += chunk.len();
+                        Some((Ok(hyper::body::Frame::data(chunk)), (stream, done)))
+                    }
+                    Ok(Some(Err(e))) => Some((Err(std::io::Error::other(e.without_url())), (stream, done))),
+                    Ok(None) => None,
+                    Err(_) => Some((
+                        Err(std::io::Error::other("the brain sent nothing for too long")),
+                        (stream, done),
+                    )),
+                }
+            },
+        );
+        let body: cc_http::Body = http_body_util::StreamBody::new(frames).boxed();
+        out.body(body).unwrap_or_else(|_| refuse(502))
+    }
+}
+
+/// One brain call on its way from an agent (`ToolsGate::brain_slot`).
+struct BrainSlot {
+    map: Arc<Mutex<HashMap<String, usize>>>,
+    address: String,
+}
+
+impl Drop for BrainSlot {
+    fn drop(&mut self) {
+        let mut m = self.map.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(n) = m.get_mut(&self.address) {
+            *n -= 1;
+            if *n == 0 {
+                m.remove(&self.address);
+            }
+        }
+    }
+}
+
+/// A refusal of a brain call the agent can read: `{error}`, and when to try again.
+fn brain_refusal(status: u16, message: &str) -> Resp {
+    let text = js::stringify(&json!({ "error": message }));
+    let len = text.len();
+    let mut r = cc_http::full(
+        StatusCode::from_u16(status).unwrap_or(StatusCode::TOO_MANY_REQUESTS),
+        "application/json",
+        text,
+    );
+    r.headers_mut()
+        .insert(http::header::CONTENT_LENGTH, HeaderValue::from(len));
+    if status == 429 {
+        r.headers_mut()
+            .insert(http::header::RETRY_AFTER, HeaderValue::from_static("1"));
+    }
+    r
+}
+
+/// Writes a brain call's activity row when its answer ended (or the agent hung up).
+struct BrainCallDone {
+    gate: Arc<ToolsGate>,
+    vm_id: String,
+    method: String,
+    status: u16,
+    sent: usize,
+    answered: usize,
+    started_at: i64,
+    tool: Option<String>,
+    scope: String,
+}
+
+impl Drop for BrainCallDone {
+    fn drop(&mut self) {
+        // The brain's own refusal (a lock there, a token it did not take) shows as one.
+        let refused = (self.status >= 400).then(|| format!("the brain answered {}", self.status));
+        self.gate.record_at(
+            BRAIN_PATH,
+            &self.vm_id,
+            &self.method,
+            self.status,
+            self.sent,
+            self.answered,
+            self.started_at,
+            refused.as_deref(),
+            Some((self.scope.as_str(), self.tool.as_deref())),
+        );
+    }
+}
+
+/// The tool a brain call runs (`tools/call`'s `params.name`), when it is a plain name: what the
+/// panel counts as a search or a save. Nothing else of the body is kept.
+fn brain_tool(body: &[u8]) -> Option<String> {
+    let v: Value = serde_json::from_slice(body).ok()?;
+    if v.get("method").and_then(Value::as_str) != Some("tools/call") {
+        return None;
+    }
+    let name = v.pointer("/params/name").and_then(Value::as_str)?;
+    (!name.is_empty()
+        && name.len() <= 64
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'))
+    .then(|| name.to_string())
 }
 
 /// Where an agent's vm-agent sends OpenClaw's approvals.

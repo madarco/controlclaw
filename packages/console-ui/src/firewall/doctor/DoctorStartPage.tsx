@@ -7,7 +7,7 @@ import { Button } from "../../ui/button";
 import { Textarea } from "../../ui/textarea";
 import { ConfirmCodeDialog } from "../channels/ChannelDialogs";
 import { CodeConfirmError } from "../../lib/code-dialog";
-import type { DoctorStartCli, DoctorStartResult, DoctorStartState } from "@controlclaw/console-ui/lib/agent/doctor-start-types";
+import type { DoctorStartCli, DoctorStartResult, DoctorStartState } from "../../lib/agent/doctor-start-types";
 import { doctorModelsForCli, doctorSelectedModel } from "../../lib/doctor-models";
 
 /**

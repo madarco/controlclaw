@@ -289,9 +289,9 @@ fn full_env(dir: &std::path::Path) -> Vec<(String, String)> {
     env
 }
 
-/// The same registry in standalone mode (a child run, as above): the stop, the exit proxy and web
-/// search are there, every action of each; Tailscale, devices, support SSH, the brain, backups and
-/// updates are the SaaS's and are not.
+/// The same registry in standalone mode (a child run, as above): the stop, the exit proxy, web
+/// search and the brain (but its outside AI apps) are there, every action of each; Tailscale,
+/// devices, support SSH, the brain's outside AI apps, backups and updates are the SaaS's and are not.
 fn standalone_registers_its_controls_only(name: &str) {
     let dir = tempfile::tempdir().expect("tmp");
     let out = std::process::Command::new(std::env::current_exe().expect("exe"))
@@ -311,11 +311,11 @@ fn standalone_registers_its_controls_only(name: &str) {
         .lines()
         .filter_map(|l| l.split_once("ACTION ").map(|(_, a)| a))
         .collect();
-    for family in ["kill.", "exit.", "search."] {
+    for family in ["kill.", "exit.", "search.", "gbrain."] {
         let want: Vec<&str> = cc_contracts::commands::ACTIONS
             .iter()
             .map(|a| a.action)
-            .filter(|a| a.starts_with(family))
+            .filter(|a| a.starts_with(family) && !a.starts_with("gbrain.client."))
             .collect();
         assert!(!want.is_empty(), "no {family} actions in the contract");
         let missing: Vec<_> = want.iter().filter(|a| !registered.contains(*a)).collect();
@@ -324,7 +324,7 @@ fn standalone_registers_its_controls_only(name: &str) {
     let saas_only: Vec<_> = registered
         .iter()
         .filter(|a| {
-            ["tailscale.", "devices.", "ssh.", "gbrain.", "backup.", "update."]
+            ["tailscale.", "devices.", "ssh.", "gbrain.client.", "backup.", "update."]
                 .iter()
                 .any(|f| a.starts_with(f))
         })

@@ -1,3 +1,5 @@
+// The console's copy of a shape the firewall uses, moved here from the retired TS firewall
+// agent. The firewall's own is rust/bins/mitm-agent/src/integrations/doctor/start.rs: change both together.
 /**
  * The contract between the firewall's Doctor start page (doctor-start.ts) and its viewer, which the
  * console builds (apps/firewall-panel/fw/doctor-start-main.tsx). Types only: both sides import it.

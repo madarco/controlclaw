@@ -19,6 +19,9 @@ services:
       # it. Without these, as with a plain `docker run`, the API stays on the container's loopback.
       LOCAL_PANEL_BIND: 0.0.0.0:8800
       LOCAL_PANEL_INSECURE: "1"
+      # The brain's pages, relayed by the firewall (docs/standalone/brain.md): published on the
+      # host's loopback (below), with HTTPS and a name of their own in front.
+      BRAIN_PAGES_BIND: 0.0.0.0:8803
     volumes:
       - firewall:/opt/controlclaw
     tmpfs:
@@ -35,6 +38,7 @@ services:
       - "${CC_LISTEN:-127.0.0.1}:${CC_DNS_PORT:-53}:53/tcp"
       - "127.0.0.1:8790:8790" # the firewall's pages and webhooks
       - "127.0.0.1:8800:8800" # the local panel: http://localhost:8800, or an SSH tunnel to it
+      - "127.0.0.1:8803:8803" # the brain's pages: HTTPS with their own name in front
       # Pairing (`docker compose exec -u controlclaw firewall mitm-agent pair-code`): agents on other
       # machines need it on an address they reach, with PAIR_PROXY_ADDR set to the proxy's address
       # as they reach it (host:8080).

@@ -64,6 +64,7 @@ async fn rig() -> Rig {
         contracts: crate::contracts::Contracts::default(),
         started: std::time::Instant::now(),
         unmanaged: None,
+        brain: None,
         config,
     });
     let router = Arc::new(crate::router(&app));

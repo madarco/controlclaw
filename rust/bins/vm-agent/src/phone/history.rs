@@ -403,7 +403,8 @@ fn latest(rows: &[(String, Option<Value>)]) -> Vec<Value> {
 
 /// The voice-call plugin's call records, in its own state database (`PluginCallStore`):
 /// `~/.openclaw/voice-calls/state/openclaw.sqlite`, OpenClaw's `plugin_state_entries`, one row per
-/// snapshot of a call and its base64 chunks. Pinned to @openclaw/voice-call 2026.9.7.
+/// snapshot of a call and its base64 chunks. The same format in @openclaw/voice-call 2026.9.7 and
+/// 2026.11.3 (namespaces, chunk keys, `chunkCount`/`dataBase64`, the table and its file).
 pub struct PluginCallStore {
     file: PathBuf,
 }
@@ -972,7 +973,7 @@ pub(crate) mod tests {
         r
     }
 
-    /// A state database in the plugin's own format: snapshot rows plus base64 chunks (2026.9.7).
+    /// A state database in the plugin's own format: snapshot rows plus base64 chunks (2026.9.7 to 2026.11.3).
     pub(crate) fn plugin_db(dir: &Path, snapshots: &[Value]) -> PathBuf {
         let path = plugin_db_path(dir);
         std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");

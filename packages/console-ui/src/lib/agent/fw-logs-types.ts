@@ -1,3 +1,5 @@
+// The console's copy of a shape the firewall uses, moved here from the retired TS firewall
+// agent. The firewall's own is rust/bins/mitm-agent/src/core/fw_logs.rs: change both together.
 /**
  * The Firewall Logs page's data, as the firewall serves it (`fw-logs-page.ts`) and the viewer reads
  * it (apps/saas/app/(mitm)/components/FirewallLogs.tsx). Types only, so the console can import them.

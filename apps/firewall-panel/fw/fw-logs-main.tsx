@@ -1,6 +1,6 @@
 /**
  * The firewall's own Logs page, served by the firewall at `https://<firewall>/__cc/doctor/logs/`
- * (packages/mitm-agent/src/fw-logs-page.ts, apps/saas/docs/features/firewall-logs.md).
+ * (rust/bins/mitm-agent/src/core/fw_logs.rs, apps/saas/docs/features/firewall-logs.md).
  *
  * Why the firewall serves it: the console never reads these logs. The page reads them same-origin,
  * with the cookie the firewall gave this enrolled browser, and nothing else can.
@@ -28,7 +28,7 @@ const source: FwLogSource = {
   },
 };
 
-// The header and sidebar around `#root` are the firewall's own (packages/mitm-agent/src/fw-shell.ts).
+// The header and sidebar around `#root` are the firewall's own (rust/bins/mitm-agent/src/core/fw_shell.rs).
 const root = document.getElementById("root")!;
 
 createRoot(root).render(

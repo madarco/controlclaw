@@ -626,7 +626,8 @@ fn fixture_dir(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// What the TS build sealed (`fixtures/backup.mts seal`), restored by this build.
+/// What the retired TS vm-agent sealed (`fixtures/ts-sealed`), restored by this build: backups taken
+/// before the boxes moved to Rust still restore.
 #[tokio::test]
 async fn an_archive_the_ts_build_sealed_restores_here() {
     let dir = fixture_dir("ts-sealed");
@@ -654,7 +655,7 @@ async fn an_archive_the_ts_build_sealed_restores_here() {
     assert_eq!(tree(&b.home.join("workspace")), want);
 }
 
-/// Writes `fixtures/rust-sealed` for `backup.mts restore` (the other direction). Run by hand:
+/// Writes `fixtures/rust-sealed`, which packages/recover's tests open with the recover CLI. Run by hand:
 /// `cargo test -p vm-agent write_rust_sealed_fixture -- --ignored`.
 #[tokio::test]
 #[ignore]

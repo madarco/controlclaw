@@ -21,8 +21,15 @@ const MAX_PAGES: usize = 40;
 const AFTER_SLACK_MS: i64 = 60_000;
 const MIN_BACKOFF_MS: i64 = 5000;
 const MAX_BACKOFF_MS: i64 = 60_000;
-/// OpenClaw's generic tool: the nested call is the real tool's record.
-pub const TOOL_CALL_WRAPPER: &str = "tool_call";
+/// OpenClaw's generic Tool Search tool: the nested call is the real tool's record. Named
+/// `tool_call` up to 2026.9.x and `dispatch_action` from 2026.10.10; both are counted while agents
+/// on either version are being updated.
+pub const TOOL_CALL_WRAPPERS: [&str; 2] = ["tool_call", "dispatch_action"];
+
+/// Whether this tool name is the generic wrapper rather than a real tool.
+pub fn is_tool_call_wrapper(name: &str) -> bool {
+    TOOL_CALL_WRAPPERS.contains(&name)
+}
 const CALL: Duration = Duration::from_secs(10);
 
 fn s<'a>(v: &'a Value, k: &str) -> Option<&'a str> {
@@ -37,7 +44,7 @@ pub fn map_audit_event(ev: &Value) -> Option<Map<String, Value>> {
     }
     let status = s(ev, "status");
     if kind == "tool_action"
-        && s(ev, "toolName") == Some(TOOL_CALL_WRAPPER)
+        && s(ev, "toolName").is_some_and(is_tool_call_wrapper)
         && matches!(status, Some("started" | "succeeded"))
     {
         return None;
@@ -352,14 +359,16 @@ mod tests {
         assert!(
             map_audit_event(&json!({ "kind": "message", "sequence": 1, "eventId": "x", "occurredAt": 1 })).is_none()
         );
-        let mut w = ev(2, "tool_action", "succeeded");
-        w["toolName"] = json!(TOOL_CALL_WRAPPER);
-        assert!(map_audit_event(&w).is_none());
-        w["status"] = json!("failed");
-        assert!(
-            map_audit_event(&w).is_some(),
-            "a wrapper that failed may be the only record"
-        );
+        for wrapper in TOOL_CALL_WRAPPERS {
+            let mut w = ev(2, "tool_action", "succeeded");
+            w["toolName"] = json!(wrapper);
+            assert!(map_audit_event(&w).is_none());
+            w["status"] = json!("failed");
+            assert!(
+                map_audit_event(&w).is_some(),
+                "a wrapper that failed may be the only record"
+            );
+        }
         let mut m = ev(3, "agent_run", "started");
         m["sessionKey"] = json!("agent:main:agentmail:ada@example.com");
         let key = map_audit_event(&m).expect("rec")["session_key"]

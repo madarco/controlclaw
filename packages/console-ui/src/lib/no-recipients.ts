@@ -1,6 +1,6 @@
 /**
  * The refusal a change gets when it needs a confirmation code and the firewall has nobody to send
- * one to (T-83, `packages/mitm-agent/src/consent-codes.ts` → `noRecipients`).
+ * one to (T-83, `rust/bins/mitm-agent/src/core/consent.rs` → `noRecipients`).
  *
  * The firewall writes the sentence, because only the firewall knows how many people the agents have
  * allowed. What the console adds is the way there: both refusals happen on the Firewall page, which

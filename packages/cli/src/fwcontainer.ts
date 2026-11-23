@@ -93,10 +93,10 @@ export interface PairedHere {
 export async function pairHere(
   sys: Sys,
   compose: (...a: string[]) => string[],
-  o: { name: string; address: string; listen?: string; url: string },
+  o: { name: string; address: string; listen?: string; url: string; role?: "gbrain"; replace?: boolean },
   net: PairNet,
 ): Promise<PairedHere> {
-  const made = await sys.run(compose("exec", "-T", "-u", "controlclaw", "firewall", "mitm-agent", "pair-code", "--name", o.name, "--address", o.address, "--replace"));
+  const made = await sys.run(compose("exec", "-T", "-u", "controlclaw", "firewall", "mitm-agent", "pair-code", "--name", o.name, "--address", o.address, ...(o.replace === false ? [] : ["--replace"]), ...(o.role ? ["--role", o.role] : [])));
   const code = codeIn(made.stdout) ?? "";
   if (made.code !== 0 || !code) throw new Error(`mitm-agent pair-code: ${made.stderr.trim() || "no code"}`);
   const keypair = agentKeypair();
@@ -104,7 +104,7 @@ export async function pairHere(
   // The pairing listener comes up a moment after the database: tried again while it cannot be reached.
   for (let i = 0; ; i++) {
     try {
-      const paired = await pair(o.url, code, { publicKey: keypair.publicPem, name: o.name, source: "127.0.0.1", unpairSecret, agentListen: o.listen }, net.post);
+      const paired = await pair(o.url, code, { publicKey: keypair.publicPem, name: o.name, source: "127.0.0.1", unpairSecret, agentListen: o.listen, ...(o.role ? { role: o.role } : {}) }, net.post);
       return { paired, keypair, unpairSecret };
     } catch (e) {
       if (i >= 15 || !(e as Error).message.startsWith("could not reach")) throw e;

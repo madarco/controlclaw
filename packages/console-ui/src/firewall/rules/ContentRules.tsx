@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../ui/dialog";
 import { useApi } from "../../lib/api";
 import { cn } from "../../lib/utils";
-import { CONTENT_IN_ONLY, CONTENT_OUT_ONLY } from "@controlclaw/console-ui/lib/agent/content-rules-schema";
+import { CONTENT_IN_ONLY, CONTENT_OUT_ONLY } from "../../lib/agent/content-rules-schema";
 import {
   CONTENT_CHANNELS,
   CONTENT_DETECTORS,

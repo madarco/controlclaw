@@ -1,0 +1,74 @@
+# Transparent-egress smoke: proves app-agnostic capture (redsocks + nftables REDIRECT, NO
+# HTTP_PROXY env) and the SNI-based control-plane passthrough.
+#   - echo   : HTTPS reflector (echo.test = inspected upstream; cp.test = "control plane" passthrough)
+#   - proxy  : mitmproxy + addon, MITM_CONTROL_PLANE_HOST=cp.test, static IP on the internal net
+#   - agent  : NET_ADMIN box that redirects its own 80/443 → redsocks → proxy (no proxy env set)
+
+services:
+  echo:
+    image: python:3.12-alpine
+    command: ["python", "/app/echo-server.py"]
+    volumes:
+      - ./echo-server.py:/app/echo-server.py:ro
+      - ./echo-certs:/certs:ro
+    networks:
+      extnet:
+        # Static IP so the agent (which shares no network with echo, mirroring the real OpenClaw
+        # box) can resolve echo.test/cp.test via a seeded /etc/hosts and reach them only through the
+        # transparent redirect → proxy.
+        ipv4_address: 10.88.0.10
+        aliases: [echo.test, cp.test, tunnel.test]
+
+  proxy:
+    image: mitmproxy/mitmproxy:12.2.2
+    # Resolve the upstream hostnames deterministically (mirrors the mitm box's dnsmasq in prod —
+    # mitmproxy connects upstream by the SNI hostname). Avoids flaky docker-DNS 502s in the test.
+    extra_hosts:
+      - "echo.test:10.88.0.10"
+      - "cp.test:10.88.0.10"
+      - "tunnel.test:10.88.0.10"
+    command: >
+      mitmdump --listen-port 8080 --ssl-insecure --set connection_strategy=lazy
+      --ignore-hosts "^cp\\.test:[0-9]+$$" --set confdir=/ca -s /app/addon.py
+    volumes:
+      - ../addon.py:/app/addon.py:ro
+      - ./ca:/ca
+      - ./config:/config:ro
+      - ./logs:/logs
+    environment:
+      MITM_TENANT: "smoke-org"
+      MITM_CONTROL_PLANE_HOST: "cp.test"
+      MITM_RULES_PATH: /config/rules.json
+      MITM_CREDENTIALS_PATH: /config/credentials.json
+      MITM_GRANTS_PATH: /config/grants.json
+      MITM_PENDING_PATH: /logs/pending.jsonl
+      MITM_LOG_FILE: /logs/mitm.jsonl
+      # echo/cp/tunnel.test live on Docker's private network; production passes through to public
+      # addresses only.
+      MITM_ALLOW_DEV_FLAGS: "1"
+      MITM_DEV_PRIVATE_PASSTHROUGH: "1"
+    networks:
+      intnet:
+        ipv4_address: 10.77.0.250
+      extnet: {}
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent-transparent
+    command: ["sleep", "infinity"]
+    cap_add: [NET_ADMIN]
+    volumes:
+      - ./ca:/ca:ro
+    networks: [intnet]
+
+networks:
+  intnet:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.77.0.0/24
+  extnet:
+    ipam:
+      config:
+        - subnet: 10.88.0.0/24

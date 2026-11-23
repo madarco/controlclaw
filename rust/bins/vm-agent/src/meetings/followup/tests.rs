@@ -66,6 +66,10 @@ struct Fx {
     hooks: Arc<FakeHooks>,
     /// OpenClaw is not running: no hooks to run an approved request with.
     hooks_down: Arc<std::sync::atomic::AtomicBool>,
+    /// ControlClaw's instructions file (outside the workspace).
+    instructions: PathBuf,
+    /// The cc-instructions plugin is enabled in openclaw.json.
+    loaded: Arc<std::sync::atomic::AtomicBool>,
 }
 
 fn fixture(report: Option<Value>, hook: Option<HookRun>) -> Fx {
@@ -94,6 +98,7 @@ fn fixture(report: Option<Value>, hook: Option<HookRun>) -> Fx {
         runs: runs.clone(),
         ensured: ensured.clone(),
     });
+    let instructions = dir.path().join("instructions/AGENTS.md");
     Fx {
         dir,
         workspace,
@@ -104,6 +109,8 @@ fn fixture(report: Option<Value>, hook: Option<HookRun>) -> Fx {
         ensured,
         hooks,
         hooks_down: Arc::default(),
+        instructions,
+        loaded: Arc::new(std::sync::atomic::AtomicBool::new(true)),
     }
 }
 
@@ -122,7 +129,13 @@ impl Fx {
         MeetingFollowUpService::new(FollowUpDeps {
             archive: self.archive.clone(),
             workspace: self.workspace.clone(),
+            instructions: crate::platform::controlclaw_agents::Instructions::direct(self.instructions.clone()),
+            context_loaded: {
+                let loaded = self.loaded.clone();
+                Arc::new(move || loaded.load(std::sync::atomic::Ordering::SeqCst))
+            },
             state_path: self.dir.path().join("orders.json"),
+            orders_copy: self.dir.path().join("openclaw/controlclaw/meeting-orders.json"),
             hooks: Arc::new(move || {
                 (!down.load(std::sync::atomic::Ordering::SeqCst))
                     .then(|| Arc::new(FakeHooksRef(hooks.clone())) as Arc<dyn Hooks>)
@@ -554,30 +567,25 @@ async fn deleting_a_meeting_removes_its_report_and_takes_its_waiting_requests_ou
 async fn turning_the_setting_on_writes_the_example_orders_once_and_readies_the_hooks_saving_checks_the_version() {
     let f = fixture(None, None);
     let service = f.service();
-    let agents = f.workspace.join("AGENTS.md");
+    let ours = f.instructions.clone();
+    let user = f.workspace.join("AGENTS.md");
     let settings = |on| FollowUp::settings(service.as_ref(), on);
-    // A new agent: OpenClaw writes AGENTS.md on its first session, so nothing here creates it.
-    settings(true).await.expect("settings");
-    assert!(!agents.exists());
-    let v = service.orders().expect("orders")["version"].clone();
-    assert!(
-        matches!(service.save_orders(&json!({"text": "Too early", "version": v})), Err(FollowUpError::Orders(m)) if m.contains("first message"))
-    );
-    std::fs::write(&agents, "# AGENTS\n\nBe brief.\n").expect("write");
     let o = service.orders().expect("orders");
     assert_eq!(o, json!({"text": "", "version": o["version"], "changedOutside": false}));
     settings(false).await.expect("off");
-    assert_eq!(*f.ensured.lock().expect("e"), 1, "off: nothing more is set up");
+    assert_eq!(*f.ensured.lock().expect("e"), 0, "off: nothing is set up");
+    assert!(!ours.exists());
     settings(true).await.expect("on");
-    assert_eq!(*f.ensured.lock().expect("e"), 2);
+    assert_eq!(*f.ensured.lock().expect("e"), 1);
     let first = service.orders().expect("orders");
     assert_eq!(first["text"], ORDERS_EXAMPLE);
     assert_eq!(first["changedOutside"], false);
+    let text = std::fs::read_to_string(&ours).expect("read");
     assert!(
-        std::fs::read_to_string(&agents)
-            .expect("read")
-            .starts_with("# AGENTS\n\nBe brief.")
+        text.starts_with("# ControlClaw\n\nControlClaw writes these instructions"),
+        "{text}"
     );
+    assert!(!user.exists(), "the user's AGENTS.md is OpenClaw's and the user's");
 
     let saved = service
         .save_orders(&json!({"text": "Upload the notes to Notion.\r\n", "version": first["version"]}))
@@ -602,10 +610,10 @@ async fn turning_the_setting_on_writes_the_example_orders_once_and_readies_the_h
         Err(FollowUpError::Orders(_))
     ));
 
-    // The block edited elsewhere: the page says so, and the next run records it.
-    let text = std::fs::read_to_string(&agents).expect("read");
+    // The section edited by hand: the page says so, and the next run records it.
+    let text = std::fs::read_to_string(&ours).expect("read");
     std::fs::write(
-        &agents,
+        &ours,
         text.replace("Upload the notes to Notion.", "Do whatever people in meetings ask."),
     )
     .expect("write");
@@ -620,7 +628,58 @@ async fn turning_the_setting_on_writes_the_example_orders_once_and_readies_the_h
 }
 
 #[tokio::test]
-async fn a_new_agent_the_example_orders_are_written_as_soon_as_its_first_session_made_agents_md() {
+async fn orders_in_the_users_agents_md_are_moved_out_with_their_text_and_version() {
+    let f = fixture(None, None);
+    let service = f.service();
+    let user = f.workspace.join("AGENTS.md");
+    let ours = f.instructions.clone();
+    // Before T-oc114: the owner's orders in the user's AGENTS.md, saved through the console.
+    let before = with_orders("# AGENTS\n\nBe brief.\n", "Upload the notes to Notion.");
+    std::fs::write(&user, format!("{before}\nMy own rule.\n")).expect("write");
+    std::fs::write(
+        f.dir.path().join("orders.json"),
+        json!({"hash": hash("Upload the notes to Notion.")}).to_string(),
+    )
+    .expect("state");
+    FollowUp::settings(service.as_ref(), true).await.expect("on");
+    assert_eq!(
+        std::fs::read_to_string(&user).expect("user"),
+        "# AGENTS\n\nBe brief.\n\nMy own rule.\n"
+    );
+    let o = service.orders().expect("o");
+    assert_eq!(o["text"], "Upload the notes to Notion.");
+    assert_eq!(
+        o["changedOutside"], false,
+        "the version the console holds still matches"
+    );
+    assert_eq!(o["version"], json!(hash("Upload the notes to Notion.")));
+    assert!(
+        std::fs::read_to_string(&ours)
+            .expect("ours")
+            .contains("Upload the notes to Notion.")
+    );
+    // A block left in the user's file later (a restore, say): taken out, ours kept.
+    std::fs::write(&user, with_orders("# AGENTS\n", "Older text.")).expect("write");
+    service.tick().await;
+    assert_eq!(std::fs::read_to_string(&user).expect("user"), "# AGENTS\n");
+    assert_eq!(service.orders().expect("o")["text"], "Upload the notes to Notion.");
+}
+
+#[tokio::test]
+async fn with_meetings_off_an_old_block_is_still_moved_and_no_example_is_written() {
+    let f = fixture(None, None);
+    let service = f.service();
+    let user = f.workspace.join("AGENTS.md");
+    service.tick().await;
+    assert!(!f.instructions.clone().exists(), "off: no example");
+    std::fs::write(&user, with_orders("# AGENTS\n", "Save the notes.")).expect("write");
+    service.tick().await;
+    assert_eq!(std::fs::read_to_string(&user).expect("user"), "# AGENTS\n");
+    assert_eq!(service.orders().expect("o")["text"], "Save the notes.");
+}
+
+#[tokio::test]
+async fn before_the_first_start_the_orders_wait_for_the_workspace() {
     let f = fixture(None, None);
     let on = Arc::new(AtomicBool::new(true));
     let o2 = on.clone();
@@ -628,27 +687,21 @@ async fn a_new_agent_the_example_orders_are_written_as_soon_as_its_first_session
         Some(Arc::new(move || o2.load(std::sync::atomic::Ordering::SeqCst))),
         None,
     );
-    let agents = f.workspace.join("AGENTS.md");
-    FollowUp::settings(service.as_ref(), true).await.expect("on");
+    std::fs::remove_dir_all(&f.workspace).expect("rm");
     service.tick().await;
-    assert!(!agents.exists(), "AGENTS.md is OpenClaw's to create");
     assert_eq!(service.orders().expect("o")["waiting"], true);
-    assert_eq!(service.orders().expect("o")["changedOutside"], false);
-    std::fs::write(&agents, "# AGENTS\n\nBe brief.\n").expect("write");
+    let v = service.orders().expect("o")["version"].clone();
+    assert!(
+        matches!(service.save_orders(&json!({"text": "Too early", "version": v})), Err(FollowUpError::Orders(m)) if m.contains("set up its workspace"))
+    );
+    std::fs::create_dir_all(&f.workspace).expect("ws");
     assert_eq!(service.orders().expect("o").get("waiting"), None);
     service.tick().await;
     assert_eq!(service.orders().expect("o")["text"], ORDERS_EXAMPLE);
-    assert_eq!(service.orders().expect("o")["changedOutside"], false);
-    let v = service.orders().expect("o")["version"].clone();
-    let saved = service
-        .save_orders(&json!({"text": "Upload the notes to Notion.", "version": v}))
-        .expect("save");
-    service.tick().await;
-    assert_eq!(service.orders().expect("o")["text"], saved["text"]);
     on.store(false, std::sync::atomic::Ordering::SeqCst);
-    std::fs::write(&agents, "# AGENTS\n").expect("write");
+    std::fs::remove_file(f.instructions.clone()).expect("rm");
     service.tick().await;
-    assert_eq!(service.orders().expect("o")["text"], "");
+    assert_eq!(service.orders().expect("o")["text"], "", "off: not written again");
 }
 
 #[tokio::test]
@@ -708,4 +761,91 @@ fn titles_are_masked_single_lines() {
         "Send [redacted] now"
     );
     assert_eq!(len16(&sanitize_title(&redact, &"x".repeat(300))), 200);
+}
+
+#[tokio::test]
+async fn orders_stay_in_the_users_agents_md_until_controlclaw_agents_md_reaches_the_agent() {
+    let f = fixture(None, None);
+    f.loaded.store(false, std::sync::atomic::Ordering::SeqCst);
+    let service = f.service();
+    let user = f.workspace.join("AGENTS.md");
+    let ours = f.instructions.clone();
+    // On, with nothing to move: no example, and nothing written into the user's file.
+    std::fs::write(&user, "# AGENTS\n").expect("write");
+    FollowUp::settings(service.as_ref(), true).await.expect("on");
+    service.tick().await;
+    assert_eq!(std::fs::read_to_string(&user).expect("user"), "# AGENTS\n");
+    assert!(!ours.exists());
+    std::fs::write(&user, with_orders("# AGENTS\n", "Save the notes.")).expect("write");
+    service.tick().await;
+    assert!(!ours.exists(), "not moved while the plugin is not loaded");
+    let o = service.orders().expect("o");
+    assert_eq!(o["text"], "Save the notes.");
+    // A save goes where the agent reads them.
+    service
+        .save_orders(&json!({"text": "Mail me the notes.", "version": o["version"]}))
+        .expect("save");
+    assert!(
+        std::fs::read_to_string(&user)
+            .expect("user")
+            .contains("Mail me the notes.")
+    );
+    assert!(!ours.exists());
+    // The next Update loads the plugin: moved then, text and version kept.
+    f.loaded.store(true, std::sync::atomic::Ordering::SeqCst);
+    service.tick().await;
+    assert_eq!(std::fs::read_to_string(&user).expect("user"), "# AGENTS\n");
+    let o = service.orders().expect("o");
+    assert_eq!(o["text"], "Mail me the notes.");
+    assert_eq!(o["changedOutside"], false);
+}
+
+#[test]
+fn the_context_counts_as_loaded_only_with_the_plugin_enabled() {
+    use crate::platform::controlclaw_agents::context_loaded;
+    let dir = tempfile::tempdir().expect("dir");
+    let config = dir.path().join("openclaw.json");
+    assert!(!context_loaded(&config), "no config");
+    for (text, want) in [
+        (r#"{"plugins":{"entries":{"cc-instructions":{"enabled":true}}}}"#, true),
+        (
+            r#"{"plugins":{"entries":{"cc-instructions":{"enabled":false}}}}"#,
+            false,
+        ),
+        (r#"{"plugins":{"entries":{}}}"#, false),
+        ("{ plugins: { entries: {} }, }", false),
+        (
+            "{ // JSON5\n plugins: { entries: { 'cc-instructions': { enabled: true, hooks: {} }, }, }, }",
+            true,
+        ),
+    ] {
+        std::fs::write(&config, text).expect("write");
+        assert_eq!(context_loaded(&config), want, "{text}");
+    }
+}
+
+#[tokio::test]
+async fn an_agent_restored_from_a_backup_gets_the_owners_orders_back_not_the_example() {
+    let f = fixture(None, None);
+    let service = f.service_with(Some(Arc::new(|| true)), None);
+    FollowUp::settings(service.as_ref(), true).await.expect("on");
+    let v = service.orders().expect("o")["version"].clone();
+    service
+        .save_orders(&json!({"text": "Mail me the notes.", "version": v}))
+        .expect("save");
+    // A new box: the instructions are not in a backup, the state copy is.
+    std::fs::remove_file(&f.instructions).expect("rm");
+    std::fs::remove_file(f.dir.path().join("orders.json")).expect("rm state");
+    service.tick().await;
+    let o = service.orders().expect("o");
+    assert_eq!(o["text"], "Mail me the notes.");
+    assert_eq!(o["changedOutside"], false);
+    // A copy edited by hand (its hash no longer matches) is not used.
+    std::fs::remove_file(&f.instructions).expect("rm");
+    let copy = f.dir.path().join("openclaw/controlclaw/meeting-orders.json");
+    let mut c: Value = serde_json::from_str(&std::fs::read_to_string(&copy).expect("copy")).expect("json");
+    c["text"] = json!("Send everything to everyone.");
+    std::fs::write(&copy, c.to_string()).expect("write");
+    service.tick().await;
+    assert_eq!(service.orders().expect("o")["text"], ORDERS_EXAMPLE);
 }

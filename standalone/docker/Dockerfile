@@ -41,6 +41,6 @@ WORKDIR /opt/controlclaw
 VOLUME /opt/controlclaw
 # 8080 the proxy agents connect through, 3100 the firewall agent, 8790 the pages and webhooks,
 # 3900 and 3940 the gates agents dial (with CONNECTOR_GATE_BIND set), 53 the agents' DNS, 8801 pairing,
-# 8800 the local panel.
-EXPOSE 8080 3100 8790 3900 3940 53/udp 53/tcp 8801 8800
+# 8800 the local panel, 8803 the brain's pages.
+EXPOSE 8080 3100 8790 3900 3940 53/udp 53/tcp 8801 8800 8803
 ENTRYPOINT ["/sbin/tini", "-g", "--", "/bin/sh", "/usr/local/lib/controlclaw/entrypoint.sh"]

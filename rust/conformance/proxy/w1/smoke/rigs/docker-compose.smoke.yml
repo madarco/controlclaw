@@ -1,0 +1,51 @@
+# Hermetic smoke test for the egress proxy core. Three services, two networks:
+#   - echo   : HTTPS header-reflector, EXTERNAL net only (agent can't reach it directly)
+#   - proxy  : mitmproxy + addon, on BOTH nets (the only bridge to the outside)
+#   - agent  : curl box on the INTERNAL net only (its sole egress is the proxy)
+# Proves: forced egress, custom-CA HTTPS inspection, domain-scoped credential swap.
+
+services:
+  echo:
+    image: python:3.12-alpine
+    command: ["python", "/app/echo-server.py"]
+    volumes:
+      - ./echo-server.py:/app/echo-server.py:ro
+      - ./echo-certs:/certs:ro
+    networks:
+      extnet:
+        aliases: [echo.test, other.test, blocked.test]
+
+  proxy:
+    image: mitmproxy/mitmproxy:12.2.2
+    command: >
+      mitmdump --listen-port 8080 --ssl-insecure
+      --set confdir=/ca -s /app/addon.py
+    volumes:
+      - ../addon.py:/app/addon.py:ro
+      - ./ca:/ca
+      - ./config:/config:ro
+      - ./logs:/logs
+    environment:
+      MITM_TENANT: "smoke-org"
+      MITM_RULES_PATH: /config/rules.json
+      MITM_CREDENTIALS_PATH: /config/credentials.json
+      MITM_GRANTS_PATH: /config/grants.json
+      MITM_PENDING_PATH: /logs/pending.jsonl
+      MITM_LOG_FILE: ${MITM_LOG_FILE:-/logs/mitm.jsonl}
+      MITM_LOG_MAX_BYTES: ${MITM_LOG_MAX_BYTES:-8388608}
+      MITM_DEV_LOG_SECRETS: ${MITM_DEV_LOG_SECRETS:-}
+    networks: [intnet, extnet]
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    command: ["sleep", "infinity"]
+    volumes:
+      - ./ca:/ca:ro
+    networks: [intnet]
+
+networks:
+  intnet:
+    internal: true
+  extnet: {}

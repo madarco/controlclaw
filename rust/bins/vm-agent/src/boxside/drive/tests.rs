@@ -206,3 +206,81 @@ async fn status_reports_each_mount_and_says_why_one_is_down() {
     std::fs::write(dir.path().join("drive-mounts.json"), "{\"mounts\": 5}").expect("w");
     assert_eq!(d.status().await["applyStatus"], "none");
 }
+
+fn mounts() -> Vec<(String, String, String)> {
+    vec![
+        (
+            "Team Docs".into(),
+            "/home/controlclaw/drive/Team Docs".into(),
+            "rw".into(),
+        ),
+        ("Archive".into(), "/home/controlclaw/drive/Archive".into(), "ro".into()),
+    ]
+}
+
+#[test]
+fn the_agents_section_names_each_folder_its_path_and_access() {
+    let b = agents_section(&mounts()).expect("section");
+    assert!(b.starts_with("## Google Drive folders\n"));
+    assert!(b.contains("- Team Docs: `/home/controlclaw/drive/Team Docs` (read-write)"));
+    assert!(b.contains("- Archive: `/home/controlclaw/drive/Archive` (read-only)"));
+    assert_eq!(agents_section(&[]), None);
+}
+
+#[test]
+fn sync_agents_follows_the_reconcile() {
+    let r = RecordingRunner::new();
+    let (dir, d) = drive(&r);
+    let ws = dir.path().join("workspace");
+    let ours = crate::platform::controlclaw_agents::Instructions::direct(dir.path().join("instructions/AGENTS.md"));
+    let file = ours.path().to_path_buf();
+    std::fs::write(dir.path().join("drive.json"), good().to_string()).expect("desired");
+    let state = |connected: bool, names: &[&str]| {
+        let mounts: Vec<Value> = names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| json!({"name": n, "path": format!("/home/controlclaw/drive/{n}"), "rcPort": 5700 + i}))
+            .collect();
+        json!({"status": "applied", "connected": connected, "mounts": mounts}).to_string()
+    };
+    std::fs::write(
+        dir.path().join("drive-mounts.json"),
+        state(true, &["Team Docs", "Archive"]),
+    )
+    .expect("state");
+    std::fs::create_dir(&ws).expect("ws");
+    std::fs::write(ws.join("AGENTS.md"), "# Mine\n").expect("user");
+    assert_eq!(d.sync_agents(&ours), Ok(true));
+    let text = std::fs::read_to_string(&file).expect("read");
+    assert!(
+        text.contains("- Team Docs: `/home/controlclaw/drive/Team Docs` (read-write)"),
+        "{text}"
+    );
+    assert!(
+        text.contains("- Archive: `/home/controlclaw/drive/Archive` (read-only)"),
+        "{text}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(ws.join("AGENTS.md")).expect("user"),
+        "# Mine\n",
+        "the user's file is not touched"
+    );
+    assert_eq!(
+        std::fs::read_dir(&ws).expect("ws").count(),
+        1,
+        "nothing of ours in the workspace"
+    );
+    // Unchanged: not rewritten.
+    assert_eq!(d.sync_agents(&ours), Ok(false));
+    // The Google connection gone: the section goes, and with it the file.
+    std::fs::write(
+        dir.path().join("drive-mounts.json"),
+        state(false, &["Team Docs", "Archive"]),
+    )
+    .expect("state");
+    assert_eq!(d.sync_agents(&ours), Ok(true));
+    assert!(!file.exists());
+    // No folders at all: nothing to write.
+    std::fs::write(dir.path().join("drive-mounts.json"), state(true, &[])).expect("state");
+    assert_eq!(d.sync_agents(&ours), Ok(false));
+}

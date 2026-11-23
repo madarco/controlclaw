@@ -58,6 +58,7 @@ pub fn test_box() -> TestBox {
         contracts: crate::contracts::Contracts::default(),
         started: std::time::Instant::now(),
         unmanaged: None,
+        brain: None,
         config,
     });
     TestBox { dir, app, keys, runner }

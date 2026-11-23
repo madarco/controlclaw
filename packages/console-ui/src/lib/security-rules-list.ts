@@ -1,4 +1,4 @@
-import { CONTENT_CHANNELS, type ContentChannel, type ContentRule } from "@controlclaw/console-ui/lib/agent/content-rules-schema";
+import { CONTENT_CHANNELS, type ContentChannel, type ContentRule } from "./agent/content-rules-schema";
 import { isBrainManagedRule } from "./brain-rules";
 import type { EgressBoxOption, EgressRuleListItem } from "./egress-schema";
 import type { EmailMailbox, RuleEntry } from "./email-rules-schema";

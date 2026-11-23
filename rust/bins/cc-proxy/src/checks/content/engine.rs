@@ -444,13 +444,11 @@ mod tests {
         assert_eq!(f.hits.len(), 3);
     }
 
-    /// The shared cases: content-engine.ts in the mitm-agent and addon.py give these answers.
+    /// The shared cases (rust/fixtures/content-vectors.json), which the firewall agent's engine is
+    /// held to as well.
     #[test]
     fn the_shared_vectors() {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../packages/mitm-agent/src/content-vectors.json"
-        );
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/content-vectors.json");
         let v: Value = serde_json::from_str(&std::fs::read_to_string(path).expect("vectors")).expect("json");
         for c in v["phrases"].as_array().expect("phrases") {
             let (p, t) = (c["phrase"].as_str().unwrap_or(""), c["text"].as_str().unwrap_or(""));

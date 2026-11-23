@@ -188,6 +188,8 @@ pub struct EvaluateOptions {
     pub max_retries: u32,
     /// Daily allowances this call counts against, instead of the review's `dailyCallCap`.
     pub caps: Option<Vec<(String, u64)>>,
+    /// Which check the call is for, for the console's AI usage (`usage.rs`).
+    pub purpose: String,
 }
 
 pub struct AiClient {
@@ -196,6 +198,7 @@ pub struct AiClient {
     models: Arc<dyn ModelCalls>,
     allowance: DailyAllowance,
     now: Arc<dyn Fn() -> i64 + Send + Sync>,
+    usage: Arc<super::usage::UsageCounter>,
 }
 
 impl AiClient {
@@ -211,7 +214,14 @@ impl AiClient {
             models,
             allowance: DailyAllowance::new(),
             now,
+            usage: Arc::new(super::usage::UsageCounter::new(None)),
         }
+    }
+
+    /// Counts calls into `usage` (one kept on disk) instead of a counter of its own.
+    pub fn with_usage(mut self, usage: Arc<super::usage::UsageCounter>) -> Self {
+        self.usage = usage;
+        self
     }
 
     /// Settings and a key, or `None` when the review is off or cannot run. A caller that needs
@@ -254,6 +264,16 @@ impl AiClient {
         let at = UNIX_EPOCH + Duration::from_millis((self.now)().max(0) as u64);
         let caps: Vec<(&str, u64)> = caps.iter().map(|(k, c)| (k.as_str(), *c)).collect();
         self.allowance.take_at(&caps, at)
+    }
+
+    /// Take one call from each of these daily allowances; false when one is used up.
+    pub fn take_caps(&self, caps: &[(String, u64)]) -> bool {
+        self.take(caps)
+    }
+
+    /// Count a call this firewall made itself outside `evaluate`/`explain` (the relay).
+    pub fn count(&self, provider: &str, model: &str, purpose: &str, input: Option<u64>, output: Option<u64>) {
+        self.usage.add((self.now)(), provider, model, purpose, input, output);
     }
 
     #[allow(dead_code)] // the TS's `usage()`, for its tests and a later status line
@@ -306,7 +326,18 @@ impl AiClient {
             )
             .await
         {
-            Ok(e) => Ok(e),
+            Ok(e) => {
+                let u = e.usage.as_ref();
+                self.usage.add(
+                    (self.now)(),
+                    s.provider.as_str(),
+                    &s.model,
+                    &o.purpose,
+                    u.and_then(|u| u.input_tokens),
+                    u.and_then(|u| u.output_tokens),
+                );
+                Ok(e)
+            }
             Err(err) => {
                 // The kind of failure only: a provider can echo the request in its error.
                 tracing::info!(
@@ -338,6 +369,9 @@ impl AiClient {
             .await
         {
             Ok(text) => {
+                // The explanation's usage is not returned; the call is counted, its tokens not.
+                self.usage
+                    .add((self.now)(), s.provider.as_str(), &s.model, "review", None, None);
                 let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
                 if text.is_empty() {
                     Err(CallFailure::Error(Some("The model returned no text.".into())))

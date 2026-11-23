@@ -74,6 +74,11 @@ export type FirewallBoxView = {
    * one whose software predates the report.
    */
   unreadableStores: UnreadableStore[];
+  /**
+   * Why the server is stopped, while it is (apps/saas/docs/features/stop-reasons.md): who or what
+   * stopped it, or that nobody did. Absent where the host does not record it (the standalone panel).
+   */
+  stop?: { label: string; detail: string; unexpected: boolean } | null;
 };
 
 export type FirewallPendingCommandView = {

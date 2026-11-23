@@ -15,56 +15,18 @@ use crate::case::{Agent, Case, Listener, Signer, Step, Ticket, Token};
 use crate::matcher::diff;
 use crate::shim;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Target {
-    Ts,
-    Rust,
-}
-
-impl Target {
-    pub fn name(self) -> &'static str {
-        match self {
-            Target::Ts => "ts",
-            Target::Rust => "rust",
-        }
-    }
-}
-
-/// Where the two builds of each agent are.
+/// Where the agents' binaries are.
 pub struct Builds {
     pub repo: PathBuf,
     pub rust_bin_dir: PathBuf,
-    pub node: String,
 }
 
 impl Builds {
-    fn command(&self, target: Target, agent: Agent, service: &str) -> (String, Vec<String>) {
-        match (target, agent) {
-            // A brain box runs the bundle's other entry; the Rust binary picks by CC_SERVICE.
-            (Target::Ts, Agent::VmAgent) => {
-                let entry = if service == "gbrain" { "gbrain.js" } else { "index.js" };
-                (
-                    self.node.clone(),
-                    vec![
-                        self.repo
-                            .join("packages/vm-agent/dist")
-                            .join(entry)
-                            .display()
-                            .to_string(),
-                    ],
-                )
-            }
-            (Target::Ts, Agent::MitmAgent) => (
-                self.node.clone(),
-                vec![
-                    self.repo
-                        .join("packages/mitm-agent/dist/index.js")
-                        .display()
-                        .to_string(),
-                ],
-            ),
-            (Target::Rust, Agent::VmAgent) => (self.rust_bin_dir.join("vm-agent").display().to_string(), vec![]),
-            (Target::Rust, Agent::MitmAgent) => (self.rust_bin_dir.join("mitm-agent").display().to_string(), vec![]),
+    /// The agent's binary. A brain box runs the same one: it picks by CC_SERVICE.
+    fn command(&self, agent: Agent) -> String {
+        match agent {
+            Agent::VmAgent => self.rust_bin_dir.join("vm-agent").display().to_string(),
+            Agent::MitmAgent => self.rust_bin_dir.join("mitm-agent").display().to_string(),
         }
     }
 }
@@ -104,7 +66,6 @@ struct Running {
     named: HashMap<String, u16>,
     console: Option<FakeConsole>,
     agent: Option<crate::fake_agent::FakeAgent>,
-    target: Target,
     /// The case file's folder (`body_file`).
     dir: PathBuf,
 }
@@ -142,7 +103,7 @@ impl Running {
     }
 }
 
-async fn start(case: &Case, target: Target, builds: &Builds, root: &Path) -> Result<Running> {
+async fn start(case: &Case, builds: &Builds, root: &Path) -> Result<Running> {
     let case_dir = case.dir.clone();
     let (vm_id, host) = match case.agent {
         Agent::VmAgent => ("vm_1", "box.example"),
@@ -173,10 +134,10 @@ async fn start(case: &Case, target: Target, builds: &Builds, root: &Path) -> Res
     rules.extend(shim::default_rules());
     std::fs::write(root.join("shim-rules.json"), serde_json::to_vec(&rules)?)?;
 
-    let (program, args) = builds.command(target, case.agent, &case.service);
+    let program = builds.command(case.agent);
     let mut cmd = Launch {
         program: program.clone(),
-        args,
+        args: Vec::new(),
         root: root.to_path_buf(),
         env: Vec::new(),
     };
@@ -209,9 +170,10 @@ async fn start(case: &Case, target: Target, builds: &Builds, root: &Path) -> Res
             let ingress = free_port()?;
             ports.insert(Listener::Ingress, ingress);
             // The page assets: next to the binary in the Docker rig, as on a box (the release ships
-            // them there); here the debug binary has none, so the ones the TS build was made from.
-            if target == Target::Rust && !builds.rust_bin_dir.join("dist-ui").is_dir() {
-                cmd.env("CC_FW_UI_DIR", builds.repo.join("packages/mitm-agent/dist-ui"));
+            // them there); here the debug binary has none, so the ones build-fw-files.mjs writes
+            // into apps/firewall-panel/dist-fw (run.sh and test-all.sh build them first).
+            if !builds.rust_bin_dir.join("dist-ui").is_dir() {
+                cmd.env("CC_FW_UI_DIR", builds.repo.join("apps/firewall-panel/dist-fw"));
             }
             cmd.env("ORG_ID", "org_1")
                 .env("BOX_ID", "fw_1")
@@ -275,7 +237,6 @@ async fn start(case: &Case, target: Target, builds: &Builds, root: &Path) -> Res
         named,
         console,
         agent,
-        target,
         dir: case_dir,
     })
 }
@@ -520,94 +481,30 @@ fn update_jar(jar: &mut Vec<(String, String)>, set_cookie: &str, keep_cleared: b
     }
 }
 
-/// The system-wide marker the TS agents read, which only the Docker rig may create.
-const SYSTEM_POOL_MARKER: &str = "/etc/controlclaw/pool-unclaimed";
-/// Where a case's `system_bins` go, in the Docker rig only.
-const SYSTEM_BIN_DIR: &str = "/usr/local/bin";
-
-/// A `system_bins` name: a plain file name, so a case cannot write anywhere else.
-fn system_bin_path(name: &str) -> Result<PathBuf> {
-    if name.is_empty() || name == "." || name == ".." || name.contains('/') {
-        return Err(anyhow!("system_bins: {name:?} is not a file name"));
-    }
-    Ok(Path::new(SYSTEM_BIN_DIR).join(name))
-}
-
-/// What a case put in system paths for its run, removed when it is dropped (also on a panic).
-#[derive(Default)]
-struct SystemFiles(Vec<PathBuf>);
-
-impl SystemFiles {
-    /// A new file at `path` with `content` and `mode`. `create_new` refuses one that exists, a
-    /// symlink included, in the same call that creates it; the path is recorded before anything is
-    /// written, so a write that fails halfway is removed too.
-    fn create(&mut self, path: PathBuf, content: &str, mode: u32) -> Result<()> {
-        use std::io::Write;
-        use std::os::unix::fs::OpenOptionsExt;
-        let mut f = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(mode)
-            .open(&path)
-            .with_context(|| format!("{}", path.display()))?;
-        self.0.push(path);
-        f.write_all(content.as_bytes())?;
-        Ok(())
-    }
-}
-
-impl Drop for SystemFiles {
-    fn drop(&mut self) {
-        for p in &self.0 {
-            let _ = std::fs::remove_file(p);
-        }
-    }
-}
-
 pub enum Outcome {
     Pass,
-    Skip(String),
 }
 
 /// Run the case on one build. `Ok(Pass)` is a pass; the error says what differed.
-pub async fn run(case: &Case, target: Target, builds: &Builds) -> Result<Outcome> {
-    let in_rig = std::env::var_os("CC_RIG_SYSTEM_PATHS").is_some();
-    if (case.pool || !case.system_bins.is_empty()) && target == Target::Ts && !in_rig {
-        return Ok(Outcome::Skip("needs the Docker rig".into()));
-    }
-    // The TS agents keep stores under /opt/controlclaw/state by default; in the rig that folder
+pub async fn run(case: &Case, builds: &Builds) -> Result<Outcome> {
+    // The agents keep stores under /opt/controlclaw/state by default; in the Docker rig that folder
     // would carry over from the last case, sealed under another box key.
-    if in_rig {
+    if std::env::var_os("CC_RIG_SYSTEM_PATHS").is_some() {
         let _ = std::fs::remove_dir_all("/opt/controlclaw/state");
     }
-    let mut system = SystemFiles::default();
-    if case.pool && in_rig {
-        std::fs::create_dir_all("/etc/controlclaw")?;
-        let _ = std::fs::remove_file(SYSTEM_POOL_MARKER);
-        system.create(SYSTEM_POOL_MARKER.into(), "", 0o644)?;
-    }
-    // For the TS build only: the Rust build takes its helpers' paths from the case's env, and
-    // helpers at the default paths would hide a missing env line.
-    if in_rig && target == Target::Ts {
-        for (name, content) in &case.system_bins {
-            system.create(system_bin_path(name)?, content, 0o755)?;
-        }
-    }
-    let result = run_in(case, target, builds).await;
-    drop(system);
-    result.map(|()| Outcome::Pass)
+    run_in(case, builds).await.map(|()| Outcome::Pass)
 }
 
-async fn run_in(case: &Case, target: Target, builds: &Builds) -> Result<()> {
+async fn run_in(case: &Case, builds: &Builds) -> Result<()> {
     let mut root = tempfile::tempdir()?;
-    let mut started = start(case, target, builds, root.path()).await;
+    let mut started = start(case, builds, root.path()).await;
     // The ports are picked free, then released for the agent to bind; the agent's own listeners on
     // port 0 can take one in between. One more start, on new ports, for that alone.
     if started.is_err()
         && std::fs::read_to_string(root.path().join("agent.log")).is_ok_and(|l| l.contains("Address already in use"))
     {
         root = tempfile::tempdir()?;
-        started = start(case, target, builds, root.path()).await;
+        started = start(case, builds, root.path()).await;
     }
     let mut r = match started {
         Ok(r) => r,
@@ -935,7 +832,7 @@ async fn run_step(
     }
     if let Some(file) = &e.body_file {
         let path = r.dir.join(file);
-        if r.target == Target::Ts && std::env::var_os("CC_WRITE_GOLDEN").is_some() {
+        if std::env::var_os("CC_WRITE_GOLDEN").is_some() {
             std::fs::write(&path, &text)?;
         } else {
             let want = std::fs::read_to_string(&path).with_context(|| format!("{}", path.display()))?;
@@ -1162,16 +1059,5 @@ mod tests {
         update_jar(&mut j, "b=; Path=/; Max-Age=0", true);
         update_jar(&mut j, "a=; Path=/; Max-Age=0", false);
         assert_eq!(j, vec![("b".to_string(), "2".to_string())]);
-    }
-
-    #[test]
-    fn system_bins_are_file_names_only() {
-        assert_eq!(
-            system_bin_path("cc-doctor-run").expect("name"),
-            Path::new("/usr/local/bin/cc-doctor-run")
-        );
-        for bad in ["", ".", "..", "../sbin/x", "a/b", "/etc/shadow"] {
-            assert!(system_bin_path(bad).is_err(), "{bad:?}");
-        }
     }
 }

@@ -26,6 +26,7 @@ pub fn routes() -> Vec<Route> {
                     ttl_min: b.ttl_minutes,
                     address: b.address.as_deref(),
                     replace: b.replace,
+                    role: b.role.as_deref(),
                 };
                 pairing::create_code(&c.db, &f)
                     .map(|code| Reply::ok(&code))
@@ -78,9 +79,14 @@ pub struct NewCodeBody {
     /// from (a NAT, a reverse proxy, a container on the firewall's machine).
     #[serde(default)]
     pub address: Option<String>,
-    /// Whether the machine may take the place of an agent already at its address.
+    /// Whether the machine may take the place of an agent already at its address (for the brain:
+    /// of the brain this firewall has).
     #[serde(default)]
     pub replace: bool,
+    /// `openclaw` (default): an OpenClaw machine (`controlclaw connect`); `gbrain`: the brain
+    /// (`controlclaw brain install` or `brain connect`). A code pairs only what it was made for.
+    #[serde(default)]
+    pub role: Option<String>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]

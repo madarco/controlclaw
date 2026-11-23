@@ -1,4 +1,4 @@
-//! The two-payload record the console holds for a firewall, port of `packages/secret-store`.
+//! The two-payload record the console holds for a firewall, ported from the retired TS `packages/secret-store`.
 //!
 //! The same plaintext is sealed twice: under the random box key, and under a key derived from the
 //! user's master password with Argon2id. AAD `"<org_id>:<box_id>:<version>"` binds each ciphertext
@@ -212,7 +212,7 @@ mod tests {
         }
     }
 
-    // Port of packages/secret-store/src/crypto.test.ts.
+    // Ported from the retired TS secret-store's crypto tests.
     #[test]
     fn both_payloads_open_and_bind_ids_and_version() {
         let box_key = generate_box_key();

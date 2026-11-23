@@ -1,5 +1,5 @@
-//! The Rust code opens what the TS code sealed (`fixtures/ts-sealed.json`, made by `fixtures/gen.mts`).
-//! The other direction is `examples/seal-fixtures.rs` with `fixtures/check.mts`.
+//! The Rust code opens what the TS code sealed (`fixtures/ts-sealed.json`, made by the retired TS
+//! build): stores and records written before the boxes moved to Rust still open.
 #![allow(clippy::unwrap_used)]
 
 include!("../fixtures/inputs.rs");

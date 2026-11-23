@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CONTENT_CHANNELS, contentChange, contentRule } from "@controlclaw/console-ui/lib/agent/content-rules-schema";
+import { CONTENT_CHANNELS, contentChange, contentRule } from "./agent/content-rules-schema";
 
 export {
   CONTENT_CHANNELS,
@@ -12,7 +12,7 @@ export {
   type ContentChannel,
   type ContentRule,
   type ContentRulesSnapshot,
-} from "@controlclaw/console-ui/lib/agent/content-rules-schema";
+} from "./agent/content-rules-schema";
 
 export const contentChangeInput = z.object({ change: contentChange });
 export const contentChangeId = z.object({ changeId: z.string().min(1).max(100) });

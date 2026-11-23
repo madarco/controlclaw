@@ -430,6 +430,10 @@ pub struct AccessOptions {
     pub landing: Option<Landing>,
     /// The two steps the login page shows after "Checking your ControlClaw pass".
     pub steps: Option<(String, String)>,
+    /// Tickets whose `next` names one of the box's own pages land there instead of `landing`: the
+    /// ticket's `next` and the path (the brain's pages, `gbrain/pages.rs`). Never a path the ticket
+    /// carries.
+    pub pages: Option<&'static [(&'static str, &'static str)]>,
 }
 
 type DashboardFuture = Shared<BoxFuture<'static, DashboardAttempt>>;
@@ -575,7 +579,8 @@ impl Access {
         )
     }
 
-    fn denied(&self, title: &str, template: &str) -> String {
+    /// A refusal page: `template` with `${consoleUrl}` filled in (the brain's pages use it too).
+    pub(crate) fn denied(&self, title: &str, template: &str) -> String {
         let url = escape_html(&self.shell_context().console_url);
         self.page(title, &fill(template, &[("consoleUrl", &url)]), "")
     }
@@ -1070,6 +1075,16 @@ impl Access {
                 ("set-cookie", spent.clone()),
             ]
         };
+        let own_page = ticket
+            .next
+            .as_deref()
+            .and_then(|n| opts.pages.and_then(|p| p.iter().find(|(name, _)| *name == n)));
+        if let Some((page, path)) = own_page {
+            return match issue(&claims) {
+                Some(s) => json_resp(200, &json!({"next": path, "view": page, "paired": true}), &cookies(s)),
+                None => session_failed(&clear),
+            };
+        }
         if let Some(landing) = &opts.landing {
             return match landing().await {
                 Err(e) => json_resp(502, &json!({"error": e}), &clear),
@@ -1391,7 +1406,7 @@ async fn dashboard_attempt(hostname: &str, run: DashboardRun, budget_ms: u64, re
 /// Where the page bundle is: `FILES_UI_DIR`; else `files-ui/` next to the binary when there is
 /// one; else the Node build's, which a switched box keeps installed
 /// (`/opt/controlclaw/agent/dist/files-ui`, the role's `vm-agent.yml`).
-fn ui_dir() -> std::path::PathBuf {
+pub(crate) fn ui_dir() -> std::path::PathBuf {
     if let Ok(d) = std::env::var("FILES_UI_DIR") {
         return d.into();
     }

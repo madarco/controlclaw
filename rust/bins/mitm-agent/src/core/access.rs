@@ -1000,7 +1000,15 @@ impl AccessFirewall {
             return None;
         }
         let next = p.get("next")?.as_str()?.to_string();
-        next_route(&next)?;
+        // A standalone firewall's own link to the brain's pages (`local_intent::BRAIN_PAGES`): only
+        // for this firewall, whose local door sends the browser on to the brain's own Open.
+        if super::local_intent::brain_next(&next).is_some() {
+            if vm_id != self.opts.box_id {
+                return None;
+            }
+        } else {
+            next_route(&next)?;
+        }
         let session = p
             .get("sessionId")
             .and_then(Value::as_str)
@@ -1170,7 +1178,8 @@ impl AccessFirewall {
         let Some(intent) = self.verify_intent(jwt).await else {
             return refuse("the link does not verify (another firewall's, expired, or for another organization)");
         };
-        if !firewall_next(&intent.next) || intent.vm_id != self.opts.box_id {
+        let local_next = firewall_next(&intent.next) || super::local_intent::brain_next(&intent.next).is_some();
+        if !local_next || intent.vm_id != self.opts.box_id {
             return refuse("not a link to one of this firewall's pages");
         }
         let now = self.now();
@@ -1196,6 +1205,18 @@ impl AccessFirewall {
             intent.next,
             self.device_cookie(req.cookie.as_deref(), added.as_deref()),
         )))
+    }
+
+    /// The brain and the name its pages are reached at (the pin): where a local brain link goes on
+    /// to. `None` while there is no brain, or it has no name yet.
+    pub fn brain_pin(&self) -> Option<(String, String)> {
+        let (identities, _) = self.live();
+        let vm = identities
+            .iter()
+            .find(|i| str_field(i, "role") == Some("gbrain"))
+            .map(vm_id_of)?;
+        let host = self.pinned_host(&vm)?;
+        Some((vm, host))
     }
 
     /// Whether a grant for one of this firewall's own pages still holds.

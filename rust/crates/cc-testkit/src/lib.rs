@@ -128,6 +128,8 @@ pub struct Received {
     pub method: String,
     pub path: String,
     pub authorization: Option<String>,
+    /// Every header, names in lower case.
+    pub headers: Vec<(String, String)>,
     pub body: Value,
 }
 
@@ -168,6 +170,11 @@ impl FakeConsole {
                             method: parts.method.to_string(),
                             path: path.clone(),
                             authorization: cc_http::header(&parts, "authorization").map(str::to_string),
+                            headers: parts
+                                .headers
+                                .iter()
+                                .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
+                                .collect(),
                             body: serde_json::from_slice(&raw).unwrap_or(Value::Null),
                         });
                         match st.answers.get_mut(&path) {

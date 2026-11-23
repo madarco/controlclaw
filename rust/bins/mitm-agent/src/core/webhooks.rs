@@ -434,13 +434,6 @@ impl Webhooks {
         }
     }
 
-    /// Save what was loaded, unchanged (the TS ↔ Rust store round trip).
-    #[cfg(test)]
-    pub fn resave(&self) {
-        let s = self.st();
-        self.save(&s);
-    }
-
     fn st(&self) -> std::sync::MutexGuard<'_, Store> {
         self.store.lock().unwrap_or_else(|e| e.into_inner())
     }

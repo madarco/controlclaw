@@ -186,7 +186,7 @@ export function TelegramDialog({
           )}
           {!replace && <AgentPicker agents={agents} value={vmId} onChange={setVmId} />}
         </div>
-        <TokenNote />
+        <TokenNote standIn />
         <StatusLine state={lookup.merge(state)} />
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
@@ -826,11 +826,16 @@ function useTokenLookup(open: boolean) {
   return { checking, run, merge };
 }
 
-function TokenNote() {
+/** `standIn`: the agent gets a stand-in and the firewall puts the token in on the way out (Telegram). */
+function TokenNote({ standIn = false }: { standIn?: boolean }) {
   return (
     <div className="flex gap-2 rounded-xl border border-line bg-bg-2 px-3 py-2 text-[12.5px] text-ink-2">
       <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-      <span>Your firewall encrypts the token and gives it to the agent. ControlClaw keeps only the last four characters.</span>
+      <span>
+        {standIn
+          ? "Your firewall keeps the token, encrypted. An up-to-date firewall gives the agent a stand-in and puts the token in only on the way to Telegram; the channel then shows proxy-held. ControlClaw keeps only the last four characters."
+          : "Your firewall encrypts the token and gives it to the agent. ControlClaw keeps only the last four characters."}
+      </span>
     </div>
   );
 }

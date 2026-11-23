@@ -1,9 +1,9 @@
 #!/bin/bash
-# Run the W1 proxy cases against mitmproxy 12.2.2 with addon.py and against cc-proxy, in a
-# container (the runner puts addresses on lo and names in /etc/hosts, so it needs its own).
+# Run the W1 proxy cases against cc-proxy, in a container (the runner puts addresses on lo and
+# names in /etc/hosts, so it needs its own).
 #
-#   rust/conformance/proxy/w1/run.sh                       # every case, both proxies
-#   rust/conformance/proxy/w1/run.sh --target cc-proxy --filter drop
+#   rust/conformance/proxy/w1/run.sh                       # every case
+#   rust/conformance/proxy/w1/run.sh --filter drop
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"

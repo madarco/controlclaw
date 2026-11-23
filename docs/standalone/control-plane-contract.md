@@ -276,6 +276,7 @@ In the table below:
 | `agentmail.delete` | `{inboxId, confirmAddress?}` | `agentmail::Delete` | same |
 | `agentmail.push` | `{vmId?}` | `agentmail::Push` | same |
 | `agentmail.read` | `{}` | `Empty` | same |
+| `ai.relay` | `{provider, path, headers, body}` | `ai::Relay` | `channels/ai/relay.rs` |
 | `ai.scan` | `{}` | `Empty` | `channels/ai/mod.rs` |
 | `apps.read` | `{}` | `Empty` | `integrations/apps_rules/firewall.rs` |
 | `apps.propose` | `{changeId, change: {op: put, rule, at?} \| {op: delete, id} \| {op: move, id, to}}` | `apps::Propose` | same |
@@ -318,6 +319,14 @@ In the table below:
 | `google.forget` | `{vmId}` | `google::Forget` | same |
 | `google.read` | `{}` | `Empty` | same |
 | `health.probe` | `{vmId}` | `health::Probe` | `core/health.rs` |
+| `gbrain.propose` | `{changeId, agentVmId, brainVmId, scope: read\|read_write}` | `gbrain::Propose` | `core/gbrain.rs` |
+| `gbrain.confirm` | `{changeId, agentVmId, code}` | `gbrain::Confirm` | same |
+| `gbrain.cancel` | `{changeId?, agentVmId?}` | `gbrain::Cancel` | same |
+| `gbrain.disconnect` | `{agentVmId}` | `gbrain::Disconnect` | same |
+| `gbrain.read` | `{}`: the brain, the connections, the locks, what the brain's gate holds | `Empty` | same |
+| `gbrain.lock` | `{locked}`: every agent off the brain, connections kept (a standalone panel's) | `gbrain::Lock` | same |
+| `gbrain.status` | `{}`: the brain's `/health`, called as its control plane (standalone) | `Empty` | same |
+| `gbrain.model` | `{model}`: the brain's `/brain/model`, called as its control plane (standalone) | `gbrain::Model` | same |
 | `kill.engage` | `{changeId, scope: org\|agent, vmId?, agents?}` | `kill::Engage` | `core/kill.rs` |
 | `kill.release` | as `kill.engage` | `kill::Release` | same |
 | `kill.confirm` | `{changeId, code, scope?, vmId?}` | `kill::Confirm` | same |
@@ -375,7 +384,7 @@ The field types and the `kind` values of each family are in its file under
 | `devices.propose`, `.confirm`, `.cancel` | The Mac app's devices, through the console. | `core/devices.rs` |
 | `doctor.propose`, `.confirm`, `.stop` | Doctor (later, with the user's own key). | `integrations/doctor/firewall.rs` |
 | `firewall-update.propose`, `.confirm`, `.cancel` | Updates through our Ansible. | `core/firewall_update.rs` |
-| `gbrain.propose`, `.confirm`, `.cancel`, `.disconnect` | The organization's brain. | `core/gbrain.rs` |
+| `gbrain.client.propose`, `.confirm`, `.disconnect` | Outside AI apps on the brain's MCP address. | `core/gbrain.rs` |
 | `meetings.propose`, `.confirm`, `.cancel`, `.push` | Meetings (later: needs speech keys without our billing). | `channels/meetings.rs` |
 | `phone.propose`, `.confirm`, `.cancel`, `.read`, `.push`, `.unassign`, `.forget`, `.disconnect` | Phone through our Twilio account (later: the user's own). | `channels/phone/firewall.rs` |
 | `ssh.propose`, `.confirm`, `.cancel`, `.close` | Support SSH. | `core/ssh.rs` |

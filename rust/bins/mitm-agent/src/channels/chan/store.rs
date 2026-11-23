@@ -61,6 +61,10 @@ pub struct StoredConnection {
     pub declined_senders: Option<Vec<String>>,
     #[serde(default)]
     pub assigned_vm_id: Option<String>,
+    /// What the agent it is on was last given: `standIn` or `token`. `None` is `token` (written by a
+    /// firewall from before the switch was on), so turning the switch on moves it to a stand-in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub applied_as: Option<String>,
     #[serde(default)]
     pub updated_at: String,
     #[serde(flatten)]
@@ -163,6 +167,7 @@ fn from_v1(v1: &Value) -> ChannelStore {
                     pending_approvals: None,
                     declined_senders: None,
                     assigned_vm_id: Some(vm_id.clone()),
+                    applied_as: None,
                     updated_at: s(ch.get("updatedAt")).unwrap_or_else(|| "1970-01-01T00:00:00.000Z".into()),
                     extra: Map::new(),
                 },

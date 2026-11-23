@@ -6,7 +6,7 @@
 //! models and channels through the OpenClaw CLI (`cli_gateway.rs`), and start, stop and restart the
 //! gateway the way it runs (`supervisor.rs`), also for the firewall's emergency stop (`/kill/*`). No control plane: the firewall's key from the config
 //! file opens the routes, and pairing (a later step) writes that key. The SaaS modules and the
-//! Ansible-only parts (bootstrap, CA install, egress, the pool, templates, backups, gbrain, disk,
+//! Ansible-only parts (bootstrap, CA install, egress, the pool, templates, backups, the brain's own side, disk,
 //! Doctor, the watchdog, meetings, phone, the agent's pages) are not started.
 
 use std::path::PathBuf;
@@ -192,9 +192,13 @@ pub fn register(router: &mut Router, app: &Arc<App>) {
     crate::platform::search::register(router, app);
     crate::platform::secrets::register(router, app);
     crate::platform::mcp_servers::register(router, app);
+    // The brain, written on the firewall's gate (`gbrain/mcp.rs`).
+    crate::gbrain::mcp::register(router, app);
     crate::platform::connectors::register(router, app);
     // The emergency stop: OpenClaw stopped the way it runs, started again on release.
     crate::platform::kill::register(router, app);
+    // Run OpenClaw doctor, with the gateway stopped and started the way it runs.
+    crate::platform::openclaw_doctor::register(router, app);
 }
 
 /// One start, stop or restart at a time, whoever asks; then a fresh look at the install, in the

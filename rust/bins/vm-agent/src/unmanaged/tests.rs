@@ -398,6 +398,76 @@ async fn an_mcp_server_is_written_at_the_agents_gate() {
     assert_eq!(call(&a, "POST", "/mcp-servers/apply", Some(t), Some(&bad)).await.0, 400);
 }
 
+/// The brain on a standalone firewall: `/gbrain/apply` writes `mcp.servers.gbrain` at this agent's
+/// gate (the firewall's tools gate relays it to the brain), and a removal writes it away.
+#[tokio::test]
+async fn the_brain_is_written_at_the_agents_gate_and_removed() {
+    let port = healthy_gateway().await;
+    let a = start(true, port).await;
+    writable(&a).await;
+    let body = json!({"url": "http://172.31.249.2:3940/brain/mcp"});
+    let t = a
+        .keys
+        .firewall_token("gbrain", "POST", "/gbrain/apply", Some(body.to_string().as_bytes()));
+    let (status, reply) = call(&a, "POST", "/gbrain/apply", Some(t), Some(&body)).await;
+    assert_eq!(status, 200, "{reply}");
+    assert_eq!(reply["configured"], true);
+    assert_eq!(
+        patch_sent(&a),
+        json!({"mcp": {"servers": {"gbrain": {"url": "http://10.77.0.1:3940/brain/mcp", "transport": "streamable-http"}}}})
+    );
+    // The SaaS's private address, or another of the firewall's ports: refused.
+    for bad in ["http://10.0.0.9:3131/mcp", "http://172.31.249.2:3940/servers/x/mcp"] {
+        let body = json!({ "url": bad });
+        let t = a
+            .keys
+            .firewall_token("gbrain", "POST", "/gbrain/apply", Some(body.to_string().as_bytes()));
+        assert_eq!(
+            call(&a, "POST", "/gbrain/apply", Some(t), Some(&body)).await.0,
+            400,
+            "{bad}"
+        );
+    }
+    // Not the firewall's key: refused.
+    let t = a.keys.console_token(json!({}));
+    assert_eq!(call(&a, "POST", "/gbrain/apply", Some(t), Some(&body)).await.0, 401);
+    // Off again: the entry is written away, and nothing else.
+    let off = json!({"remove": true});
+    let t = a
+        .keys
+        .firewall_token("gbrain", "POST", "/gbrain/apply", Some(off.to_string().as_bytes()));
+    let (status, reply) = call(&a, "POST", "/gbrain/apply", Some(t), Some(&off)).await;
+    assert_eq!(status, 200, "{reply}");
+    assert_eq!(reply["configured"], false);
+    assert_eq!(patch_sent(&a), json!({"mcp": {"servers": {"gbrain": null}}}));
+}
+
+/// Off again on a config whose `mcp` held only the brain's entry: `mcp` is taken away whole, so the
+/// config is as it was before the brain was switched on.
+#[tokio::test]
+async fn switching_the_brain_off_leaves_no_empty_mcp() {
+    let port = healthy_gateway().await;
+    let a = start(true, port).await;
+    let cli = a.wrapper.as_str();
+    a.runner.answer(
+        &[cli, "gateway", "call", "config.get"],
+        ok(r#"{"hash":"h1","parsed":{"mcp":{"servers":{"gbrain":{"url":"http://10.77.0.1:3940/brain/mcp"}}}},"config":{}}"#),
+    );
+    a.runner.answer(&[cli, "gateway", "call"], ok("{}"));
+    a.runner.answer(
+        &[cli, "config", "patch", "--stdin"],
+        ok("Applied 1 config update(s).\n"),
+    );
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let off = json!({"remove": true});
+    let t = a
+        .keys
+        .firewall_token("gbrain", "POST", "/gbrain/apply", Some(off.to_string().as_bytes()));
+    let (status, reply) = call(&a, "POST", "/gbrain/apply", Some(t), Some(&off)).await;
+    assert_eq!(status, 200, "{reply}");
+    assert_eq!(patch_sent(&a), json!({"mcp": null}));
+}
+
 /// The secrets' placeholders go into OpenClaw's own `.env`, in its state folder, then OpenClaw
 /// restarts the way it runs.
 #[tokio::test]

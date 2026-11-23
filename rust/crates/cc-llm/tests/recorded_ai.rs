@@ -1,5 +1,4 @@
-//! W4: replays the TS build's recorded answers (`rust/conformance/cases/w4/ai/recorded.json`,
-//! written by `record.mts`) through this crate and reports how often the outcome agrees, per
+//! W4: replays the answers recorded from the retired TS build (`rust/conformance/cases/w4/ai/recorded.json`) through this crate and reports how often the outcome agrees, per
 //! provider: the same choice, the same score band (`severityOf`), the same side of 0.5 for a
 //! boolean. Needs a live key, so it is ignored by default:
 //!

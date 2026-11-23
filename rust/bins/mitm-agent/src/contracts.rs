@@ -419,6 +419,30 @@ pub trait AgentPermissions: Send + Sync {
     fn settle(&self, vm_id: &str, body: Value, token: &str) -> BoxFuture<(u16, Value)>;
 }
 
+/// An agent's call to the brain, relayed by a standalone firewall's tools gate (`/brain/mcp` on
+/// 3940, docs/plans/standalone-brain.md B). Provided by `core::gbrain`; used by the tools gate,
+/// which has already told the agent by its source address.
+pub trait BrainRelay: Send + Sync {
+    /// The brain's vm id when this agent may use it now; else why not (`not connected`, `locked`:
+    /// the emergency stop or the admin's lock).
+    fn relay_for(&self, agent_vm: &str) -> Result<String, &'static str>;
+    /// The agent's scope on the brain (`read`, `read_write`), for the activity row: GBrain refuses a
+    /// read-only agent's save inside a 200, so the row has to say what it may do.
+    fn scope_of(&self, _agent_vm: &str) -> Option<String> {
+        None
+    }
+    /// Send one call to the brain's `/gbrain/mcp/<agent>`, with a token bound to it. The answer's
+    /// body is the caller's to stream.
+    fn send(
+        &self,
+        brain_vm: String,
+        agent_vm: String,
+        method: String,
+        headers: Vec<(&'static str, http::HeaderValue)>,
+        body: bytes::Bytes,
+    ) -> BoxFuture<Result<reqwest::Response, String>>;
+}
+
 /// What the integration checks need from the content rules (`GateAppContent` in
 /// `connector-gate.ts`, channel `apps`). Provided by W4; used by the connector gate, the MCP server
 /// gate and the MCP checks (W5).
@@ -664,6 +688,7 @@ pub struct Contracts {
     pub emergency_stop: Slot<dyn EmergencyStop>,
     pub grants: Slot<dyn PermissionGrants>,
     pub agent_permissions: Slot<dyn AgentPermissions>,
+    pub brain_relay: Slot<dyn BrainRelay>,
     pub app_content: Slot<dyn AppContent>,
     pub judge: Slot<dyn IntegrationJudge>,
     pub mcp_grants: Slot<dyn McpGrants>,
@@ -693,6 +718,7 @@ impl Default for Contracts {
             emergency_stop: Slot::new("EmergencyStop"),
             grants: Slot::new("PermissionGrants"),
             agent_permissions: Slot::new("AgentPermissions"),
+            brain_relay: Slot::new("BrainRelay"),
             app_content: Slot::new("AppContent"),
             judge: Slot::new("IntegrationJudge"),
             mcp_grants: Slot::new("McpGrants"),

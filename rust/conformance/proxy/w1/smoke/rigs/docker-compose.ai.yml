@@ -1,0 +1,15 @@
+# Overlay on docker-compose.smoke.yml for the inline AI review smoke (run-ai.sh): a fake judge the
+# proxy calls instead of the mitm-agent's loopback one.
+services:
+  judge:
+    image: python:3.12-alpine
+    command: ["python", "/app/fake-judge.py"]
+    volumes:
+      - ./fake-judge.py:/app/fake-judge.py:ro
+      - ./logs:/logs
+    networks: [extnet]
+
+  proxy:
+    environment:
+      MITM_AI_JUDGE_URL: http://judge:3101/judge
+      MITM_AI_JUDGE_TIMEOUT: "2"

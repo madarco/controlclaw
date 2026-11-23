@@ -86,6 +86,31 @@ pub async fn handle(access: Arc<AccessFirewall>, config: crate::app::Config, req
             return cc_http::empty(500);
         }
     };
+    // The brain's pages: on to the brain's own Open, with a fresh intent for the brain. The browser
+    // is enrolled now, so the brain's Open signs it in without a code.
+    if let Some(brain_next) = local_intent::brain_next(&next) {
+        let Some((brain_vm, host)) = access.brain_pin() else {
+            return notice(
+                404,
+                "There is no brain with a name for its pages yet. Set it on the panel (PUT /api/brain/pages) and try again.",
+            );
+        };
+        let fresh = match local_intent::mint(&config.keys_dir, &config.org_id, &brain_vm, brain_next) {
+            Ok(f) => f,
+            Err(e) => {
+                tracing::error!("[access] local open: {e}");
+                return cc_http::empty(500);
+            }
+        };
+        // Not a 303: this page's `form-action 'self'` covers the redirect after its form, and the
+        // brain is another origin. A refresh is a navigation, which no CSP of this page stops.
+        let to = format!("https://{host}/__cc/open#i={fresh}");
+        let page = format!(
+            r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url={to}"><meta name="referrer" content="no-referrer"><title>{TITLE}</title></head><body><p>Opening the brain… <a href="{to}">Continue</a></p></body></html>"#,
+            to = super::fw_shell::escape_html(&to)
+        );
+        return reply(200, "text/html", page, vec![("set-cookie".into(), cookie)]);
+    }
     // The page's own Open takes a fresh intent: the one just used is spent.
     let Some(path) = local_intent::PAGES.iter().find(|(n, _)| *n == next).map(|(_, p)| *p) else {
         return notice(404, "This firewall does not serve that page.");

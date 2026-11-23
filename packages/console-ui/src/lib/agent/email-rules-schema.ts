@@ -1,3 +1,5 @@
+// The console's copy of a shape the firewall uses, moved here from the retired TS firewall
+// agent. The firewall's own is rust/bins/mitm-agent/src/channels/email/schema.rs: change both together.
 import { z } from "zod";
 
 /**

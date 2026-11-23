@@ -89,6 +89,13 @@ impl Config {
         Self::unmanaged_from(Self::from_env(), file)
     }
 
+    /// A standalone brain (`gbrain/standalone.rs`): as [`Self::unmanaged`], serving GBrain.
+    pub fn brain(file: &crate::unmanaged::config::AgentFile) -> Self {
+        let mut c = Self::unmanaged_from(Self::from_env(), file);
+        c.service = "gbrain".into();
+        c
+    }
+
     fn unmanaged_from(mut c: Self, file: &crate::unmanaged::config::AgentFile) -> Self {
         let (bind, port) = file.listen();
         let state = file.state_dir(&c.home);
@@ -124,6 +131,8 @@ pub struct App {
     pub started: std::time::Instant,
     /// Set in unmanaged mode (`unmanaged/`): the config file and the OpenClaw install found.
     pub unmanaged: Option<Arc<crate::unmanaged::Unmanaged>>,
+    /// Set on a standalone brain (`gbrain/standalone.rs`): the config file's brain settings.
+    pub brain: Option<Arc<crate::gbrain::standalone::Standalone>>,
 }
 
 #[cfg(test)]

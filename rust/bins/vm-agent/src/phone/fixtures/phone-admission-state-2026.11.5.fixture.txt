@@ -1,0 +1,45 @@
+import { a as resolveGlobalSingleton } from "./global-singleton-D7yf05nR.mjs";
+import { t as AsyncContext } from "./async-context-BYDAvG9A.mjs";
+import { setMaxListeners } from "node:events";
+//#region src/process/gateway-work-admission-state.ts
+const currentRootWork = new AsyncContext(Symbol.for("openclaw.gatewayWorkAdmissionState"));
+const reloadWaitingRoots = new AsyncContext(Symbol("gatewayReloadWaitingRoots"));
+const subscriptionRootWork = new AsyncContext(Symbol("gatewaySubscriptionRootWork"));
+function createShutdownCleanupController() {
+	const e = new AbortController();
+	setMaxListeners(0, e.signal);
+	return e;
+}
+const GATEWAY_WORK_ADMISSION_STATE = resolveGlobalSingleton(Symbol.for("openclaw.gatewayWorkAdmissionState"), () => ({
+	restartDrainReason: void 0,
+	restartDrainController: new AbortController(),
+	shutdownCleanupController: createShutdownCleanupController(),
+	restartSignalPending: false,
+	restartSignalGeneration: 0,
+	suspendPhase: "accepting",
+	suspendGeneration: 0,
+	activeRootWork: /* @__PURE__ */ new Set(),
+	suspendOpenWaiters: /* @__PURE__ */ new Set(),
+	suspendListeners: /* @__PURE__ */ new Set()
+}));
+function isActiveRootWork(e, t) {
+	if (e.subscription && GATEWAY_WORK_ADMISSION_STATE.restartDrainReason === void 0) return false;
+	return t?.excludeCurrent !== true || e !== currentRootWork.getStore() && !reloadWaitingRoots.getStore()?.has(e);
+}
+/** Active root requests/ticks, optionally excluding the caller running prepare. */
+function getActiveGatewayRootWorkCount(e) {
+	let t = 0;
+	for (const n of GATEWAY_WORK_ADMISSION_STATE.activeRootWork) if (isActiveRootWork(n, e)) t += 1;
+	return t;
+}
+/** Bounded, deterministic root-owner inventory for shutdown diagnostics. */
+function getActiveGatewayRootWorkHolders(e) {
+	const t = /* @__PURE__ */ new Map();
+	for (const n of GATEWAY_WORK_ADMISSION_STATE.activeRootWork) {
+		if (!isActiveRootWork(n, e)) continue;
+		t.set(n.origin, (t.get(n.origin) ?? 0) + 1);
+	}
+	return [...t].toSorted(([e], [t]) => e.localeCompare(t)).map(([e, t]) => t > 1 ? `${e} (${t})` : e);
+}
+//#endregion
+export { getActiveGatewayRootWorkHolders as a, getActiveGatewayRootWorkCount as i, createShutdownCleanupController as n, reloadWaitingRoots as o, currentRootWork as r, subscriptionRootWork as s, GATEWAY_WORK_ADMISSION_STATE as t };

@@ -192,13 +192,6 @@ impl Search {
         }
     }
 
-    /// Save what was loaded, unchanged (the TS ↔ Rust store round trip).
-    #[cfg(test)]
-    pub fn resave(&self) {
-        let s = self.st();
-        self.save(&s).expect("save");
-    }
-
     /// Whether a proxy credential is this module's (current or earlier key).
     pub fn owns(&self, entry: &Value) -> bool {
         let seen = self.seen.lock().unwrap_or_else(|e| e.into_inner());

@@ -3,7 +3,7 @@ import { fingerprint } from "./envelope";
 
 /**
  * How the owner's recovery key becomes a way to **talk to their firewall**, with ControlClaw out of
- * the path (`packages/recover`, `packages/mitm-agent/src/recovery.ts`).
+ * the path (`packages/recover`, `rust/bins/mitm-agent/src/core/recovery_routes.rs`).
  *
  * A recovery key is an X25519 secret: it can open a sealed data key and nothing else. X25519 cannot
  * sign, so a second keypair is needed — and asking an owner to keep two secrets would be a worse

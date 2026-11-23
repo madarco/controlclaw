@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Wire-level proxy cases for W2 (the checks), against mitmproxy + addon.py or cc-proxy.
+"""Wire-level proxy cases for W2 (the checks), against cc-proxy. They were written against
+mitmproxy with addon.py and held both proxies to the same answers until that proxy was retired.
 
-    rust/conformance/proxy/w2/run.py                      # every case, on mitmproxy
-    rust/conformance/proxy/w2/run.py --target cc-proxy    # the same cases on the Rust proxy
+    rust/conformance/proxy/w2/run.py                      # every case
     rust/conformance/proxy/w2/run.py --filter telegram rust/conformance/cases/w2/
 
 A case (`rust/conformance/cases/w2/*.json`) is the config files the firewall agent would have
@@ -15,14 +15,12 @@ The rig, all on this machine:
   - the proxy on 127.0.0.1 (the agent's source address is 127.0.0.1, named `vm_test` in
     identities.json);
   - one TLS upstream on this machine's own non-loopback address (the proxy refuses loopback
-    targets), which answers every name: mitmproxy dials the CONNECT target and is told not to
-    verify it (`ssl_insecure`); cc-proxy resolves the name through `MITM_DEV_RESOLVE` and
-    `MITM_DEV_INSECURE_UPSTREAM`;
+    targets), which answers every name: cc-proxy resolves the name through `MITM_DEV_RESOLVE`
+    and `MITM_DEV_INSECURE_UPSTREAM`;
   - the loopback services as plain HTTP servers on ephemeral ports, reached through the
-    `MITM_*_URL` variables the addon reads.
+    `MITM_*_URL` variables the proxy reads.
 
-Stdlib only, apart from mitmproxy for that target: `MITM_PYTHON` (default `python3`) must be able
-to `import mitmproxy` (12.2.2, as on the boxes).
+Stdlib only.
 
 Matchers in expected JSON: "$any", "$string", "$number", "$absent" (the key must not be there).
 Expansions anywhere in a case: "$now+600" (epoch seconds from now, a number) and
@@ -49,9 +47,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 RUST = HERE.parent.parent.parent
 REPO = RUST.parent
-# The production addon to compare with: main's (`git show origin/main:packages/mitm-proxy/addon.py`)
-# when this branch's copy is behind it.
-ADDON = Path(os.environ.get("W2_ADDON") or REPO / "packages" / "mitm-proxy" / "addon.py")
 CACHE = Path(os.environ.get("CC_RIG_CACHE", Path(tempfile.gettempdir()) / "cc-w2-rig"))
 
 SERVICES = {
@@ -364,25 +359,6 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def addon_script() -> Path:
-    """The addon mitmdump loads. Main's addon (since #511) refuses to dial the firewall's own
-    address, and the rig's upstream listens on this machine's: under `W2_ADDON` it is loaded through a
-    shim that turns only that guard off."""
-    if not os.environ.get("W2_ADDON"):
-        return ADDON
-    shim = CACHE / "w2_addon_shim.py"
-    shim.write_text(
-        "import importlib.util, sys\n"
-        f"spec = importlib.util.spec_from_file_location('cc_addon', {str(ADDON)!r})\n"
-        "cc_addon = importlib.util.module_from_spec(spec)\n"
-        "sys.modules['cc_addon'] = cc_addon\n"
-        "spec.loader.exec_module(cc_addon)\n"
-        "cc_addon.is_own_address = lambda ip: False  # the rig's upstream is on this machine\n"
-        "from cc_addon import *  # noqa: F401,F403 (mitmproxy finds the hooks here)\n"
-    )
-    return shim
-
-
 class Proxy:
     def __init__(self, target: str, env: dict, hosts: list[str], upstream: tuple[str, int], logdir: Path):
         self.port = free_port()
@@ -390,19 +366,12 @@ class Proxy:
         cadir.mkdir(parents=True, exist_ok=True)
         self.ca_cert = cadir / "mitmproxy-ca-cert.pem"
         env = {**env}
-        if target == "mitmproxy":
-            mitm_python = os.environ.get("MITM_PYTHON", "python3")
-            cmd = [mitm_python, "-c", "from mitmproxy.tools.main import mitmdump; mitmdump()",
-                   "--listen-host", "127.0.0.1", "--listen-port", str(self.port), "--set", "flow_detail=0",
-                   "--set", "connection_strategy=lazy", "--set", f"confdir={cadir}", "--set", "ssl_insecure=true",
-                   "-s", str(addon_script())]
-        else:
-            binary = os.environ.get("CC_PROXY_BIN", str(RUST / "target" / "debug" / "cc-proxy"))
-            cmd = [binary, "--listen", f"127.0.0.1:{self.port}"]
-            env.update({"MITM_CA_DIR": str(cadir), "MITM_ALLOW_DEV_FLAGS": "1", "MITM_DEV_INSECURE_UPSTREAM": "1",
-                        "MITM_DEV_RESOLVE": ",".join(f"{h}={upstream[0]}:{upstream[1]}" for h in hosts)})
+        binary = os.environ.get("CC_PROXY_BIN", str(RUST / "target" / "debug" / "cc-proxy"))
+        cmd = [binary, "--listen", f"127.0.0.1:{self.port}"]
+        env.update({"MITM_CA_DIR": str(cadir), "MITM_ALLOW_DEV_FLAGS": "1", "MITM_DEV_INSECURE_UPSTREAM": "1",
+                    "MITM_DEV_RESOLVE": ",".join(f"{h}={upstream[0]}:{upstream[1]}" for h in hosts)})
         self.log = open(logdir / f"{target}.log", "w")
-        self.proc = subprocess.Popen(cmd, env=env, stdout=self.log, stderr=subprocess.STDOUT, cwd=str(ADDON.parent))
+        self.proc = subprocess.Popen(cmd, env=env, stdout=self.log, stderr=subprocess.STDOUT, cwd=str(logdir))
         deadline = time.time() + 30
         while time.time() < deadline:
             if self.proc.poll() is not None:
@@ -555,15 +524,6 @@ def run_case(case: dict, target: str, keep: bool) -> None:
         raise RuntimeError("this case needs the upstream on port 443: run as root or lower net.ipv4.ip_unprivileged_port_start")
     upstream = (up_srv.server_address[0], up_srv.server_address[1])
     hosts = sorted({(s.get("request") or s.get("ws"))["host"] for s in case["steps"] if "request" in s or "ws" in s})
-    if case.get("needs_hosts") and target == "mitmproxy":
-        # The addon re-points a login swap at the name and resolves it itself: the names must
-        # resolve to the upstream here (an /etc/hosts line, as the Docker rig writes).
-        for h in hosts:
-            try:
-                if socket.gethostbyname(h) != upstream[0]:
-                    raise OSError(h)
-            except OSError:
-                raise RuntimeError(f"{h} must resolve to {upstream[0]} for this case (add it to /etc/hosts)") from None
     proxy = Proxy(target, env, hosts, upstream, tmp)
     try:
         for i, step in enumerate(case["steps"]):
@@ -756,7 +716,7 @@ def run_ws_step(step, proxy, upstream, services, upstream_rec, logs, before_call
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("cases", nargs="*", default=[str(RUST / "conformance" / "cases" / "w2")])
-    ap.add_argument("--target", choices=["mitmproxy", "cc-proxy"], default="mitmproxy")
+    ap.add_argument("--target", choices=["cc-proxy"], default="cc-proxy")
     ap.add_argument("--filter")
     ap.add_argument("--keep", action="store_true", help="keep each case's folder (config, logs, proxy output)")
     args = ap.parse_args()
@@ -774,10 +734,6 @@ def main() -> int:
         if args.filter and args.filter not in case["name"]:
             continue
         skip = (case.get("skip") or {}).get(args.target)
-        need = case.get("addon_has")
-        if not skip and args.target == "mitmproxy" and need and need not in ADDON.read_text():
-            # A case for production's addon on main, newer than this branch's copy (set W2_ADDON).
-            skip = f"this addon has no {need}; run with W2_ADDON=<main's addon.py>"
         if skip:
             skipped += 1
             print(f"skip  {case['name']} ({skip})")

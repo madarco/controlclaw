@@ -1,5 +1,5 @@
 //! `meeting-ics.test.ts`, and the parity cases in `rust/conformance/cases/w8/ics/`: the files the
-//! TS build (ical.js) reads there, with what it found (`expected.json`, written by `gen.mts`).
+//! retired TS build (ical.js) read there, with what it found (`expected.json`, written from it).
 
 use serde_json::{Value, json};
 

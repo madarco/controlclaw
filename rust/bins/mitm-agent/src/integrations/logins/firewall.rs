@@ -1997,16 +1997,17 @@ impl LoginsFirewall {
 
     /// One metadata line in the traffic log, so Activity shows what happened to a login.
     pub fn record(&self, vm_id: Option<&str>, path: &str, rule: &str, login: &str, effect: Option<&str>) {
+        use crate::channels::ai::internal::{LOGINS_FLOW, LOGINS_HOST};
         let Some(p) = &self.log_path else { return };
         let mut rec = Map::new();
         rec.insert("source".into(), json!("egress"));
         rec.insert(
             "flow_id".into(),
-            json!(format!("lgn-{}", hex::encode(rand::random::<[u8; 10]>()))),
+            json!(format!("{LOGINS_FLOW}{}", hex::encode(rand::random::<[u8; 10]>()))),
         );
         rec.insert("ts".into(), json!((self.now)() as f64 / 1000.0));
         rec.insert("method".into(), json!("POST"));
-        rec.insert("host".into(), json!("controlclaw-logins"));
+        rec.insert("host".into(), json!(LOGINS_HOST));
         rec.insert("path".into(), json!(path));
         if let Some(v) = vm_id {
             rec.insert("vm_id".into(), json!(v));

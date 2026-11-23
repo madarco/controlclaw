@@ -13,7 +13,7 @@ import type { Sys } from "./sys.js";
  * `up --all` now runs `install`, `openclaw install` and `connect` instead.
  */
 export const PROJECT = "controlclaw-local";
-export const DEFAULT_OPENCLAW_IMAGE = "ghcr.io/openclaw/openclaw:2026.10.9";
+export const DEFAULT_OPENCLAW_IMAGE = "ghcr.io/openclaw/openclaw:2026.11.5";
 export const AGENTS_SUBNET = "172.31.251.0/24";
 export const OUTSIDE_SUBNET = "172.31.252.0/24";
 export const FW_AGENTS_IP = "172.31.251.2";
@@ -61,6 +61,8 @@ export function firewallService(o: {
     // on this machine) cannot reach them. Published on this machine's loopback (below).
     env("LOCAL_PANEL_BIND", `${FW_OUTSIDE_IP}:8800`),
     env("LOCAL_PANEL_INSECURE", "1"),
+    // The brain's pages, relayed by the firewall (docs/standalone/brain.md), beside the panel.
+    env("BRAIN_PAGES_BIND", `${FW_OUTSIDE_IP}:8803`),
     env("PAIR_BIND", `${FW_OUTSIDE_IP}:8801`),
     env("PAIR_PROXY_ADDR", `${o.pairAt}:8080`),
     env("PAIR_DNS_ADDR", o.pairAt),
@@ -82,6 +84,7 @@ export function firewallService(o: {
     `      - ${q("127.0.0.1:8800:8800")} # the firewall's panel`,
     `      - ${q("127.0.0.1:8801:8801")} # pairing`,
     `      - ${q("127.0.0.1:8790:8790")} # the firewall's pages and webhooks`,
+    `      - ${q("127.0.0.1:8803:8803")} # the brain's pages`,
     ...(o.publish ?? []).map((p) => `      - ${q(p.spec)} # ${p.what}`),
   ];
 }

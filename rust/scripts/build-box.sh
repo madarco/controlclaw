@@ -7,6 +7,7 @@
 #   rust/scripts/build-box.sh --docker   # always in the pinned build image (what releases use)
 #   rust/scripts/build-box.sh --arch aarch64 [--docker]   # the arm build (x86_64 is the default)
 #   rust/scripts/build-box.sh --prepare  # only build the pinned image (build-release.sh, before two builds at once)
+#   rust/scripts/build-box.sh --fingerprint  # the image's fingerprint, as rust/scripts/build-image.pin has it
 #
 # The firewall's page assets (dist-ui) need `pnpm install` first; CC_BUILD_NO_UI=1 builds the
 # binaries without them.
@@ -18,13 +19,15 @@ set -euo pipefail
 RUST_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DOCKER=0
 PREPARE=0
+FINGERPRINT=0
 ARCH=x86_64
 while [ $# -gt 0 ]; do
   case "$1" in
     --docker) DOCKER=1 ;;
     --prepare) PREPARE=1 ;;
+    --fingerprint) FINGERPRINT=1 ;;
     --arch) ARCH="${2:-}"; [ $# -gt 1 ] && shift ;;
-    *) echo "usage: build-box.sh [--docker] [--arch x86_64|aarch64] | --prepare" >&2; exit 2 ;;
+    *) echo "usage: build-box.sh [--docker] [--arch x86_64|aarch64] | --prepare | --fingerprint" >&2; exit 2 ;;
   esac
   shift
 done
@@ -87,8 +90,29 @@ native() {
 }
 
 IMAGE=controlclaw-rust-build:6
-build_image() { docker build -q --platform linux/amd64 -t "$IMAGE" -f "$RUST_DIR/scripts/Dockerfile.build" "$RUST_DIR/scripts" >/dev/null; }
+# CC_BUILD_PINNED_IMAGE=1 (scripts/ship-release.sh): use the image the builder snapshot holds, whose
+# fingerprint is in build-image.pin, and never build it. Building it reads snapshot.ubuntu.com, and a
+# release must not stop because a mirror is down. scripts/release-machines.sh snapshot writes the pin.
+# The fingerprint is of the image's layers and environment: docker's image id is not, it changes
+# with the storage backend when an image is saved and loaded.
+image_fingerprint() {
+  docker image inspect -f '{{json .RootFS.Layers}} {{json .Config.Env}}' "$IMAGE" 2>/dev/null | sha256sum | cut -c1-64
+}
+build_image() {
+  if [ "${CC_BUILD_PINNED_IMAGE:-0}" = 1 ]; then
+    local want got=""
+    want="$(tr -d '[:space:]' < "$RUST_DIR/scripts/build-image.pin" 2>/dev/null || true)"
+    docker image inspect "$IMAGE" >/dev/null 2>&1 && got="$(image_fingerprint)"
+    if [ -z "$want" ] || [ "$got" != "$want" ]; then
+      echo "build-box: $IMAGE is ${got:-not here}, not the pinned ${want:-(no rust/scripts/build-image.pin)}: start from the builder snapshot (scripts/release-machines.sh snapshot)" >&2
+      exit 1
+    fi
+    return 0
+  fi
+  docker build -q --platform linux/amd64 -t "$IMAGE" -f "$RUST_DIR/scripts/Dockerfile.build" "$RUST_DIR/scripts" >/dev/null
+}
 if [ "$PREPARE" = 1 ]; then build_image; exit 0; fi
+if [ "$FINGERPRINT" = 1 ]; then image_fingerprint; exit 0; fi
 
 in_docker() {
   local image=$IMAGE
@@ -106,7 +130,7 @@ in_docker() {
       CC_$T_ENV=$CROSS-gcc CXX_$T_ENV=$CROSS-g++ \
       AR_$T_ENV=$CROSS-ar CARGO_TARGET_${T_UPPER}_LINKER=$CROSS-gcc \
       $(bindgen_env "$CROSS_DIR") \
-      CARGO_TARGET_DIR=/target cargo build --release --locked --target $TARGET $PKGS"
+      CARGO_NET_RETRY=10 CARGO_TARGET_DIR=/target cargo build --release --locked --target $TARGET $PKGS"
 }
 
 # The musl cross toolchain: $CROSS_DIR (where Dockerfile.build puts it) or on PATH.

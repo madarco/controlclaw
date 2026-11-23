@@ -8,8 +8,10 @@
 //!   meetings/         one per meeting (W8's records)
 //!   calls/            one per phone call (W8's records)
 //!
-//! Left out: anything on another filesystem or behind a symlink (Drive folders are FUSE mounts),
-//! files named like credentials, and what a backup skips. Nothing outside the workspace is walked.
+//! Left out: anything on another filesystem or behind a symlink, files named like credentials, and
+//! what a backup skips. Nothing outside the workspace is walked, so the Drive folders (FUSE mounts
+//! under /home/controlclaw/drive since T-oc114) are not in it; a box not yet updated still has them
+//! at workspace/Drive, which the walk leaves out as before.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -490,7 +492,8 @@ pub fn readme(o: &ReadmeFacts<'_>) -> String {
         "## What is not in here".into(),
         String::new(),
         "- Passwords, keys and tokens: the agent's model and channel credentials, its settings file and the server's own keys.".into(),
-        "- Google Drive folders and anything else linked into the workspace from elsewhere. Those files are still in Drive.".into(),
+        "- Google Drive folders. They are mounted outside the workspace, and their files are still in Drive.".into(),
+        "- Anything linked or mounted into the workspace from elsewhere.".into(),
         "- Caches, logs, the agent's internal databases and search index.".into(),
     ]);
     if !o.mounts.is_empty() {
@@ -846,10 +849,21 @@ fn open_unchanged(abs: &Path, id: (u64, u64)) -> Option<std::fs::File> {
 }
 
 /// The zip's bytes, into the response channel in pieces; a closed channel is the browser leaving.
-struct Sink {
+pub(crate) struct Sink {
     tx: tokio::sync::mpsc::Sender<Bytes>,
     buf: Vec<u8>,
-    sent: u64,
+    pub(crate) sent: u64,
+}
+
+impl Sink {
+    /// A blocking writer that sends 64 KB chunks down `tx` (the brain's export uses it too).
+    pub(crate) fn new(tx: tokio::sync::mpsc::Sender<Bytes>) -> Self {
+        Self {
+            tx,
+            buf: Vec::new(),
+            sent: 0,
+        }
+    }
 }
 
 impl std::io::Write for Sink {

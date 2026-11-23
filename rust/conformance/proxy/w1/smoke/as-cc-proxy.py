@@ -37,6 +37,9 @@ for path in sys.argv[1:]:
         # mitmproxy takes about two seconds to listen, and the scripts' "wait for proxy" loops count
         # on the stand-in servers being up by then (run-smoke.sh A8 reads the first record).
         proxy["command"] = ["sh", "-c", "sleep 2; exec cc-proxy --listen 0.0.0.0:8080"]
+    # The rigs mounted the mitmproxy addon, which is retired: cc-proxy needs none.
+    if isinstance(proxy.get("volumes"), list):
+        proxy["volumes"] = [v for v in proxy["volumes"] if not str(v).endswith("/app/addon.py:ro")]
     env = proxy.get("environment") or {}
     if isinstance(env, list):
         env = dict(e.split("=", 1) for e in env)

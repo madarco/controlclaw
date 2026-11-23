@@ -17,12 +17,11 @@ const MEETING_PATCH: &str = "/opt/controlclaw/meeting-runtime-patch.py";
 const VOICE_DIR: &str = "/opt/controlclaw/meeting-voice";
 const GUARD: &str = "/opt/controlclaw/meeting-guard/index.js";
 const CHECK_TIMEOUT: Duration = Duration::from_secs(15);
+/// `openclaw plugins list --json` reads the plugin registry, a few seconds on a small box.
+const LIST_TIMEOUT: Duration = Duration::from_secs(30);
 /// What the role's OpenClaw resolver last decided (`files/cc-openclaw-patch`): root's,
 /// world-readable, in a root-owned folder.
 const OPENCLAW_PATCH_STATE: &str = "/var/lib/controlclaw/openclaw-patch.json";
-
-static ADMISSION_FILE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^gateway-work-admission-[A-Za-z0-9_-]{8}\.mjs$").expect("regex"));
 
 fn read_json(path: &Path) -> Option<Value> {
     serde_json::from_slice(&std::fs::read(path).ok()?).ok()
@@ -36,28 +35,47 @@ fn version_of(dir: &Path) -> Option<Value> {
         .cloned()
 }
 
-/// Where an installed `@openclaw/<name>` plugin lives under OpenClaw's state dir, if anywhere.
-pub fn find_plugin(state_dir: &Path, name: &str) -> Option<PathBuf> {
+/// How `find_plugin` orders the copies: at the expected version, in `extensions/`, in a generation
+/// directory, and the project directory's time.
+type Rank = (bool, bool, bool, std::time::SystemTime);
+
+/// Where an installed `@openclaw/<name>` plugin lives under OpenClaw's state dir, if anywhere: the
+/// fallback when OpenClaw does not say (`installed_plugin_dirs`).
+///
+/// OpenClaw 2026.10 and later install an update of a plugin into a new project directory
+/// (`<project>__openclaw-generation__g-<hash>`) next to the previous one, and can touch the old
+/// one's time after. So a copy at `version` is preferred, then `extensions/<name>` (where OpenClaw puts
+/// a plugin it installs from elsewhere), then one in a generation directory, then the newest project
+/// directory; the name breaks a tie, so the listing's order does not matter.
+pub fn find_plugin(state_dir: &Path, name: &str, version: Option<&str>) -> Option<PathBuf> {
+    let projects = state_dir.join("npm").join("projects");
+    let mut found: Vec<(Rank, String, PathBuf)> = std::fs::read_dir(&projects)
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let dir = e.path().join("node_modules/@openclaw").join(name);
+            if !dir.join("package.json").exists() {
+                return None;
+            }
+            let project = e.file_name().to_string_lossy().into_owned();
+            let made = e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+            Some((
+                (false, false, project.contains("__openclaw-generation__"), made),
+                project,
+                dir,
+            ))
+        })
+        .collect();
     let direct = state_dir.join("extensions").join(name);
     if direct.join("package.json").exists() {
-        return Some(direct);
+        found.push(((false, true, false, std::time::UNIX_EPOCH), String::new(), direct));
     }
-    let mut projects: Vec<String> = std::fs::read_dir(state_dir.join("npm").join("projects"))
-        .ok()?
-        .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
-        .collect();
-    // `readdirSync` order.
-    projects.sort();
-    projects
-        .into_iter()
-        .map(|p| {
-            state_dir
-                .join("npm/projects")
-                .join(p)
-                .join("node_modules/@openclaw")
-                .join(name)
-        })
-        .find(|d| d.join("package.json").exists())
+    for f in &mut found {
+        f.0.0 = version.is_some() && version_of(&f.2).as_ref().and_then(Value::as_str) == version;
+    }
+    found.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    found.into_iter().next().map(|(_, _, dir)| dir)
 }
 
 fn item(id: &str, status: &str) -> Map<String, Value> {
@@ -103,7 +121,7 @@ pub fn meetings_runtime_item(raw: &Value, openclaw: Option<&str>) -> Map<String,
 }
 
 /// `python3 meeting-runtime-patch.py --check …`; null when the script cannot check (older Ansible).
-async fn meeting_check(deps: &Deps, host: &str, state_dir: &Path) -> Value {
+async fn meeting_check(deps: &Deps, host: &str, plugin_root: &Path) -> Value {
     // An older copy of the script has no `--check` and would read the flag as a path.
     // `readFileSync(…, "utf8")` decodes a stray byte rather than failing.
     let Ok(raw) = std::fs::read(MEETING_PATCH) else {
@@ -113,7 +131,7 @@ async fn meeting_check(deps: &Deps, host: &str, state_dir: &Path) -> Value {
     if !source.contains("def check(") {
         return Value::Null;
     }
-    let state = state_dir.to_string_lossy().to_string();
+    let state = plugin_root.to_string_lossy().to_string();
     match deps
         .exec(
             "/usr/bin/python3",
@@ -144,24 +162,9 @@ fn phone_plugin_item(dir: Option<&Path>) -> Map<String, Value> {
 }
 
 fn phone_runtime_item(host: &Path, openclaw: Option<&str>) -> Map<String, Value> {
-    let dist = host.join("dist");
-    let status = match std::fs::read_dir(&dist) {
-        Err(_) => "missing",
-        Ok(rd) => {
-            let files: Vec<String> = rd
-                .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
-                .filter(|f| ADMISSION_FILE.is_match(f))
-                .collect();
-            if files.len() != 1 {
-                "mismatch"
-            } else {
-                match std::fs::read(dist.join(&files[0])) {
-                    Ok(raw) if crate::phone::compat::phone_admission_ok(&String::from_utf8_lossy(&raw)) => "ok",
-                    Ok(_) => "mismatch",
-                    Err(_) => "missing",
-                }
-            }
-        }
+    let status = match crate::phone::compat::admission_status(&host.join("dist")) {
+        Ok(_) => "ok",
+        Err(status) => status,
     };
     let mut m = item("phone_runtime", status);
     m.insert("actual".into(), json!(openclaw));
@@ -283,10 +286,45 @@ pub fn openclaw_patch_item(state: Option<&Value>, openclaw: Option<&str>) -> Map
     item("openclaw_patch", "ok")
 }
 
+/// Where OpenClaw itself says each installed plugin is (`plugins list --json`, `rootDir`), by id.
+/// Empty when the CLI cannot answer; the lookup then falls back to `find_plugin`.
+async fn installed_plugin_dirs(deps: &Deps) -> std::collections::HashMap<String, PathBuf> {
+    let Ok(out) = deps
+        .exec(&deps.bin, &["plugins", "list", "--json"], LIST_TIMEOUT, None, &[])
+        .await
+    else {
+        return Default::default();
+    };
+    plugin_dirs_of(&out)
+}
+
+/// The `{id: rootDir}` of a `plugins list --json` answer, which may follow a banner.
+pub fn plugin_dirs_of(out: &str) -> std::collections::HashMap<String, PathBuf> {
+    let parsed = out
+        .find('{')
+        .and_then(|i| serde_json::from_str::<Value>(&out[i..]).ok());
+    let plugins = parsed
+        .as_ref()
+        .and_then(|v| v.get("plugins"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    plugins
+        .iter()
+        // A plugin that failed to load is not the one in use.
+        .filter(|p| p.get("status").and_then(Value::as_str) != Some("error"))
+        .filter_map(|p| {
+            let id = p.get("id")?.as_str()?;
+            let dir = PathBuf::from(p.get("rootDir")?.as_str()?);
+            dir.join("package.json").exists().then(|| (id.to_string(), dir))
+        })
+        .collect()
+}
+
 /// `patchReport`: `{openclaw, items}` in the TS's order.
 pub async fn patch_report(deps: &Deps, state_dir: &Path, host: &Path, openclaw: Option<String>) -> Value {
     let host_s = host.to_string_lossy().to_string();
-    let (meeting, config) = tokio::join!(meeting_check(deps, &host_s, state_dir), async {
+    let (dirs, config) = tokio::join!(installed_plugin_dirs(deps), async {
         match deps
             .call("config.get", json!({}), super::health_summary::CONFIG_READ_TIMEOUT)
             .await
@@ -299,23 +337,38 @@ pub async fn patch_report(deps: &Deps, state_dir: &Path, host: &Path, openclaw: 
             Err(_) => None,
         }
     });
+    // The Meet patch's own check is given the plugin directory: the one OpenClaw names, else the
+    // fallback lookup's, else the state dir for the script to search.
+    let meet_root = dirs
+        .get("google-meet")
+        .cloned()
+        .or_else(|| find_plugin(state_dir, "google-meet", Some(cc_meetings::policy::MEET_PLUGIN_VERSION)))
+        .unwrap_or_else(|| state_dir.to_path_buf());
+    let meeting = meeting_check(deps, &host_s, &meet_root).await;
     // The rest reads and hashes files: off the runtime's threads.
     let (state, host, version) = (state_dir.to_path_buf(), host.to_path_buf(), openclaw.clone());
-    let items =
-        tokio::task::spawn_blocking(move || file_items(&state, &host, &meeting, config.as_ref(), version.as_deref()))
-            .await
-            .unwrap_or_default();
+    let items = tokio::task::spawn_blocking(move || {
+        file_items(&state, &dirs, &host, &meeting, config.as_ref(), version.as_deref())
+    })
+    .await
+    .unwrap_or_default();
     json!({ "openclaw": openclaw, "items": items })
 }
 
 fn file_items(
     state_dir: &Path,
+    dirs: &std::collections::HashMap<String, PathBuf>,
     host: &Path,
     meeting: &Value,
     config: Option<&Value>,
     openclaw: Option<&str>,
 ) -> Vec<Map<String, Value>> {
-    let meet_dir = find_plugin(state_dir, "google-meet");
+    let plugin_dir = |id: &str, version: &str| {
+        dirs.get(id)
+            .cloned()
+            .or_else(|| find_plugin(state_dir, id, Some(version)))
+    };
+    let meet_dir = plugin_dir("google-meet", cc_meetings::policy::MEET_PLUGIN_VERSION);
     let meet_version = meet_dir.as_deref().and_then(version_of);
     let reviewed = meeting.get("reviewed").and_then(Value::as_str);
     let mut plugin = item(
@@ -332,7 +385,7 @@ fn file_items(
     vec![
         meetings_runtime_item(meeting, openclaw),
         plugin,
-        phone_plugin_item(find_plugin(state_dir, "voice-call").as_deref()),
+        phone_plugin_item(plugin_dir("voice-call", crate::phone::apply::PHONE_VERSION).as_deref()),
         phone_runtime_item(host, openclaw),
         voice_adapter_item(),
         item("wake", if wake { "ok" } else { "missing" }),
@@ -416,16 +469,58 @@ mod tests {
     }
 
     #[test]
+    fn openclaw_names_where_each_plugin_is() {
+        let d = tempfile::tempdir().expect("dir");
+        let meet = d.path().join("meet");
+        std::fs::create_dir_all(&meet).expect("mk");
+        std::fs::write(meet.join("package.json"), "{}").expect("w");
+        let out = format!(
+            "banner line\n{}",
+            json!({ "plugins": [
+                { "id": "google-meet", "rootDir": meet.display().to_string() },
+                { "id": "voice-call", "rootDir": d.path().join("gone").display().to_string() },
+                { "id": "browser" }
+            ] })
+        );
+        let dirs = plugin_dirs_of(&out);
+        assert_eq!(dirs.get("google-meet"), Some(&meet));
+        // A directory that is not there, or no rootDir: not named, so the lookup falls back.
+        assert_eq!(dirs.len(), 1);
+        assert!(plugin_dirs_of("not json").is_empty());
+    }
+
+    #[test]
     fn plugins_are_found_where_openclaw_installs_them() {
         let d = tempfile::tempdir().expect("dir");
-        assert!(find_plugin(d.path(), "voice-call").is_none());
+        assert!(find_plugin(d.path(), "voice-call", None).is_none());
         let p = d.path().join("npm/projects/b/node_modules/@openclaw/voice-call");
         std::fs::create_dir_all(&p).expect("mk");
         std::fs::write(p.join("package.json"), r#"{"version":"1"}"#).expect("w");
-        assert_eq!(find_plugin(d.path(), "voice-call"), Some(p));
+        assert_eq!(find_plugin(d.path(), "voice-call", None), Some(p.clone()));
+        // An update installed into a new generation directory, the old one left in place, and the
+        // old one touched after it (seen on 2026.11.3): the generation directory is the one in use.
+        let newer = d
+            .path()
+            .join("npm/projects/b__openclaw-generation__g-0000/node_modules/@openclaw/voice-call");
+        std::fs::create_dir_all(&newer).expect("mk");
+        std::fs::write(newer.join("package.json"), r#"{"version":"2"}"#).expect("w");
+        let old = std::fs::File::open(d.path().join("npm/projects/b")).expect("open");
+        old.set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(3600))
+            .expect("mtime");
+        assert_eq!(find_plugin(d.path(), "voice-call", None), Some(newer.clone()));
+        // The copy at the expected version wins over the rest.
+        assert_eq!(find_plugin(d.path(), "voice-call", Some("1")), Some(p.clone()));
+        assert_eq!(find_plugin(d.path(), "voice-call", Some("2")), Some(newer.clone()));
+        // A copy in extensions/ comes before the npm projects, unless one of those is at the version.
+        let ext = d.path().join("extensions/voice-call");
+        std::fs::create_dir_all(&ext).expect("mk");
+        std::fs::write(ext.join("package.json"), r#"{"version":"3"}"#).expect("w");
+        assert_eq!(find_plugin(d.path(), "voice-call", None), Some(ext.clone()));
+        assert_eq!(find_plugin(d.path(), "voice-call", Some("2")), Some(newer));
+        assert_eq!(find_plugin(d.path(), "voice-call", Some("3")), Some(ext));
         assert_eq!(
             Value::Object(phone_plugin_item(None)),
-            json!({ "id": "phone_plugin", "status": "not_installed", "expected": "2026.9.7" })
+            json!({ "id": "phone_plugin", "status": "not_installed", "expected": "2026.11.3" })
         );
     }
 

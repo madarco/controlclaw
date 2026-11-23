@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
-import type { FwLogsResponse, FwServiceState } from "@controlclaw/console-ui/lib/agent/fw-logs-types";
+import type { FwLogsResponse, FwServiceState } from "../../lib/agent/fw-logs-types";
 import { cn } from "../../lib/utils";
 import {
   FW_LEVEL_FILTERS,

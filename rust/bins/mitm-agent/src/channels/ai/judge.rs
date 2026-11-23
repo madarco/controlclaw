@@ -460,6 +460,7 @@ impl AiJudge {
                             timeout: EVALUATE_TIMEOUT,
                             max_retries: 0,
                             caps: None,
+                            purpose: "requests".into(),
                         },
                     )
                     .await
@@ -615,6 +616,7 @@ impl AiJudge {
                     timeout: CONTENT_TIMEOUT,
                     max_retries: 0,
                     caps: Some(caps.clone()),
+                    purpose: super::usage::purpose_of_channel(&ask.channel).into(),
                 },
             )
         });
@@ -720,6 +722,7 @@ impl AiJudge {
                         ("content".into(), CONTENT_DAILY_CAP),
                         (format!("content:{vm_id}"), CONTENT_AGENT_DAILY_CAP),
                     ]),
+                    purpose: "apps".into(),
                 },
             )
             .await;
@@ -774,6 +777,7 @@ impl AiJudge {
                     timeout: CONTENT_TIMEOUT,
                     max_retries: 0,
                     caps: Some(vec![("labels".into(), TOOL_LABEL_DAILY_CAP)]),
+                    purpose: "apps".into(),
                 },
             )
             .await
@@ -814,6 +818,7 @@ impl AiJudge {
                     timeout: EVALUATE_TIMEOUT,
                     max_retries: 0,
                     caps: None,
+                    purpose: "requests".into(),
                 },
             )
             .await

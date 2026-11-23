@@ -32,6 +32,15 @@ pub fn box_token(keys: &KeysDir) -> Result<String, SignError> {
     Ok(jwt::sign(c, &key(keys)?, Some(BOX_TOKEN_LIFETIME_S), None)?)
 }
 
+/// A standalone firewall as its boxes' control plane: `{vmId: <the box>}` with no `purpose`,
+/// signed with this firewall's key, which an unmanaged or standalone box takes on its console
+/// routes (`UNMANAGED.md`, "Who can call it").
+pub fn local_console_token(keys: &KeysDir, box_vm_id: &str) -> Result<String, SignError> {
+    let mut c = Map::new();
+    c.insert("vmId".into(), Value::String(box_vm_id.to_string()));
+    Ok(jwt::sign(c, &key(keys)?, Some(BOX_TOKEN_LIFETIME_S), None)?)
+}
+
 /// `makeGateTokenSigner`: the caller's claims, then this box's `vmId`.
 pub fn gate_token(keys: &KeysDir, mut claims: Map<String, Value>) -> Result<String, SignError> {
     let vm_id = keys.vm_id().ok_or(SignError::MissingKeys)?;

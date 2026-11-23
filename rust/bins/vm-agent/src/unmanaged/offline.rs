@@ -13,7 +13,7 @@ use serde_json::Value;
 use super::discover::Runs;
 use super::{Unmanaged, after_act, supervisor};
 use crate::app::App;
-use crate::platform::common::{CliWrite, Deps, Offline, exec_failure_line, spawn_message};
+use crate::platform::common::{CliWrite, Deps, Offline, exec_failure_line, spawn_message, whole_output};
 
 const INSPECT_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -51,10 +51,7 @@ pub async fn offline_writes(
                 for w in &writes {
                     results.push(match &like {
                         Some((container, like)) => docker_write(runner, &um.state_dir, container, like, w).await,
-                        None => {
-                            let args: Vec<&str> = w.args.iter().map(String::as_str).collect();
-                            deps.exec(bin, &args, w.timeout, w.stdin.clone(), &[]).await
-                        }
+                        None => deps.exec_write(bin, w).await,
                     });
                 }
                 let started = supervisor::act(runner, &install, "start").await;
@@ -112,6 +109,10 @@ async fn docker_write(
     let result = runner.run(cmd).await;
     let _ = std::fs::remove_file(&env_file);
     match result {
+        Ok(o) if w.whole_output => {
+            let text = whole_output(&o);
+            if o.success() { Ok(text) } else { Err(text) }
+        }
         Ok(o) if o.success() => Ok(o.stdout_str()),
         Ok(o) => Err(exec_failure_line(
             &o.stderr_str(),
@@ -222,6 +223,8 @@ mod tests {
             .to_vec(),
             stdin: Some("sk-cc-1\n".into()),
             timeout: Duration::from_secs(45),
+            env: Vec::new(),
+            whole_output: false,
         }
     }
 

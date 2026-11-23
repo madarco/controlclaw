@@ -19,7 +19,8 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha512};
 
 use super::apply::{
-    PHONE_INTEGRITY, PHONE_PACKAGE, phone_config, phone_config_matches, stream_binding, trusted_phone_install,
+    PHONE_INSTALL_SPEC, PHONE_INTEGRITY, PHONE_PACKAGE, phone_config, phone_config_matches, stream_binding,
+    trusted_phone_install,
 };
 use super::history::now_ms;
 use super::model::phone_response_model;
@@ -387,9 +388,11 @@ impl PhoneService {
         .await?;
         static VERSION: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"\b([0-9]{4})\.([0-9]+)\.([0-9]+)\b").expect("regex"));
+        // The pinned voice-call plugin declares `pluginApi >=2026.11.3`, and its patched consult
+        // imports that release's admission module.
         let ok = VERSION.captures(&version).is_some_and(|c| {
             let n = |i: usize| c[i].parse::<i64>().unwrap_or(0);
-            n(1) * 10000 + n(2) * 100 + n(3) >= 20260907
+            (n(1), n(2), n(3)) >= (2026, 11, 3)
         });
         if !ok {
             return Err(SetupError::Code("openclaw_version"));
@@ -456,7 +459,7 @@ impl PhoneService {
             &[
                 "plugins",
                 "install",
-                PHONE_PACKAGE,
+                PHONE_INSTALL_SPEC,
                 "--pin",
                 "--no-enable",
                 "--force",

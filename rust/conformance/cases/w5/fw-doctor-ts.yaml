@@ -1,14 +1,6 @@
 name: "Doctor, Firewall Doctor and the Final check installed on a complete build: a change paid with a credential this firewall does not hold is refused, the beat carries the checks' state"
 agent: mitm-agent
-system_bins:
-  cc-doctor-run: "#!/bin/sh\nexit 1\n"
-  cc-doctor-stop: "#!/bin/sh\nexit 0\n"
-  cc-doctor-attach: "#!/bin/sh\nexit 1\n"
-  cc-fw-repair: "#!/bin/sh\nexit 1\n"
-  cc-fwdoctor: "#!/bin/sh\nexit 1\n"
-  cc-tplcheck: "#!/bin/sh\nexit 1\n"
-# The same helpers for the Rust build, which reads their paths from the env lines below (the rig
-# writes system_bins for the TS build only).
+# The helpers, at the paths the env lines below give the agent.
 files:
   bin/cc-doctor-run: "#!/bin/sh\nexit 1\n"
   bin/cc-doctor-stop: "#!/bin/sh\nexit 0\n"

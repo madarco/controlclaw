@@ -3,7 +3,7 @@
 //! typed. Its turns run in a unit of their own (`cc-doctor-run`), its transcript is sealed here,
 //! and the console learns its state only, never its content.
 //!
-//!   doctor.propose  { sessionId, vmId, cli, credentialId, model, kind?, step?, preset? }
+//!   doctor.propose  { sessionId, vmId, cli, credentialId, model, kind?, step?, preset?, finding?, findingNotes? }
 //!   doctor.confirm  { sessionId, code }
 //!   doctor.stop     { sessionId }
 
@@ -18,6 +18,7 @@ use serde_json::{Map, Value, json};
 
 use super::capture::{self, CAPTURE_WINDOW_MS, CaptureRecord};
 use super::credentials::{self, DoctorCredentials};
+use super::finding::{self, FINDING_WINDOW_MS, FindingFacts};
 use super::gateway::{AI_GATEWAY, ANTHROPIC, DoctorGateway, GatewayCredential, Upstream};
 use super::repair::{self, REPAIR_STEP, REPAIR_WINDOW_MS, RepairFacts, RepairRecord};
 use super::runner::{DoctorRunner, RunInput, Sockets};
@@ -51,6 +52,7 @@ const KINDS: &[&str] = &[
     "template-capture",
     "template-repair",
     "template-check",
+    "finding",
 ];
 
 /// Problems a Firewall Doctor start from the console may name: fixed text, so nothing free-form
@@ -143,6 +145,7 @@ struct Proposal {
     preset: Option<&'static str>,
     repair: Option<(RepairFacts, String)>,
     capture: Option<String>,
+    finding: Option<FindingFacts>,
 }
 
 struct Session {
@@ -454,8 +457,10 @@ impl DoctorFirewall {
         };
         let template_repair = kind == "template-repair";
         let template_capture = kind == "template-capture";
-        if kind != repair_kind(on_firewall) && !((template_repair || template_capture) && !on_firewall) {
-            if kind.starts_with("repair-") || template_repair || template_capture {
+        let about_finding = kind == "finding";
+        if kind != repair_kind(on_firewall) && !((template_repair || template_capture || about_finding) && !on_firewall)
+        {
+            if kind.starts_with("repair-") || template_repair || template_capture || about_finding {
                 return Err(());
             }
             return Ok(outcome(
@@ -473,6 +478,12 @@ impl DoctorFirewall {
         if template_repair && step.is_empty() {
             return Err(());
         }
+        // The finding's facts, checked here: the code message and the first message are written from them.
+        let finding_ = if about_finding {
+            Some(finding::read_finding(p).ok_or(())?)
+        } else {
+            None
+        };
         let target = match fw.filter(|_| on_firewall) {
             Some(f) => Some(Target {
                 vm_id: f.vm_id.clone(),
@@ -652,7 +663,7 @@ impl DoctorFirewall {
             };
             capture_ = Some(base);
         }
-        let window = if template_repair || template_capture {
+        let window = if template_repair || template_capture || about_finding {
             "1 hour"
         } else {
             "2 hours"
@@ -667,28 +678,52 @@ impl DoctorFirewall {
         } else {
             format!("the agent {agent} with root access")
         };
-        let parts = crate::core::code_message::CodeParts {
-            ask: if capture_.is_some() {
-                format!("Let {cli_name} read {who} to write a template from it, for up to {window}")
-            } else if let Some((f, st)) = &repair_ {
-                format!(
-                    "Let {cli_name} repair {} on {who} for up to {window}",
-                    repair::repair_subject(f, st)
-                )
-            } else {
-                format!("Let {cli_name} repair {who} for up to 2 hours")
-            },
-            typed: vec![crate::core::code_message::TypedLine {
-                label: "Paid with".into(),
-                text: credential.label.to_string(),
-                more: None,
-            }],
-            ..Default::default()
-        };
+        let parts =
+            crate::core::code_message::CodeParts {
+                ask: if capture_.is_some() {
+                    format!("Let {cli_name} read {who} to write a template from it, for up to {window}")
+                } else if let Some(f) = &finding_ {
+                    format!(
+                        "Let {cli_name} find which process on {who} sends requests to {}, for up to {window}",
+                        finding::finding_subject(f)
+                    )
+                } else if let Some((f, st)) = &repair_ {
+                    format!(
+                        "Let {cli_name} repair {} on {who} for up to {window}",
+                        repair::repair_subject(f, st)
+                    )
+                } else {
+                    format!("Let {cli_name} repair {who} for up to 2 hours")
+                },
+                typed: std::iter::once(crate::core::code_message::TypedLine {
+                    label: "Paid with".into(),
+                    text: credential.label.to_string(),
+                    more: None,
+                })
+                // Notes from the console go into the session: the person sees that they do, and how long.
+                .chain(finding_.as_ref().and_then(finding::notes_line).map(|text| {
+                    crate::core::code_message::TypedLine {
+                        label: "With ControlClaw's notes".into(),
+                        text,
+                        more: None,
+                    }
+                }))
+                .collect(),
+                ..Default::default()
+            };
         let summary = if capture_.is_some() {
             format!(
                 "Let {cli_name} read {agent} with root access to write a template from it, using {}, for up to {window}",
                 credential.label
+            )
+        } else if let Some(f) = &finding_ {
+            format!(
+                "Let {cli_name} find which process on {agent} sends requests to {}, with root access, using {}, for up to {window}{}",
+                finding::finding_subject(f),
+                credential.label,
+                finding::notes_line(f)
+                    .map(|n| format!(", with ControlClaw's notes ({n})"))
+                    .unwrap_or_default()
             )
         } else if let Some((f, st)) = &repair_ {
             format!(
@@ -729,7 +764,7 @@ impl DoctorFirewall {
         // The recovery key's sealed challenge is W3's (`RecoveryConfirm`), not in the contract yet:
         // with nobody to send to, the proposal is refused.
         if routes.is_empty() {
-            let m = if template_repair || template_capture {
+            let m = if template_repair || template_capture || about_finding {
                 "Nobody is approved on a channel of this organization, so there is nobody to send the code to. Approve someone on a channel first.".to_string()
             } else {
                 "Nobody is set to get confirmation codes. Add somebody on the Firewall page. Doctor has no first-use shortcut.".to_string()
@@ -750,6 +785,7 @@ impl DoctorFirewall {
             preset,
             repair: repair_.clone(),
             capture: capture_.clone(),
+            finding: finding_.clone(),
         };
         let tool_spec = fw.filter(|_| on_firewall).map(|f| ToolSpec {
             make: f.tools.clone(),
@@ -832,7 +868,7 @@ impl DoctorFirewall {
             )),
             Err(_) => {
                 self.drop_session(&s);
-                let m = if template_repair || template_capture {
+                let m = if template_repair || template_capture || about_finding {
                     "No approved channel could deliver the code. Check the organization's channels and try again."
                 } else if on_firewall {
                     "No approved channel could deliver the doctor code, and the organization has no recovery key."
@@ -897,6 +933,8 @@ impl DoctorFirewall {
                 REPAIR_WINDOW_MS
             } else if g.proposal.capture.is_some() {
                 CAPTURE_WINDOW_MS
+            } else if g.proposal.finding.is_some() {
+                FINDING_WINDOW_MS
             } else {
                 DOCTOR_WINDOW_MS
             };
@@ -931,6 +969,8 @@ impl DoctorFirewall {
                     .map(|(_, t)| t.to_string())
             } else if let Some(base) = &g.proposal.capture {
                 Some(capture::capture_prompt(base, id))
+            } else if let Some(f) = &g.proposal.finding {
+                Some(finding::finding_prompt(f))
             } else {
                 g.proposal
                     .repair
@@ -940,7 +980,7 @@ impl DoctorFirewall {
             (first, g.expires_at, g.proposal.summary.clone())
         };
         self.emit(&s, "status", "Doctor session started.");
-        // A preset, a capture or a repair starts with the firewall's own first message.
+        // A preset, a capture, a repair or a finding starts with the firewall's own first message.
         if let Some(text) = first {
             self.emit(&s, "user", &text);
             let me = self.clone();
@@ -1467,6 +1507,7 @@ impl DoctorFirewall {
                     preset: None,
                     repair: None,
                     capture: None,
+                    finding: None,
                 },
                 codes: Arc::new(Codes::for_module(
                     &self.app,

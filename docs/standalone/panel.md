@@ -72,6 +72,7 @@ do this, the same as reading the setup token from the log.
 | --- | --- |
 | Overview | the console's Overview: requests per minute, blocked, response time, this month, the traffic chart, live requests, AI findings, top hosts and traffic per agent. Not here: Most used rules and the rules section (the firewall counts only its Auto approve rules, shown on Security rules) and Protected services. |
 | Agents | the paired agents with their last 24 hours of traffic, and pairing codes (make, list, revoke) |
+| Brain | the console's Brain page on the brain paired with this firewall (`controlclaw brain install` or `brain connect`): Overview (searches, saves, answer time, disk, what it knows by kind, just learned, 30 days), Agents (turn the brain on for an OpenClaw machine, Read and write or Read only, at once, no code) and Settings (the brain's model on your own OpenAI or AI Gateway key, the machine, the name of its pages, the lock, how to remove it). **Pages** opens the brain's own pages in a new tab, signed in with a one-time link. It lands on Pages, where Lately, Ask, Import and Export are one click away (the link has no other landing); Settings also opens GBrain's admin page. The link is under Brain in the sidebar too (not on a phone) while the brain runs. The pages need a name first (`brain.example.com`, with HTTPS in front of `BRAIN_PAGES_BIND`), set once in Settings. **Lock** keeps every agent out of the brain at once and keeps their connections; the emergency stop does the same and the hero says which one is on. An agent under the stop says so in Agents. Not here, and the page says so: sizes and billing, restart, reboot and resize, backups, the encrypted disk, and "Save what it learns automatically" (it needs ControlClaw's plugin on the agent, which `controlclaw connect` does not install). Without a brain the page shows the two commands. |
 | Internet access | your own exit proxy (the Exit card: connect, settings, check, remove), the site rules (add, edit, cycle, delete; a change applies at once), then the AI Firewall and AI Log Review. AI Log Review has no Notify (no one to email; findings are in Activity) and no review history. |
 | Security rules | Messages (content rules, with Try a message), Email, Websites, Integrations (app and MCP rules), Auto approve and Settings (the AI cards). Auto approve answers an agent's permission requests (shell commands, plugin actions, the firewall's own asks) with allow, ask or block; the first rule that matches decides, and **Every other request** asks you. The rules are kept on the firewall, as the Integrations rules are, and a change applies at once. Each rule shows how many requests it matched in 7 days. Only Auto approve has counts here. Email shows how to add a mailbox until AgentMail and Google come to the panel. App rules offer no action picker (the console's action catalog is not on the firewall). |
 | Channels | Telegram and Slack bots, one agent at a time: add, replace the token, put on or take off an agent. A person is approved with the pairing code the bot sent them and their id on the channel (the firewall lists no waiting people). No WhatsApp yet. |
@@ -111,7 +112,10 @@ script, in the theme's colours by `prefers-color-scheme`).
   version is in the path). Any other path under `/connector-icons/` is a 404.
 - A firewall in SaaS mode has the files too, and never serves them.
 - `pnpm --filter @controlclaw/firewall-panel dev` runs the panel on Vite with `/api` proxied to
-  `PANEL_API` (`http://127.0.0.1:8800` by default).
+  `PANEL_API` (`http://127.0.0.1:8800` by default). With `VITE_FAKE_BRAIN=1` the Brain page draws a
+  brain held in memory (`src/api/fake-brain.ts`, loaded by `main.tsx` behind `import.meta.env.DEV`, so a
+  build leaves it out); `?brain=none|stopped|locked|unreachable|nokey|nopages` picks its state. Without it, the page reads
+  the firewall's `/api/brain*` routes (`src/api/brain-http.ts`).
 - The shared views get the firewall's API through `ConsoleApi` (`src/api/console-api.ts`), with one
   adapter per area in `src/api/`. An area with no API yet refuses every call; its page is "Coming
   soon", so no view makes one.
@@ -124,6 +128,10 @@ script, in the theme's colours by `prefers-color-scheme`).
     servers, the exit) is applied at once here: the adapter hands the view the change already
     settled (`src/api/changes.ts`). An OAuth sign-in stays "waiting for you to sign in" until the
     callback tab says it finished, or 15 minutes pass.
+  - The brain's views (`@controlclaw/console-ui/brain`: Overview, the agents' list, the model
+    picker) read `ConsoleApi.brain`. Connecting an agent answers with no change id, so nothing waits
+    for a code. There is no `setCapture`, so the "Save what it learns automatically" switch is off
+    and says why.
   - The AI cards get `local: true`: no Notify, no review history, and "your own key" in place of
     the console's included AI.
   - "Today" on the Overview starts at midnight UTC, as the API counts it; the console starts it at

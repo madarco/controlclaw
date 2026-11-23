@@ -2,6 +2,17 @@
 //! and write) takes a code; narrowing and disconnecting do not. The boxes' addresses come from the
 //! proxy's identity map, never from the command. The emergency stop reaches the brain as a lock on
 //! its gate, and `reconcile` makes the gate match the store every five minutes.
+//!
+//! On a standalone firewall (docs/plans/standalone-brain.md B) the agents are not on a network the
+//! brain shares: their `gbrain` MCP entry is this firewall's tools gate (`/brain/mcp` on 3940), which
+//! relays each call to the brain (`integrations/tools_gate.rs`). The admin's own lock (`gbrain.lock`)
+//! takes every agent off the brain on top of the emergency stop, and `gbrain.read|status|model`
+//! serve the panel. Outside AI apps stay the SaaS's.
+//!
+//! Outside AI apps (T-219, `gbrain.client.*`) are the same idea on the brain's public MCP address:
+//! approving an app's sign-in, widening it to read and write or moving its end date later takes a
+//! code; narrowing and removing do not. The app's name and site come from the brain, not from the
+//! command, and the code message keeps them apart from the firewall's own words.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -9,6 +20,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::{Map, Value, json};
 
 use super::agent_client::{AgentClient, AgentTarget, GBRAIN_APPLY_MS, GBRAIN_CONNECT_MS};
+use super::code_message::{CodeParts, TypedLine};
 use super::consent::iso;
 use super::kit::{CHANNELS_UNREADABLE, Kit, awaiting, fail, obj, ok, text};
 use super::now_ms;
@@ -16,6 +28,7 @@ use crate::commands::CommandOutcome;
 use crate::contracts::{CodeAsk, CodeCheck};
 
 const SCOPE_PREFIX: &str = "gbrain:";
+const CLIENT_SCOPE_PREFIX: &str = "gbrain-client:";
 pub const GBRAIN_GATE_PORT: u16 = 3131;
 pub const GBRAIN_RECONCILE_MS: u64 = 5 * 60_000;
 
@@ -45,7 +58,12 @@ impl BoxRef {
             vm_id: text(o, "vmId")?,
             ip: text(o, "ip")?,
             name: text(o, "name")?,
-            hostname: text(o, "hostname")?,
+            // A standalone firewall's boxes have none (it calls them at their paired address).
+            hostname: o
+                .get("hostname")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
         })
     }
 }
@@ -56,6 +74,22 @@ fn name_of<'a>(c: &'a Value, vm: &'a str) -> &'a str {
 
 fn brain_url(ip: &str) -> String {
     format!("http://{ip}:{GBRAIN_GATE_PORT}/mcp")
+}
+
+use crate::integrations::tools_gate::{BRAIN_PATH as GATE_BRAIN_PATH, CONTROLPLANE_MCP_GATE_PORT as TOOLS_GATE_PORT};
+/// The brain's console routes a standalone firewall calls (`/health`, `/brain/model`).
+const CONSOLE_MS: u64 = 5_000;
+/// The panel's read of the brain's gate: the page polls it, so a brain that is down is said quickly.
+const READ_MS: u64 = 5_000;
+/// A model change: five `gbrain config set` and a restart, on the brain.
+const MODEL_MS: u64 = 100_000;
+
+/// Where agents reach the brain: the SaaS's private network, or a standalone firewall's gate.
+#[derive(Debug, Clone, PartialEq)]
+enum Reach {
+    Private,
+    /// The tools gate's address (`CONNECTOR_GATE_BIND`), when there is one.
+    Gate(Option<String>),
 }
 
 /// `summarize`.
@@ -77,6 +111,8 @@ fn empty_store() -> Map<String, Value> {
         ("version", json!(1)),
         ("brain", Value::Null),
         ("connections", json!({})),
+        ("clients", json!({})),
+        ("locked", json!(false)),
     ])
 }
 
@@ -94,6 +130,7 @@ pub struct Brain {
     kit: Kit,
     boxes: Boxes,
     lock: Lock,
+    reach: Reach,
     /// One push of the lock at a time, and one reconcile.
     lock_chain: tokio::sync::Mutex<()>,
     reconciling: tokio::sync::Mutex<()>,
@@ -123,6 +160,8 @@ impl Brain {
                     ("version", json!(1)),
                     ("brain", o.get("brain").cloned().unwrap_or(Value::Null)),
                     ("connections", o.get("connections").cloned().unwrap_or(json!({}))),
+                    ("clients", o.get("clients").cloned().unwrap_or(json!({}))),
+                    ("locked", json!(o.get("locked") == Some(&json!(true)))),
                 ])
             }
             _ => empty_store(),
@@ -139,17 +178,34 @@ impl Brain {
             kit,
             boxes,
             lock,
+            reach: Reach::Private,
             lock_chain: tokio::sync::Mutex::new(()),
             reconciling: tokio::sync::Mutex::new(()),
             running: tokio::sync::Mutex::new(()),
         }
     }
 
-    /// Save what was loaded, unchanged (the TS ↔ Rust store round trip).
-    #[cfg(test)]
-    pub fn resave(&self) {
-        let s = self.st().store.clone();
-        self.save(&s);
+    /// A standalone firewall: agents reach the brain on this firewall's tools gate at `gate` (its
+    /// `CONNECTOR_GATE_BIND`), and the firewall calls the boxes at their paired address.
+    pub fn standalone(mut self, gate: Option<String>) -> Self {
+        self.reach = Reach::Gate(gate.filter(|g| !g.is_empty()));
+        self
+    }
+
+    fn is_standalone(&self) -> bool {
+        matches!(self.reach, Reach::Gate(_))
+    }
+
+    /// The `gbrain` MCP entry an agent gets.
+    fn agent_url(&self, brain_ip: &str) -> Result<String, String> {
+        match &self.reach {
+            Reach::Private => Ok(brain_url(brain_ip)),
+            Reach::Gate(Some(g)) => Ok(format!("http://{g}:{TOOLS_GATE_PORT}{GATE_BRAIN_PATH}")),
+            Reach::Gate(None) => Err(
+                "Agents reach the brain through this firewall's tools gate, which is off: set CONNECTOR_GATE_BIND."
+                    .into(),
+            ),
+        }
     }
 
     fn st(&self) -> std::sync::MutexGuard<'_, State> {
@@ -187,9 +243,18 @@ impl Brain {
         st.store.insert("connections".into(), Value::Object(c));
     }
 
+    fn clients(&self) -> Map<String, Value> {
+        self.st()
+            .store
+            .get("clients")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default()
+    }
+
     /// `summary`.
     pub fn summary(&self) -> Value {
-        json!({"brain": self.brain().map(|b| b.0), "connections": self.connections().len()})
+        json!({"brain": self.brain().map(|b| b.0), "connections": self.connections().len(), "clients": self.clients().len()})
     }
 
     fn row(&self, vm_id: &str) -> Option<Map<String, Value>> {
@@ -197,6 +262,13 @@ impl Brain {
             .into_iter()
             .filter_map(|b| b.as_object().cloned())
             .find(|b| b.get("vm_id").and_then(Value::as_str) == Some(vm_id))
+    }
+
+    /// The hostname an agent's calls are signed for: the map's; on a standalone firewall, which
+    /// calls its agents at their paired address, none is needed while the agent is in the map.
+    fn agent_host(&self, vm_id: &str) -> Option<String> {
+        let row = self.row(vm_id)?;
+        text(&row, "hostname").or_else(|| self.is_standalone().then(String::new))
     }
 
     /// `box`: from the identity map, with an address.
@@ -215,7 +287,16 @@ impl Brain {
                 "{what} is not known to your firewall yet. Try again in a minute."
             ));
         };
-        let (Some(ip), Some(hostname)) = (text(&row, "private_ip"), text(&row, "hostname")) else {
+        // A standalone firewall calls a box only at its paired address: an agent paired across a
+        // network in host or proxy mode has none.
+        if self.is_standalone() && text(&row, "agent_addr").is_none() {
+            return Err(format!(
+                "{what} cannot be reached by your firewall: connect it in remote mode, or on the firewall's own machine."
+            ));
+        }
+        // A standalone firewall calls its boxes at their paired address, not a hostname.
+        let hostname = text(&row, "hostname").or_else(|| self.is_standalone().then(String::new));
+        let (Some(ip), Some(hostname)) = (text(&row, "private_ip"), hostname) else {
             return Err(format!(
                 "{what} has no private address yet. Try again once it is running."
             ));
@@ -243,6 +324,7 @@ impl Brain {
             }
         }
         let had = self.connections().contains_key(&agent.vm_id);
+        let url = self.agent_url(&brain.ip)?;
         self.agent
             .post_within(
                 &brain.target(),
@@ -255,12 +337,7 @@ impl Brain {
         let same_brain = self.brain().is_some_and(|(v, ip)| v == brain.vm_id && ip == brain.ip);
         if !had || !same_brain {
             self.agent
-                .post_within(
-                    &agent.target(),
-                    "/gbrain/apply",
-                    &json!({"url": brain_url(&brain.ip)}),
-                    GBRAIN_APPLY_MS,
-                )
+                .post_within(&agent.target(), "/gbrain/apply", &json!({"url": url}), GBRAIN_APPLY_MS)
                 .await
                 .map_err(|e| e.to_string())?;
         }
@@ -419,6 +496,11 @@ impl Brain {
                 .consent
                 .cancel(&format!("{SCOPE_PREFIX}{vm}"), change_id.as_deref());
         }
+        if let Some(id) = text(&payload, "clientId") {
+            self.kit
+                .consent
+                .cancel(&format!("{CLIENT_SCOPE_PREFIX}{id}"), change_id.as_deref());
+        }
         ok("cancelled", obj(&[("changeId", super::kit::null_or(change_id))]))
     }
 
@@ -463,7 +545,7 @@ impl Brain {
                 errors.push(format!("brain: {e}"));
             }
         }
-        if let Some(host) = self.row(&vm).and_then(|r| text(&r, "hostname"))
+        if let Some(host) = self.agent_host(&vm)
             && let Err(e) = self
                 .agent
                 .post_within(
@@ -502,12 +584,13 @@ impl Brain {
 
     fn desired_lock(&self) -> (bool, Vec<String>) {
         let (all, mut ids) = (self.lock)();
+        let all = all || self.admin_locked();
         ids.sort();
         ids.dedup();
         (all, ids)
     }
 
-    fn brain_vm(&self) -> Option<String> {
+    pub fn brain_vm(&self) -> Option<String> {
         let stored = self
             .st()
             .store
@@ -521,6 +604,134 @@ impl Brain {
                 .find(|b| b.get("role").and_then(Value::as_str) == Some("gbrain"))
                 .and_then(|b| b.get("vm_id").and_then(Value::as_str).map(str::to_string))
         })
+    }
+
+    /// The admin's own lock (`gbrain.lock`, a standalone firewall's panel): every agent off the
+    /// brain, connections kept.
+    pub fn admin_locked(&self) -> bool {
+        self.st().store.get("locked") == Some(&json!(true))
+    }
+
+    /// `gbrain.lock {locked}`: no code, as the emergency stop. Pushed to the brain at once.
+    pub async fn set_admin_lock(&self, payload: Map<String, Value>) -> CommandOutcome {
+        let Some(locked) = payload.get("locked").and_then(Value::as_bool) else {
+            return CommandOutcome::failed("failed", "malformed gbrain.lock payload");
+        };
+        {
+            let mut st = self.st();
+            st.store.insert("locked".into(), json!(locked));
+            let s = st.store.clone();
+            self.save(&s);
+        }
+        tracing::info!(
+            "[gbrain] {} by the admin",
+            if locked {
+                "every agent locked out of the brain"
+            } else {
+                "the brain unlocked"
+            }
+        );
+        let pushed = self.sync_lock().await;
+        let mut data = obj(&[("locked", json!(locked)), ("pushed", json!(pushed.is_ok()))]);
+        if let Err(e) = pushed {
+            // The firewall's gate refuses at once anyway; the brain gets it on the next reconcile.
+            tracing::info!("[gbrain] the brain did not take the lock yet: {e}");
+            data.insert("pending".into(), json!(e));
+        }
+        ok("applied", data)
+    }
+
+    /// What the tools gate asks before relaying an agent's call: the brain's vm id, or why not.
+    /// The emergency stop and the admin's lock are checked here too, before anything is sent.
+    pub fn relay_for(&self, agent_vm: &str) -> Result<String, &'static str> {
+        let Some((brain_vm, _)) = self.brain() else {
+            return Err("not connected");
+        };
+        if !self.connections().contains_key(agent_vm) {
+            return Err("not connected");
+        }
+        let (all, ids) = self.desired_lock();
+        if all || ids.iter().any(|v| v == agent_vm) {
+            return Err("locked");
+        }
+        Ok(brain_vm)
+    }
+
+    /// How long the brain may take to start answering a relayed call (it then streams).
+    pub const RELAY_CONNECT_MS: u64 = 600_000;
+
+    /// `gbrain.read`: the brain on record, the connections, the locks, and what the brain's gate
+    /// holds when it answers. No tokens: the brain never sends them.
+    pub async fn read(&self) -> CommandOutcome {
+        let brain_vm = self.brain_vm();
+        let (stop_all, stop_ids) = (self.lock)();
+        let mut data = obj(&[
+            ("brain", json!(brain_vm)),
+            ("connections", Value::Object(self.connections())),
+            ("locked", json!(self.admin_locked())),
+            ("stopped", json!({"all": stop_all, "vmIds": stop_ids})),
+            ("gateUrl", self.agent_url("").map_or(Value::Null, Value::String)),
+        ]);
+        if let Some(vm) = brain_vm
+            && let Ok(b) = self.find(&vm, true)
+        {
+            match self.agent.get_within(&b.target(), "/gbrain/connections", READ_MS).await {
+                Ok(r) => {
+                    data.insert("gate".into(), Value::Object(r));
+                }
+                Err(e) => {
+                    data.insert("gateError".into(), json!(e.to_string()));
+                }
+            }
+        }
+        ok("read", data)
+    }
+
+    /// `gbrain.status`: the brain's own `/health` (GBrain and Postgres), as its console would read it.
+    pub async fn status(&self) -> CommandOutcome {
+        let Some(vm) = self.brain_vm() else {
+            return CommandOutcome::failed("failed", "There is no brain paired with this firewall.");
+        };
+        let b = match self.find(&vm, true) {
+            Ok(b) => b,
+            Err(e) => return CommandOutcome::failed("failed", e),
+        };
+        match self
+            .agent
+            .console_within(&b.target(), "GET", "/health", None, CONSOLE_MS)
+            .await
+        {
+            Ok(r) => ok("read", obj(&[("brain", json!(vm)), ("health", Value::Object(r))])),
+            Err(e) => CommandOutcome::failed("failed", e.to_string()),
+        }
+    }
+
+    /// `gbrain.model {model}`: the brain's model, on the brain's own console route.
+    pub async fn model(&self, payload: Map<String, Value>) -> CommandOutcome {
+        let Some(model) = text(&payload, "model") else {
+            return CommandOutcome::failed("failed", "malformed gbrain.model payload");
+        };
+        let Some(vm) = self.brain_vm() else {
+            return CommandOutcome::failed("failed", "There is no brain paired with this firewall.");
+        };
+        let b = match self.find(&vm, true) {
+            Ok(b) => b,
+            Err(e) => return CommandOutcome::failed("failed", e),
+        };
+        match self
+            .agent
+            .console_within(
+                &b.target(),
+                "POST",
+                "/brain/model",
+                Some(&json!({"model": model})),
+                MODEL_MS,
+            )
+            .await
+        {
+            Ok(r) => ok("applied", r),
+            Err(e) => CommandOutcome::failed("failed", e.to_string()),
+        }
     }
 
     /// `syncLock`: push the emergency stop to the brain's gate when it differs from what it holds.
@@ -553,7 +764,7 @@ impl Brain {
     }
 
     async fn remove_from_agent(&self, vm: &str) -> Result<(), String> {
-        let Some(host) = self.row(vm).and_then(|r| text(&r, "hostname")) else {
+        let Some(host) = self.agent_host(vm) else {
             return Ok(());
         };
         self.agent
@@ -611,6 +822,11 @@ impl Brain {
             return Ok(());
         };
         let brain = self.find(&svm, true)?;
+        if !self.is_standalone()
+            && let Err(e) = self.reconcile_clients(&brain).await
+        {
+            tracing::info!("[gbrain] could not check the brain's outside apps: {e}");
+        }
         let mut changed = false;
         let mut conns = self.connections();
         let gone: Vec<String> = conns
@@ -632,7 +848,11 @@ impl Brain {
             changed = true;
         }
         let mut new_brain = None;
-        if brain.ip != sip {
+        if brain.ip != sip && self.is_standalone() {
+            // The agents' entry is this firewall's gate, which follows the brain by itself.
+            new_brain = Some(json!({"vmId": brain.vm_id, "ip": brain.ip}));
+            changed = true;
+        } else if brain.ip != sip {
             let mut all = true;
             for (vm, c) in &conns {
                 let r = match self.find(vm, false) {
@@ -758,6 +978,535 @@ impl Brain {
             );
         }
         Ok(())
+    }
+}
+
+/// An outside app's id: the console's `brain_client.id`.
+fn client_id_ok(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 48 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+fn ms_of(v: Option<&Value>) -> Option<i64> {
+    v.and_then(Value::as_str)
+        .and_then(super::ssh::parse_iso_ms)
+        .map(|m| m as i64)
+}
+
+/// `read and write, until 2026-12-31` / `read only, no end date`.
+fn client_access(scope: &str, until: Option<&str>) -> String {
+    format!(
+        "{}, {}",
+        if scope == "read_write" {
+            "read and write"
+        } else {
+            "read only"
+        },
+        until
+            .map(|u| format!("until {}", u.get(..10).unwrap_or(u)))
+            .unwrap_or_else(|| "no end date".into())
+    )
+}
+
+/// The firewall's own line for an outside app's change. `name` is the app's, as the brain has it.
+fn summarize_client(rescope: bool, scope: &str, until: Option<&str>, name: &str) -> String {
+    let access = client_access(scope, until);
+    if rescope {
+        format!("Change the app {name}'s access to your organization's brain: {access}")
+    } else {
+        format!("Connect the app {name} to your organization's brain ({access}). It will see everything in the brain")
+    }
+}
+
+/// Whether going from `current` to (`scope`, `until`) gives the app more than it has: a new app,
+/// read only to read and write, or a later end date (none is the latest).
+fn client_widens(current: Option<&Value>, scope: &str, until: Option<i64>) -> bool {
+    let Some(c) = current else { return true };
+    if scope == "read_write" && c.get("scope").and_then(Value::as_str) != Some("read_write") {
+        return true;
+    }
+    match (ms_of(c.get("expiresAt")), until) {
+        (Some(_), None) => true,
+        (Some(cur), Some(new)) => new > cur,
+        (None, _) => false,
+    }
+}
+
+impl Brain {
+    fn set_clients(st: &mut State, c: Map<String, Value>) {
+        st.store.insert("clients".into(), Value::Object(c));
+    }
+
+    /// What the brain says about a waiting sign-in: the app's name and the site it returns to.
+    async fn client_request(&self, brain: &BoxRef, req: &str) -> Result<(String, String), String> {
+        let r = self
+            .agent
+            .post_within(
+                &brain.target(),
+                "/gbrain/clients/request",
+                &json!({"req": req}),
+                GBRAIN_CONNECT_MS,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        let info = r
+            .get("request")
+            .and_then(Value::as_object)
+            .ok_or("The brain has no such sign-in.")?;
+        Ok((
+            text(info, "name").unwrap_or_else(|| "MCP client".into()),
+            text(info, "site").unwrap_or_default(),
+        ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn client_apply(
+        &self,
+        id: &str,
+        req: Option<&str>,
+        approval: Option<&str>,
+        scope: &str,
+        until: Option<&str>,
+        name: &str,
+        site: &str,
+        person: Option<&str>,
+        brain: &BoxRef,
+    ) -> Result<Map<String, Value>, String> {
+        {
+            let mut st = self.st();
+            let other = st
+                .store
+                .get("brain")
+                .and_then(|b| b.get("vmId"))
+                .and_then(Value::as_str)
+                .is_some_and(|v| v != brain.vm_id);
+            if other {
+                st.store = empty_store();
+            }
+        }
+        self.agent
+            .post_within(
+                &brain.target(),
+                "/gbrain/clients/connect",
+                &json!({"id": id, "req": req, "approval": approval, "scope": scope, "expiresAt": until}),
+                GBRAIN_CONNECT_MS,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        {
+            let mut st = self.st();
+            if st.store.get("brain").is_none_or(Value::is_null) {
+                st.store
+                    .insert("brain".into(), json!({"vmId": brain.vm_id, "ip": brain.ip}));
+            }
+            let mut c = st
+                .store
+                .get("clients")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            c.insert(
+                id.into(),
+                json!({"scope": scope, "expiresAt": until, "name": name, "site": site, "person": person, "at": iso(now_ms())}),
+            );
+            Self::set_clients(&mut st, c);
+            let s = st.store.clone();
+            self.save(&s);
+        }
+        tracing::info!(
+            "[gbrain] the app {name} may use the brain ({})",
+            client_access(scope, until)
+        );
+        Ok(obj(&[
+            ("clientId", json!(id)),
+            ("brainVmId", json!(brain.vm_id)),
+            ("scope", json!(scope)),
+            ("expiresAt", json!(until)),
+            ("name", json!(name)),
+            ("site", json!(site)),
+        ]))
+    }
+
+    /// `gbrain.client.propose`: approve an app's sign-in (`req`), or change an app's scope or end
+    /// date. A sign-in always takes a code (it hands the brain to whoever holds the app's side of
+    /// it), and so does any widening.
+    pub async fn client_propose(&self, payload: Map<String, Value>) -> CommandOutcome {
+        let scope = payload
+            .get("scope")
+            .and_then(Value::as_str)
+            .filter(|s| *s == "read" || *s == "read_write");
+        let (Some(change_id), Some(id), Some(brain_vm), Some(scope)) = (
+            text(&payload, "changeId"),
+            text(&payload, "clientId").filter(|i| client_id_ok(i)),
+            text(&payload, "brainVmId"),
+            scope,
+        ) else {
+            return CommandOutcome::failed("failed", "malformed gbrain.client.propose payload");
+        };
+        let req = text(&payload, "req").filter(|r| r.len() <= 64);
+        // With a sign-in: sha256 of the secret only the Connect page that asked holds. The brain
+        // gives the one-time code only to a browser that shows it.
+        let approval = text(&payload, "approval")
+            .filter(|a| a.len() == 64 && a.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')));
+        if req.is_some() && approval.is_none() {
+            return CommandOutcome::failed("failed", "malformed gbrain.client.propose payload: approval");
+        }
+        let until_ms = ms_of(payload.get("expiresAt"));
+        if payload.get("expiresAt").is_some_and(|v| !v.is_null()) && until_ms.is_none() {
+            return CommandOutcome::failed("failed", "expiresAt must be an ISO time");
+        }
+        let until = until_ms.map(|m| iso(m.max(0) as u64));
+        let person = text(&payload, "person").map(|p| p.chars().take(80).collect::<String>());
+        let _one = self.running.lock().await;
+        let mut data = obj(&[("changeId", json!(change_id))]);
+        let brain = match self.find(&brain_vm, true) {
+            Ok(b) => b,
+            Err(e) => return fail("failed", e, data),
+        };
+        let current = if self.brain().is_none_or(|b| b.0 == brain_vm) {
+            self.clients().get(&id).cloned()
+        } else {
+            None
+        };
+        let (name, site) = match (&req, &current) {
+            (Some(r), _) => match self.client_request(&brain, r).await {
+                Ok(x) => x,
+                Err(e) => return fail("failed", e, data),
+            },
+            (None, Some(c)) => (
+                c.get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("MCP client")
+                    .to_string(),
+                c.get("site").and_then(Value::as_str).unwrap_or_default().to_string(),
+            ),
+            (None, None) => return fail("failed", "That app is not connected to the brain.", data),
+        };
+        let rescope = req.is_none();
+        let summary = summarize_client(rescope, scope, until.as_deref(), &name);
+        data.insert("summary".into(), json!(summary));
+        data.insert("name".into(), json!(name));
+        data.insert("site".into(), json!(site));
+        let key = format!("{CLIENT_SCOPE_PREFIX}{id}");
+        // Narrowing only: never on trust, as an app is never let in or widened without a code.
+        let apply = || {
+            let (name, site, person, until, req, approval) = (
+                name.clone(),
+                site.clone(),
+                person.clone(),
+                until.clone(),
+                req.clone(),
+                approval.clone(),
+            );
+            let (id, brain) = (id.clone(), brain.clone());
+            let mut data = data.clone();
+            async move {
+                match self
+                    .client_apply(
+                        &id,
+                        req.as_deref(),
+                        approval.as_deref(),
+                        scope,
+                        until.as_deref(),
+                        &name,
+                        &site,
+                        person.as_deref(),
+                        &brain,
+                    )
+                    .await
+                {
+                    Ok(applied) => {
+                        data.extend(applied);
+                        data.insert("tofu".into(), json!(false));
+                        ok("applied", data)
+                    }
+                    Err(e) => CommandOutcome::failed("failed", e),
+                }
+            }
+        };
+        if req.is_none() && !client_widens(current.as_ref(), scope, until_ms) {
+            self.kit.consent.forget(&key);
+            return apply().await;
+        }
+        let Some(routes) = self.kit.routes() else {
+            return fail("failed", CHANNELS_UNREADABLE, data);
+        };
+        if routes.is_empty() {
+            // Unlike an agent's first change, an app is never let in or widened on trust: whoever
+            // holds its side of the sign-in would get the brain with nobody having seen a code.
+            let why = if req.is_some() {
+                "Your firewall has nowhere to send a code. Connect Telegram, Slack or email to it first, then sign in from the app again."
+            } else {
+                "Your firewall has nowhere to send a code, so the app's access can only be narrowed (Read only, an earlier end date) or removed. Connect Telegram, Slack or email to it to widen it."
+            };
+            return fail("failed", why, data);
+        }
+        let proposal = json!({
+            "changeId": change_id, "kind": if rescope { "rescope" } else { "connect" }, "clientId": id,
+            "req": req, "approval": approval, "scope": scope, "expiresAt": until, "name": name, "site": site, "person": person,
+            "brain": brain.to_json(),
+        });
+        // The name is the app's own choice at registration and the person is the console's word:
+        // shown as what they claim, not as fact.
+        let mut typed = vec![TypedLine {
+            label: "Calls itself".into(),
+            text: name.clone(),
+            more: None,
+        }];
+        if !site.is_empty() {
+            typed.push(TypedLine {
+                label: "Signs in from".into(),
+                text: site.clone(),
+                more: None,
+            });
+        }
+        if let Some(p) = &person {
+            typed.push(TypedLine {
+                label: "Asked for in the console by".into(),
+                text: p.clone(),
+                more: None,
+            });
+        }
+        let ask = if rescope {
+            format!(
+                "Change an outside AI app's access to your organization's brain: {}.",
+                client_access(scope, until.as_deref())
+            )
+        } else {
+            format!(
+                "Connect an outside AI app to your organization's brain ({}). It will see everything in the brain.",
+                client_access(scope, until.as_deref())
+            )
+        };
+        let sent = self
+            .kit
+            .consent
+            .send(CodeAsk {
+                scope: key,
+                change_id,
+                proposal,
+                agent_name: "your brain".into(),
+                summary,
+                routes,
+                parts: Some(CodeParts {
+                    ask,
+                    typed,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })
+            .await;
+        if let crate::contracts::CodeSent::Sent { sent_via, .. } = &sent {
+            tracing::info!("[gbrain] code sent to connect an outside app via {sent_via}");
+        }
+        awaiting(sent, data)
+    }
+
+    pub async fn client_confirm(&self, payload: Map<String, Value>) -> CommandOutcome {
+        let (Some(change_id), Some(id)) = (text(&payload, "changeId"), text(&payload, "clientId")) else {
+            return CommandOutcome::failed("failed", "malformed gbrain.client.confirm payload");
+        };
+        let _one = self.running.lock().await;
+        let data = obj(&[("changeId", json!(change_id))]);
+        let code = text(&payload, "code").unwrap_or_default();
+        match self
+            .kit
+            .consent
+            .verify(&format!("{CLIENT_SCOPE_PREFIX}{id}"), &change_id, &code)
+        {
+            CodeCheck::Expired => fail("expired", "No change is waiting for a code, or the code expired.", data),
+            CodeCheck::Wrong { tries_left } => {
+                let mut d = data;
+                d.insert("attemptsLeft".into(), json!(tries_left));
+                fail("invalid_code", "Wrong code.", d)
+            }
+            CodeCheck::Ok { proposal, sent_via } => {
+                let p = |k: &str| proposal.get(k).and_then(Value::as_str).map(String::from);
+                let (Some(brain), Some(scope), Some(name)) =
+                    (proposal.get("brain").and_then(BoxRef::from_json), p("scope"), p("name"))
+                else {
+                    return CommandOutcome::failed("failed", "That change could not be read.");
+                };
+                let (req, approval, until, site, person) = (
+                    p("req"),
+                    p("approval"),
+                    p("expiresAt"),
+                    p("site").unwrap_or_default(),
+                    p("person"),
+                );
+                match self
+                    .client_apply(
+                        &id,
+                        req.as_deref(),
+                        approval.as_deref(),
+                        &scope,
+                        until.as_deref(),
+                        &name,
+                        &site,
+                        person.as_deref(),
+                        &brain,
+                    )
+                    .await
+                {
+                    Ok(applied) => {
+                        let mut d = data;
+                        d.extend(applied);
+                        d.insert(
+                            "summary".into(),
+                            json!(summarize_client(req.is_none(), &scope, until.as_deref(), &name)),
+                        );
+                        d.insert("sentVia".into(), json!(sent_via));
+                        d.insert("tofu".into(), json!(false));
+                        ok("applied", d)
+                    }
+                    Err(e) => CommandOutcome::failed("failed", e),
+                }
+            }
+        }
+    }
+
+    /// `gbrain.client.disconnect`: no code. Out of the store first; reconcile finishes what fails.
+    pub async fn client_disconnect(&self, payload: Map<String, Value>) -> CommandOutcome {
+        let Some(id) = text(&payload, "clientId").filter(|i| client_id_ok(i)) else {
+            return CommandOutcome::failed("failed", "malformed gbrain.client.disconnect payload");
+        };
+        let _one = self.running.lock().await;
+        self.kit.consent.forget(&format!("{CLIENT_SCOPE_PREFIX}{id}"));
+        let had = {
+            let mut st = self.st();
+            let mut c = st
+                .store
+                .get("clients")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            let had = c.shift_remove(&id);
+            Self::set_clients(&mut st, c);
+            let s = st.store.clone();
+            self.save(&s);
+            had
+        };
+        let mut pending = false;
+        if let Some((brain_vm, _)) = self.brain() {
+            let r = match self.find(&brain_vm, true) {
+                Ok(b) => self
+                    .agent
+                    .post_within(
+                        &b.target(),
+                        "/gbrain/clients/disconnect",
+                        &json!({"id": id}),
+                        GBRAIN_CONNECT_MS,
+                    )
+                    .await
+                    .map(|_| ())
+                    .map_err(|e| e.to_string()),
+                Err(e) => Err(e),
+            };
+            if let Err(e) = r {
+                pending = true;
+                tracing::info!(
+                    "[gbrain] the app {id} is off the store; the brain will be told on the next reconcile: {e}"
+                );
+            }
+        }
+        ok(
+            "applied",
+            obj(&[
+                ("clientId", json!(id)),
+                ("removed", json!(had.is_some())),
+                ("pending", json!(pending)),
+            ]),
+        )
+    }
+
+    /// The brain's apps match the store: any it has that the store lacks are removed, and any whose
+    /// access is wider there than here is narrowed. Never widens and never adds.
+    async fn reconcile_clients(&self, brain: &BoxRef) -> Result<(), String> {
+        // Not while an app is being approved: between the brain's connect and the store's write,
+        // the new app would look like one to remove.
+        let _one = self.running.lock().await;
+        let r = self
+            .agent
+            .get_within(&brain.target(), "/gbrain/clients", GBRAIN_CONNECT_MS)
+            .await
+            .map_err(|e| e.to_string())?;
+        let on_brain: Vec<Map<String, Value>> = r
+            .get("clients")
+            .and_then(Value::as_array)
+            .map(|l| l.iter().filter_map(|e| e.as_object().cloned()).collect())
+            .unwrap_or_default();
+        let store = self.clients();
+        for e in on_brain {
+            let Some(id) = text(&e, "id") else { continue };
+            match store.get(&id) {
+                None => {
+                    self.agent
+                        .post_within(
+                            &brain.target(),
+                            "/gbrain/clients/disconnect",
+                            &json!({"id": id}),
+                            GBRAIN_CONNECT_MS,
+                        )
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    tracing::info!("[gbrain] removed the app {id} from the brain: it is not connected");
+                }
+                Some(want) => {
+                    let scope = want.get("scope").and_then(Value::as_str).unwrap_or("read");
+                    let until = ms_of(want.get("expiresAt"));
+                    // Wider on the brain than here: put the store's access back.
+                    let brain_side = json!({"scope": e.get("scope").cloned().unwrap_or(Value::Null), "expiresAt": e.get("expiresAt").cloned().unwrap_or(Value::Null)});
+                    let wider = client_widens(
+                        Some(&json!({"scope": scope, "expiresAt": want.get("expiresAt")})),
+                        brain_side["scope"].as_str().unwrap_or("read"),
+                        ms_of(brain_side.get("expiresAt")),
+                    );
+                    if wider {
+                        self.agent
+                            .post_within(
+                                &brain.target(),
+                                "/gbrain/clients/connect",
+                                &json!({"id": id, "scope": scope, "expiresAt": until.map(|m| iso(m.max(0) as u64))}),
+                                GBRAIN_CONNECT_MS,
+                            )
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        tracing::info!("[gbrain] narrowed the app {id} on the brain back to {scope}");
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl crate::contracts::BrainRelay for Brain {
+    fn relay_for(&self, agent_vm: &str) -> Result<String, &'static str> {
+        Brain::relay_for(self, agent_vm)
+    }
+
+    fn scope_of(&self, agent_vm: &str) -> Option<String> {
+        self.connections()
+            .get(agent_vm)
+            .and_then(|c| c.get("scope"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    }
+
+    fn send(
+        &self,
+        brain_vm: String,
+        agent_vm: String,
+        method: String,
+        headers: Vec<(&'static str, http::HeaderValue)>,
+        body: bytes::Bytes,
+    ) -> cc_http::BoxFuture<Result<reqwest::Response, String>> {
+        let agent = self.agent.clone();
+        Box::pin(async move {
+            agent
+                .relay_brain(&brain_vm, &agent_vm, &method, &headers, body, Self::RELAY_CONNECT_MS)
+                .await
+                .map_err(|e| e.to_string())
+        })
     }
 }
 

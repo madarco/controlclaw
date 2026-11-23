@@ -18,15 +18,9 @@ pub struct Case {
     /// Files to create before the start, relative to the case's root (`keys/…`, `state/…`, `home/…`).
     #[serde(default)]
     pub files: BTreeMap<String, String>,
-    /// Start as an unclaimed pool box. The Rust builds read `CC_POOL_MARKER`; the TS ones only
-    /// `/etc/controlclaw/pool-unclaimed`, so their side runs in the Docker rig only.
+    /// Start as an unclaimed pool box (the agent reads `CC_POOL_MARKER`).
     #[serde(default)]
     pub pool: bool,
-    /// Helpers the TS build looks for only at `/usr/local/bin/<name>` (the Doctor's `cc-doctor-run`,
-    /// `cc-fw-repair`, ...): written there with mode 0755 before the case and removed after it, so
-    /// their side runs in the Docker rig only. A name is a file name, never a path.
-    #[serde(default)]
-    pub system_bins: BTreeMap<String, String>,
     /// Extra environment for the agent; `$ROOT` is the case's folder (where `files` go).
     #[serde(default)]
     pub env: BTreeMap<String, String>,
@@ -340,7 +334,7 @@ pub struct Expect {
     pub absent: Vec<String>,
     /// The exact body text.
     pub body: Option<String>,
-    /// The exact body text, from this file next to the case. `CC_WRITE_GOLDEN=1` writes what the TS
+    /// The exact body text, from this file next to the case. `CC_WRITE_GOLDEN=1` writes what the
     /// build answered there instead of comparing.
     pub body_file: Option<String>,
     /// Texts the body must contain.

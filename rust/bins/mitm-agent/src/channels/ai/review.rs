@@ -19,18 +19,19 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use super::model::{AiClient, CallFailure, EvaluateOptions};
-use super::questions::{category_text, describe_questions, owner_instructions, review_questions, severity_of};
+use super::questions::{
+    AGENT_CONTEXT, FALSE_ALARMS, RECENT_DISMISSALS, category_text, describe_questions, owner_instructions,
+    review_questions, severity_of,
+};
 use super::trace_store::{AiReviewRun, TraceEvent, TraceSink};
 use crate::channels::js::{js_len, js_slice};
 use crate::core::log_tail::{LogTail, read_all_records};
 
-/// The host on the firewall's own records about website logins.
-const LOGINS_HOST: &str = "controlclaw-logins";
+// More than `LARGE_UPLOAD` sent to one host in the requests in front of the model is a large upload:
+// the same bound as for the firewall's own records.
+use super::internal::{self, LARGE_UPLOAD};
+
 const LOGIN_TRIPWIRE_RULE: &str = "login_tripwire";
-/// The proxy's rules on a box's own requests to the control plane and the backup store
-/// (`cc-proxy` `http/backup.rs`).
-const CONTROL_PLANE_RULE: &str = "control_plane";
-const BACKUP_RULE: &str = "backup_store";
 const LOGIN_USE_MS: i64 = 3_600_000;
 const REPEAT_MS: i64 = 3_600_000;
 const PATH_MAX: usize = 120;
@@ -48,10 +49,6 @@ fn has(r: &Value, k: &str) -> bool {
     s(r, k).is_some_and(|v| !v.is_empty())
 }
 
-fn is_logins_note(r: &Value) -> bool {
-    s(r, "host") == Some(LOGINS_HOST) && has(r, "login") && s(r, "flow_id").is_some_and(|f| f.starts_with("lgn-"))
-}
-
 fn is_tripwire(r: &Value) -> bool {
     has(r, "login") && s(r, "rule") == Some(LOGIN_TRIPWIRE_RULE)
 }
@@ -60,7 +57,7 @@ fn is_login_use(r: &Value) -> bool {
     has(r, "login")
         && s(r, "effect") == Some("allow")
         && s(r, "rule") != Some(LOGIN_TRIPWIRE_RULE)
-        && !is_logins_note(r)
+        && !internal::is_logins_note(r)
 }
 
 fn is_sign_in(r: &Value) -> bool {
@@ -109,15 +106,6 @@ impl LoginWindows {
     }
 }
 
-/// A box's own request the proxy allowed to the control plane or the backup store: not the agent's
-/// doing. A refused one (another bucket, another organisation's archive, not presigned) stays
-/// reviewable, and so does an owner's website rule named the same (it carries the rule's id).
-fn is_builtin(r: &Value) -> bool {
-    matches!(s(r, "rule"), Some(CONTROL_PLANE_RULE | BACKUP_RULE))
-        && s(r, "effect") == Some("allow")
-        && r.get("rule_id").is_none_or(Value::is_null)
-}
-
 /// Routine traffic (`cc_contracts::managed::is_routine`): the agent's own model calls and its bot's
 /// polling, through the rules the control plane added for them, with the organization's own key or
 /// token. The model calls carry the agent's whole conversation; the polling is the same request every
@@ -128,17 +116,30 @@ fn is_managed(r: &Value) -> bool {
     cc_contracts::managed::is_routine(r)
 }
 
-/// Traffic worth reviewing: not the boxes' own calls to ControlClaw or their backups, not what the
-/// managed rules let through, not the firewall's notes.
-fn reviewable(raw: Vec<Value>, ignore_hosts: &[String]) -> Vec<Value> {
-    raw.into_iter()
+/// Traffic worth reviewing: not the firewall's or ControlClaw's own (`internal.rs`, unless it shows a
+/// warning sign), not what the managed rules let through.
+pub(super) fn reviewable(
+    raw: Vec<Value>,
+    ignore_hosts: &[String],
+    uploads: Option<&mut internal::Uploads>,
+) -> Vec<Value> {
+    let raw: Vec<Value> = raw
+        .into_iter()
         .filter(|r| r.is_object() && r.get("host").is_some_and(Value::is_string))
-        .filter(|r| {
-            !is_logins_note(r)
-                && !is_builtin(r)
-                && !is_managed(r)
-                && !ignore_hosts.iter().any(|h| Some(h.as_str()) == s(r, "host"))
+        .collect();
+    let skipped = internal::skips(&raw, uploads);
+    raw.into_iter()
+        .zip(skipped)
+        .filter(|(_, k)| k.kind.is_none())
+        .map(|(mut r, k)| {
+            // The firewall's own record reviewed for what it adds up to with others: say how much, as
+            // the record alone may look small.
+            if let (Some(total), Some(o)) = (k.sent_together, r.as_object_mut()) {
+                o.insert(SENT_TOGETHER.into(), json!(total));
+            }
+            r
         })
+        .filter(|r| !is_managed(r) && !ignore_hosts.iter().any(|h| Some(h.as_str()) == s(r, "host")))
         .collect()
 }
 
@@ -148,7 +149,43 @@ fn js_round(n: f64) -> i64 {
 }
 
 fn truthy_num<'a>(r: &'a Value, k: &str) -> Option<&'a Value> {
-    r.get(k).filter(|v| v.as_f64().is_some_and(|n| n != 0.0))
+    internal::nonzero(r.get(k))
+}
+
+/// On a firewall record reviewed because of what it adds up to with others in the hour (or its
+/// meeting): that total. A large upload like any other.
+const SENT_TOGETHER: &str = "sent_this_hour";
+
+/// Which rule let a request through: `owner_rule` (one of the organization's own rules) or
+/// `managed` (a rule ControlClaw adds for the agent's model, bot or inbox). `None` for a request no
+/// rule allowed (the default policy, or refused).
+fn allowed_by(r: &Value) -> Option<&'static str> {
+    if s(r, "effect") != Some("allow") {
+        return None;
+    }
+    let id = s(r, "rule_id").filter(|id| !id.is_empty())?;
+    Some(if id.starts_with("managed:") {
+        "managed"
+    } else {
+        "owner_rule"
+    })
+}
+
+/// What keeps a known false alarm from being dropped: on `host`, a request refused, held or failed,
+/// a saved login's tripwire, or a large upload.
+fn warning_signs(records: &[Value], host: &str) -> bool {
+    let on: Vec<&Value> = records.iter().filter(|r| s(r, "host") == Some(host)).collect();
+    let sent: f64 = on.iter().filter_map(|r| internal::sent(r)).sum();
+    sent > LARGE_UPLOAD
+        || on.iter().any(|r| {
+            r.get(SENT_TOGETHER)
+                .and_then(Value::as_f64)
+                .is_some_and(|b| b > LARGE_UPLOAD)
+                || is_tripwire(r)
+                || s(r, "effect").is_some_and(|e| e != "allow")
+                || has(r, "error")
+                || r.get("status").and_then(Value::as_f64).is_some_and(|st| st >= 400.0)
+        })
 }
 
 /// What the model sees of one request.
@@ -177,14 +214,22 @@ pub fn compact_event(r: &Value) -> Value {
     if let Some(eff) = s(r, "effect").filter(|x| !x.is_empty()) {
         e.insert("effect".into(), json!(eff));
     }
+    if let Some(by) = allowed_by(r) {
+        e.insert("allowed_by".into(), json!(by));
+    }
     if let Some(st) = r.get("status").filter(|v| !v.is_null()) {
         e.insert("status".into(), st.clone());
     }
-    if let Some(b) = truthy_num(r, "bytes_out") {
+    // As sent and received: an older gate record has the two the other way round (`internal::sizes`).
+    let (sent, received) = internal::sizes(r);
+    if let Some(b) = internal::nonzero(sent) {
         e.insert("bytes_out".into(), b.clone());
     }
-    if let Some(b) = truthy_num(r, "bytes_in") {
+    if let Some(b) = internal::nonzero(received) {
         e.insert("bytes_in".into(), b.clone());
+    }
+    if let Some(b) = truthy_num(r, SENT_TOGETHER) {
+        e.insert(SENT_TOGETHER.into(), b.clone());
     }
     if is_tripwire(r) {
         e.insert("saved_login".into(), json!("tripwire"));
@@ -243,6 +288,18 @@ fn finding_id(parts: &[Value]) -> String {
         .collect::<Vec<_>>()
         .join("|");
     hex::encode(Sha256::digest(joined.as_bytes()))[..32].to_string()
+}
+
+/// The owner's false alarms for this agent on the hosts in front of the model, as the state shows
+/// them: `{host, category}`, each pair once, in the order the console sent them (newest first).
+pub fn marked_expected(alarms: &[cc_llm::FalseAlarm], vm_id: Option<&str>, hosts: &[String]) -> Vec<Value> {
+    let mut seen: HashSet<(&str, &str)> = HashSet::new();
+    alarms
+        .iter()
+        .filter(|a| a.applies_to(vm_id) && hosts.iter().any(|h| h.eq_ignore_ascii_case(&a.host)))
+        .filter(|a| seen.insert((a.host.as_str(), a.category.as_str())))
+        .map(|a| json!({"host": a.host, "category": a.category}))
+        .collect()
 }
 
 /// The prompt for the one-sentence explanation of a finding.
@@ -367,7 +424,57 @@ async fn judge(
     let hosts: Vec<String> = candidates.iter().take(MAX_HOST_CHOICES).cloned().collect();
     let settings = client.settings();
     let owner = settings.as_ref().and_then(|s| s.review_instructions.clone());
-    let questions: Questions = review_questions(&hosts, &owner_instructions(owner.as_deref(), None));
+    // The owner's false alarms on these hosts: a hint in the state, explained in the questions.
+    let expected = settings
+        .as_ref()
+        .map(|s| marked_expected(&s.false_alarms, vm_id, candidates))
+        .unwrap_or_default();
+    // The investigation's recent dismissals on these hosts, not already marked by the owner: a hint.
+    let dismissed: Vec<Value> = settings
+        .as_ref()
+        .map(|s| marked_expected(&s.recent_dismissals, vm_id, candidates))
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|d| !expected.contains(d))
+        .collect();
+    let mut state = state;
+    let mut owner_text = owner_instructions(owner.as_deref(), None);
+    // The agent's setup, from the console: what it is expected to reach.
+    let agent = settings.as_ref().and_then(|s| s.agent(vm_id).cloned());
+    if let Some(a) = &agent
+        && let Some(o) = state.as_object_mut()
+    {
+        let ctx = a.to_state();
+        if ctx.as_object().is_some_and(|c| !c.is_empty()) {
+            o.insert("agent_context".into(), ctx);
+            owner_text = if owner_text.is_empty() {
+                AGENT_CONTEXT.to_string()
+            } else {
+                format!("{owner_text} {AGENT_CONTEXT}")
+            };
+        }
+    }
+    if !expected.is_empty()
+        && let Some(o) = state.as_object_mut()
+    {
+        o.insert("owner_marked_expected".into(), Value::Array(expected));
+        owner_text = if owner_text.is_empty() {
+            FALSE_ALARMS.to_string()
+        } else {
+            format!("{owner_text} {FALSE_ALARMS}")
+        };
+    }
+    if !dismissed.is_empty()
+        && let Some(o) = state.as_object_mut()
+    {
+        o.insert("investigation_dismissed".into(), Value::Array(dismissed));
+        owner_text = if owner_text.is_empty() {
+            RECENT_DISMISSALS.to_string()
+        } else {
+            format!("{owner_text} {RECENT_DISMISSALS}")
+        };
+    }
+    let questions: Questions = review_questions(&hosts, &owner_text);
     let mut t = RunTrace::default();
     t.add(
         "user",
@@ -420,6 +527,7 @@ async fn judge(
                 timeout: EVALUATE_TIMEOUT,
                 max_retries: 1,
                 caps: None,
+                purpose: "review".into(),
             },
         )
         .await;
@@ -485,6 +593,24 @@ async fn judge(
             None,
         );
         record(finish(t, "clear", Some(severity), Some(&category))).await;
+        return None;
+    }
+    // A false alarm the owner marked, seen again with nothing new: not posted (high still is).
+    if severity != "high"
+        && let Some(h) = &host
+        && settings.as_ref().is_some_and(|s| {
+            s.false_alarms
+                .iter()
+                .any(|a| a.applies_to(vm_id) && a.category == category && a.host.eq_ignore_ascii_case(h))
+        })
+        && !warning_signs(records, h)
+    {
+        t.add(
+            "text",
+            format!("{verdict}. The owner marked this as a false alarm for this agent. Not posted."),
+            None,
+        );
+        record(finish(t, "owner_marked", Some(severity), Some(&category))).await;
         return None;
     }
     let repeat = if severity == "low" {
@@ -581,6 +707,8 @@ pub struct AiReviewer {
     /// One pass at a time (`inFlight`): the tail is only touched by the pass holding it.
     tail: tokio::sync::Mutex<LogTail>,
     memory: tokio::sync::Mutex<Memory>,
+    /// What the firewall's own records skipped in earlier passes sent, for the hourly upload bound.
+    uploads: std::sync::Mutex<internal::Uploads>,
     failures: std::sync::atomic::AtomicU32,
 }
 
@@ -590,6 +718,7 @@ impl AiReviewer {
             opts,
             tail: tokio::sync::Mutex::new(tail),
             memory: tokio::sync::Mutex::new(Memory::default()),
+            uploads: std::sync::Mutex::new(internal::Uploads::default()),
             failures: std::sync::atomic::AtomicU32::new(0),
         }
     }
@@ -609,7 +738,10 @@ impl AiReviewer {
         let posted = std::sync::atomic::AtomicUsize::new(0);
         let pass = tail
             .drain(|raw| {
-                let batch = reviewable(raw, &self.opts.ignore_hosts);
+                let batch = {
+                    let mut uploads = self.uploads.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                    reviewable(raw, &self.opts.ignore_hosts, Some(&mut uploads))
+                };
                 let posted = &posted;
                 async move {
                     match self.review_batch(batch).await {
@@ -758,8 +890,9 @@ pub fn summarize_hosts(records: &[Value]) -> Vec<Value> {
         if r.get("status").and_then(Value::as_f64).is_some_and(|st| st >= 400.0) {
             h.errors += 1;
         }
-        h.bytes_out += r.get("bytes_out").and_then(Value::as_f64).unwrap_or(0.0);
-        h.bytes_in += r.get("bytes_in").and_then(Value::as_f64).unwrap_or(0.0);
+        let (sent, received) = internal::sizes(r);
+        h.bytes_out += sent.and_then(Value::as_f64).unwrap_or(0.0);
+        h.bytes_in += received.and_then(Value::as_f64).unwrap_or(0.0);
         if is_tripwire(r) {
             h.tripwire += 1;
         } else if is_login_use(r) {
@@ -883,7 +1016,7 @@ impl AiScanner {
         let raw = tokio::task::spawn_blocking(move || read_all_records(&path))
             .await
             .unwrap_or_default();
-        let records = reviewable(raw, &self.opts.ignore_hosts);
+        let records = reviewable(raw, &self.opts.ignore_hosts, None);
         let total = records.len();
         let known_before = state
             .get("knownHosts")

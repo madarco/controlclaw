@@ -284,13 +284,6 @@ impl Exit {
         }
     }
 
-    /// Save what was loaded, unchanged (the TS ↔ Rust store round trip).
-    #[cfg(test)]
-    pub fn resave(&self) {
-        let mut s = self.st();
-        self.save(&mut s).expect("save");
-    }
-
     fn st(&self) -> std::sync::MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }

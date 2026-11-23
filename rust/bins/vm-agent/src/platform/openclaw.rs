@@ -65,8 +65,7 @@ pub async fn offline_writes(
     }
     let mut results = Vec::new();
     for w in writes {
-        let args: Vec<&str> = w.args.iter().map(String::as_str).collect();
-        results.push(deps.exec(bin, &args, w.timeout, w.stdin, &[]).await);
+        results.push(deps.exec_write(bin, &w).await);
     }
     let started = if mark.clear_own(own) {
         // On failure the mark is cleared all the same: the watchdog starts it.

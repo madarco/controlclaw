@@ -30,7 +30,7 @@ export const DEFAULT_AI_REVIEW_MODEL: Record<AiReviewProvider, string> = {
   openai: "gpt-5.4-mini",
 };
 
-/** Mirrored in packages/mitm-agent `INSTRUCTIONS_MAX`; the firewall clips to it too. */
+/** Mirrored in rust/bins/mitm-agent `INSTRUCTIONS_MAX`; the firewall clips to it too. */
 export const AI_INSTRUCTIONS_MAX = 2000;
 
 /** The owner's text for the AI: trimmed; empty means none (null). */
@@ -89,6 +89,80 @@ export const openAiReviewHistoryInputSchema = z.object({
   runId: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional(),
 });
 
+/** What the AI review can say a group of requests looks like. Mirrored in the mitm-agent. */
+export const AI_CATEGORIES = [
+  "normal",
+  "data_exfiltration",
+  "destructive_change",
+  "credential_misuse",
+  "unusual_destination",
+  "policy_mismatch",
+] as const;
+export type AiCategory = (typeof AI_CATEGORIES)[number];
+
+export const AI_CATEGORY_LABEL: Record<AiCategory, string> = {
+  normal: "Looks normal",
+  data_exfiltration: "Possible data exfiltration",
+  destructive_change: "Destructive change",
+  credential_misuse: "Credential misuse",
+  unusual_destination: "Unusual destination",
+  policy_mismatch: "Outside the policy",
+};
+
+/** The categories a finding can have: "looks normal" is never one. */
+export const AI_FINDING_CATEGORIES = ["data_exfiltration", "destructive_change", "credential_misuse", "unusual_destination", "policy_mismatch"] as const satisfies readonly AiCategory[];
+export type AiFindingCategory = (typeof AI_FINDING_CATEGORIES)[number];
+
+/**
+ * False alarms (docs/features/ai-firewall-review.md#false-alarms): at most this many per
+ * organization, all of them sent to the firewall. Mirrored in the firewall's `FALSE_ALARMS_MAX`.
+ */
+export const AI_FALSE_ALARMS_MAX = 50;
+export const AI_FALSE_ALARM_NOTE_MAX = 200;
+
+/** A host as a finding names it: a name or an address, lower case. The firewall quotes it to the model. */
+const findingHost = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(1)
+  .max(253)
+  .regex(/^[a-z0-9._:[\]-]+$/, "A host name or an address.");
+
+export const addAiFalseAlarmInputSchema = z.object({
+  host: findingHost.describe("The host the finding named, e.g. chatgpt.com"),
+  category: z.enum(AI_FINDING_CATEGORIES).describe("The finding's kind of problem"),
+  vmId: z.string().min(1).max(100).nullable().describe("The agent it is for, or null for every agent"),
+  note: z
+    .string()
+    .trim()
+    .max(AI_FALSE_ALARM_NOTE_MAX, `At most ${AI_FALSE_ALARM_NOTE_MAX} characters.`)
+    .nullish()
+    .transform((v) => v || null)
+    .describe("Optional: why it is expected. Shown in the list only; never sent to the AI."),
+});
+export type AddAiFalseAlarmInput = z.input<typeof addAiFalseAlarmInputSchema>;
+
+export const removeAiFalseAlarmInputSchema = z.object({
+  id: z.string().min(1).max(100),
+  /** Remove it only if it is for this agent (an agent removing its own). */
+  vmId: z.string().min(1).max(100).optional().describe("Only remove it if it is for this agent"),
+});
+
+/** One false alarm as the console lists it. */
+export type AiFalseAlarmItem = {
+  id: string;
+  host: string;
+  category: AiFindingCategory;
+  /** The agent it is for; null for every agent. */
+  vmId: string | null;
+  agentName: string | null;
+  note: string | null;
+  createdAt: string;
+  /** The person who marked it, or who approved an agent's request for it. */
+  createdBy: string | null;
+};
+
 export type EgressAiCredentialOption = {
   id: string;
   provider: AiReviewProvider;
@@ -134,6 +208,8 @@ export type EgressAiView = {
   /** Whether the org has a firewall box to run the review on. */
   hasFirewall: boolean;
   lastScan: { status: string; message: string | null; at: string } | null;
+  /** Findings marked as false alarms, newest first. Left out where the control plane keeps none. */
+  falseAlarms?: AiFalseAlarmItem[];
   /**
    * The firewall's own panel: no people to email (Notify is not shown), no review history page, and
    * no included AI, only the owner's own keys.

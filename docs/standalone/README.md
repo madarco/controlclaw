@@ -13,7 +13,9 @@ yourself: `sudo usermod -aG docker $USER`, then log in again. Host and remote mo
 | [quickstart-remote.md](quickstart-remote.md) | A firewall on its own VM, and OpenClaw on another network, over WireGuard. |
 | [quickstart-panel.md](quickstart-panel.md) | The panel's first run: the setup token, the password, the model key, the first agent. |
 | [protection.md](protection.md) | What each mode protects, and what it does not. |
+| [brain.md](brain.md) | A brain (GBrain) your agents share: turning it on per agent, read only, the lock, its pages. |
 | [desktop-app.md](desktop-app.md) | Your own computer as a node of OpenClaw's gateway, behind the firewall. |
+| [brain.md](brain.md) | A brain (GBrain) your agents share: `controlclaw brain install`, or `brain connect` for a GBrain you run. |
 | [troubleshooting.md](troubleshooting.md) | What to do when something fails. |
 
 ## Reference

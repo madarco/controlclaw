@@ -60,7 +60,7 @@ async fn settle(s: &PhoneService) {
 #[tokio::test]
 async fn plugin_operations_wait_for_the_lease_and_fail_with_fixed_codes() {
     assert!(PHONE_PLUGIN_INSTALL > Duration::from_secs(600));
-    let args = ["plugins", "install", "@openclaw/voice-call@2026.9.7"];
+    let args = ["plugins", "install", "@openclaw/voice-call@2026.11.3"];
     let r = RecordingRunner::new();
     r.answer(&["/usr/bin/openclaw"], ok("installed"));
     assert_eq!(run_plugin_mutation(&r, &args).await, Ok("installed".to_string()));
@@ -303,20 +303,20 @@ async fn a_trusted_install_that_does_not_patch_is_reinstalled() {
     let setup = dir.path().join("dist").join(".setup");
     std::fs::create_dir_all(&setup).expect("dir");
     for name in [
-        "runtime-entry-BNOQRXii.mjs",
-        "response-generator-BzKrJMEb.mjs",
-        "twilio-Bp3gfmUB.mjs",
-        "realtime-handler-BgDPcPZt.mjs",
+        "runtime-entry-Cy51Uayg.mjs",
+        "response-generator-CZJCHbml.mjs",
+        "twilio-CrPMFGbz.mjs",
+        "realtime-handler-Bziu0nfs.mjs",
     ] {
         std::fs::write(setup.join(name), "changed").expect("file");
     }
     let receipt = json!({"install": {
         "source": "npm", "spec": super::super::apply::PHONE_PACKAGE, "resolvedName": "@openclaw/voice-call",
-        "resolvedVersion": "2026.9.7", "integrity": super::super::apply::PHONE_INTEGRITY,
+        "resolvedVersion": super::super::apply::PHONE_VERSION, "integrity": super::super::apply::PHONE_INTEGRITY,
         "installPath": dir.path().display().to_string(),
     }});
     let runner = RecordingRunner::new();
-    runner.answer(&["/usr/bin/openclaw", "--version"], ok("OpenClaw 2026.9.7\n"));
+    runner.answer(&["/usr/bin/openclaw", "--version"], ok("OpenClaw 2026.11.3\n"));
     runner.answer(
         &["/usr/bin/openclaw", "plugins", "info"],
         ok(&format!("log line\n{receipt}")),
@@ -469,4 +469,34 @@ async fn newer_settings_end_the_retry_pause_of_the_setup_they_replace() {
         Some(json!("f".repeat(32)))
     );
     assert_eq!(installs.load(Ordering::SeqCst), 2);
+}
+
+/// The pinned plugin needs OpenClaw 2026.11.3: an older one stops before anything is installed.
+#[tokio::test]
+async fn openclaw_older_than_the_plugin_is_refused() {
+    for (version, refused) in [
+        ("OpenClaw 2026.9.37\n", true),
+        ("OpenClaw 2026.11.2\n", true),
+        ("OpenClaw 2026.11.3\n", false),
+        ("OpenClaw 2026.12.1\n", false),
+    ] {
+        let runner = RecordingRunner::new();
+        runner.answer(&["/usr/bin/openclaw", "--version"], ok(version));
+        let oc = FakeOpenClawConfig::new(json!({"agents": {"defaults": {"model": "test/model"}}}), None, false);
+        let writer = Arc::new(ConfigWriter::new(Arc::new(FakeConfigGateway::new(oc, true))));
+        let deps = Deps::new(
+            Arc::new(move || Some(writer.clone())),
+            Arc::new(runner.clone()),
+            Arc::new(|| Box::pin(async {})),
+        );
+        let s = PhoneService::new(deps);
+        s.start(input('4'));
+        settle(&s).await;
+        assert_eq!(
+            s.status().expect("s")["error"] == "openclaw_version",
+            refused,
+            "{version}"
+        );
+        assert_eq!(runner.calls().len() == 1, refused, "{version}");
+    }
 }

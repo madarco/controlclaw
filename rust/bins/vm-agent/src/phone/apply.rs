@@ -13,11 +13,14 @@ use crate::meetings::policy;
 #[cfg(test)]
 use crate::meetings::policy::speech_family;
 
-pub const PHONE_PACKAGE: &str = "@openclaw/voice-call@2026.9.7";
+pub const PHONE_PACKAGE: &str = "@openclaw/voice-call@2026.11.3";
+/// What setup installs: npm by name. From OpenClaw 2026.11.5 an `@openclaw/` spec without `npm:`
+/// comes from ClawHub, which `--pin` refuses; the record keeps `PHONE_PACKAGE` as its spec either way.
+pub const PHONE_INSTALL_SPEC: &str = "npm:@openclaw/voice-call@2026.11.3";
 /// The pinned plugin version (`PHONE_VERSION` in `patch-check.ts`).
-pub const PHONE_VERSION: &str = "2026.9.7";
+pub const PHONE_VERSION: &str = "2026.11.3";
 pub const PHONE_INTEGRITY: &str =
-    "sha512-3UGgi96z4Q1MBu29MffT6NVRg7mYPVIUVN8wuCmEtdw7UeeLVQ4bNpvHEvysVtAqUNvPEWGbniJfjfu595cEOw==";
+    "sha512-DWS4IjySsS6Baw18OI5Cl9MzX1QqvTwiroqHX/f4a4SXtB/H9COvyxDSLZXUgKicthfJzFU5oEqeZoPG3RzA9Q==";
 
 fn re(p: &str) -> Regex {
     Regex::new(p).expect("regex")
@@ -281,7 +284,7 @@ pub fn trusted_phone_install(info: &Value) -> bool {
     s("source") == Some("npm")
         && s("spec") == Some(PHONE_PACKAGE)
         && s("resolvedName") == Some("@openclaw/voice-call")
-        && s("resolvedVersion") == Some("2026.9.7")
+        && s("resolvedVersion") == Some(PHONE_VERSION)
         && s("integrity") == Some(PHONE_INTEGRITY)
 }
 
@@ -352,19 +355,26 @@ mod tests {
         );
     }
 
+    /// Installed from npm by name (2026.11.5 takes an `@openclaw/` spec from ClawHub otherwise);
+    /// OpenClaw records the spec without the `npm:`, as checked above.
+    #[test]
+    fn installed_from_npm() {
+        assert_eq!(PHONE_INSTALL_SPEC, format!("npm:{PHONE_PACKAGE}"));
+    }
+
     /// "voice plugin must have the pinned official npm provenance and integrity".
     #[test]
     fn pinned_provenance() {
         let install = json!({
             "source": "npm", "spec": PHONE_PACKAGE, "resolvedName": "@openclaw/voice-call",
-            "resolvedVersion": "2026.9.7", "integrity": PHONE_INTEGRITY,
+            "resolvedVersion": PHONE_VERSION, "integrity": PHONE_INTEGRITY,
         });
         assert!(trusted_phone_install(&json!({"install": install})));
         for (k, v) in [
             ("source", "path"),
             ("spec", "@openclaw/voice-call@latest"),
             ("resolvedName", "voice-call"),
-            ("resolvedVersion", "2026.9.8"),
+            ("resolvedVersion", "2026.9.7"),
             ("integrity", "sha512-wrong"),
         ] {
             let mut i = install.clone();

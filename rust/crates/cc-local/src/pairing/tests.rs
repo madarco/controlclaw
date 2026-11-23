@@ -61,6 +61,7 @@ fn req(nonce: &str) -> PairRequest {
         unpair_sha256: None,
         wg_public_key: None,
         agent_listen: None,
+        role: None,
     }
 }
 
@@ -484,6 +485,7 @@ fn codes_are_listed_without_the_code_and_revoked() {
             ttl_min: Some(5),
             address: Some("10.0.0.9"),
             replace: true,
+            role: None,
         },
     )
     .expect("code");
@@ -768,4 +770,151 @@ fn the_firewall_calls_from_its_own_address_toward_the_agent() {
         source_toward("127.0.0.1:9".parse().expect("addr")),
         Some(Ipv4Addr::LOCALHOST)
     );
+}
+
+fn brain_code(db: &Db, replace: bool) -> NewCode {
+    create_code(
+        db,
+        &CodeFor {
+            role: Some("gbrain"),
+            replace,
+            ..Default::default()
+        },
+    )
+    .expect("code")
+}
+
+fn role_of(db: &Db, vm_id: &str) -> String {
+    db.lock()
+        .query_row("SELECT role FROM agents WHERE vm_id = ?1", [vm_id], |r| r.get(0))
+        .expect("role")
+}
+
+#[test]
+fn a_brain_code_pairs_the_brain() {
+    let (db, s) = service();
+    let c = brain_code(&db, false);
+    assert_eq!(c.role, "gbrain");
+    assert_eq!(list_pending(&db).expect("list")[0].role, "gbrain");
+    let mut r = req("ab");
+    r.role = Some("gbrain".into());
+    let (body, _) = request(&c.code, &r);
+    let p = pairing_of(&s.pair(&body, IP).expect("paired"));
+    assert_eq!(role_of(&db, &p.agent_id), "gbrain");
+    // The firewall's identities name it as the brain.
+    let ids = LocalControlPlane::new(db.clone());
+    let a = futures_executor(ids.call(
+        "fw",
+        Call {
+            method: "GET".into(),
+            path: "/api/vm-agent/identities".into(),
+            query: String::new(),
+            body: None,
+        },
+    ));
+    let rows = a.body["identities"].as_array().cloned().unwrap_or_default();
+    assert!(
+        rows.iter()
+            .any(|i| i["vm_id"] == p.agent_id.as_str() && i["role"] == "gbrain"),
+        "{rows:?}"
+    );
+}
+
+fn futures_executor<F: std::future::Future>(f: F) -> F::Output {
+    tokio::runtime::Builder::new_current_thread()
+        .build()
+        .expect("rt")
+        .block_on(f)
+}
+
+#[test]
+fn a_code_pairs_only_what_it_was_made_for() {
+    let (db, s) = service();
+    // An agent with the brain's code: refused, and the code is spent.
+    let c = brain_code(&db, false);
+    let (body, _) = request(&c.code, &req("ab"));
+    let r = s.pair(&body, IP);
+    assert!(
+        matches!(&r, Err(Refusal(409, m)) if m.contains("for the brain")),
+        "{r:?}"
+    );
+    assert_eq!(pending(&db), 0);
+    // A brain with an agent's code: refused too.
+    let c = code(&db);
+    let mut b = req("cd");
+    b.role = Some("gbrain".into());
+    let (body, _) = request(&c.code, &b);
+    let r = s.pair(&body, IP);
+    assert!(
+        matches!(&r, Err(Refusal(409, m)) if m.contains("--role gbrain")),
+        "{r:?}"
+    );
+    assert_eq!(pending(&db), 0);
+    // A role nobody knows, before any code is tried.
+    assert!(
+        create_code(
+            &db,
+            &CodeFor {
+                role: Some("mitm"),
+                ..Default::default()
+            }
+        )
+        .is_err()
+    );
+    let c = code(&db);
+    let mut x = req("ef");
+    x.role = Some("mitm".into());
+    let (body, _) = request(&c.code, &x);
+    assert_eq!(status(s.pair(&body, IP)), 400);
+    assert_eq!(pending(&db), 1, "a bad request keeps the code");
+}
+
+#[test]
+fn one_brain_unless_the_code_replaces_it() {
+    let (db, s) = service();
+    let pair_brain = |nonce: &str, source: &str, replace: bool| {
+        let c = brain_code(&db, replace);
+        let mut r = req(nonce);
+        r.role = Some("gbrain".into());
+        r.source = Some(source.into());
+        let (body, _) = request(&c.code, &r);
+        s.pair(&body, source.parse::<IpAddr>().expect("ip"))
+    };
+    let first = pairing_of(&pair_brain("ab", "203.0.113.7", false).expect("first"));
+    let r = pair_brain("cd", "203.0.113.8", false);
+    assert!(
+        matches!(&r, Err(Refusal(409, m)) if m.contains("has a brain already")),
+        "{r:?}"
+    );
+    let second = pairing_of(&pair_brain("ef", "203.0.113.9", true).expect("replaces"));
+    assert_eq!(second.replaced, vec![first.agent_id.clone()]);
+    let brains: i64 = db
+        .lock()
+        .query_row("SELECT COUNT(*) FROM agents WHERE role = 'gbrain'", [], |r| r.get(0))
+        .expect("count");
+    assert_eq!(brains, 1);
+    // An agent next to it is not a second brain.
+    let c = code(&db);
+    let mut a = req("aa");
+    a.source = Some("203.0.113.10".into());
+    let (body, _) = request(&c.code, &a);
+    assert_eq!(status(s.pair(&body, "203.0.113.10".parse().expect("ip"))), 200);
+}
+
+#[test]
+fn the_brain_unpairs_with_its_secret() {
+    let (db, s) = service();
+    let c = brain_code(&db, false);
+    let mut r = req("ab");
+    r.role = Some("gbrain".into());
+    r.unpair_sha256 = Some(hex::encode(sha2::Sha256::digest(b"s3cret")));
+    let (body, _) = request(&c.code, &r);
+    let p = pairing_of(&s.pair(&body, IP).expect("paired"));
+    s.unpair(&json!({"agent_id": p.agent_id, "secret": "s3cret"}), IP)
+        .expect("unpaired");
+    let left: i64 = db
+        .lock()
+        .query_row("SELECT COUNT(*) FROM agents WHERE role = 'gbrain'", [], |r| r.get(0))
+        .expect("count");
+    assert_eq!(left, 0);
 }

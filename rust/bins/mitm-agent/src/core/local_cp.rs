@@ -88,6 +88,7 @@ pub fn panel_origin() -> String {
 /// The admin API, once the handlers are registered. Logs the setup token while there is no admin.
 pub async fn serve(app: &Arc<App>, plane: Arc<LocalControlPlane>, commands: Commands) {
     let commands = Arc::new(commands);
+    keep_brain_key(plane.db.clone(), commands.clone());
     let a = app.clone();
     let c = commands.clone();
     let hooks = Hooks {
@@ -166,4 +167,87 @@ pub async fn serve(app: &Arc<App>, plane: Arc<LocalControlPlane>, commands: Comm
         }
         Err(e) => tracing::error!("[cc-local] admin API on {bind}: {e}"),
     }
+}
+
+/// How often the brain's key is looked at, and how long a push it already has is good for (the SaaS
+/// re-pushes every hour: a push the brain has is a no-op there).
+const BRAIN_KEY_LOOK: std::time::Duration = std::time::Duration::from_secs(30);
+const BRAIN_KEY_AGAIN: std::time::Duration = std::time::Duration::from_secs(3600);
+
+/// The brain's model key (`cc_local::brain_key`): `llm.push` to the paired brain with the user's AI
+/// Gateway or OpenAI key as its payer, when the brain, the key or its placeholder changed, after a
+/// push that failed (the brain still starting), and every hour.
+fn keep_brain_key(db: Arc<cc_local::Db>, commands: Arc<Commands>) {
+    use cc_local::brain_key;
+    tokio::spawn(async move {
+        let mut sent: Option<(String, std::time::Instant)> = None;
+        // Said once until it works: a brain that is still starting is tried every 30 s.
+        let mut warned = false;
+        loop {
+            let push = match brain_key::brain_push(&db) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!("[cc-local] the brain's model key: {e}");
+                    tokio::time::sleep(BRAIN_KEY_LOOK).await;
+                    continue;
+                }
+            };
+            let now_vm = push
+                .as_ref()
+                .and_then(|(p, _)| p.get("vmId").and_then(Value::as_str))
+                .map(str::to_string);
+            // A brain that had a key and is unpaired or replaced: its entry comes off the firewall,
+            // or the proxy would keep swapping for it. Once: the firewall takes it off its store
+            // before it calls the brain, and a brain that is gone cannot answer that call.
+            for old in brain_key::keyed(&db).into_iter().filter(|v| Some(v) != now_vm.as_ref()) {
+                let Some(handler) = commands.handler("llm.push") else {
+                    break;
+                };
+                let mut off = serde_json::Map::new();
+                off.insert("vmId".into(), Value::String(old.clone()));
+                off.insert("embeddings".into(), Value::Null);
+                let (outcome, _) = crate::commands::run_as_admin(handler, "llm.push", off).await;
+                tracing::info!(
+                    "[cc-local] the brain {old} is gone: its model key is off the firewall{}",
+                    if outcome.ok { "" } else { " (the brain did not answer)" }
+                );
+                if let Err(e) = brain_key::set_keyed(&db, &old, false) {
+                    tracing::error!("[cc-local] the brain's model key: {e}");
+                }
+            }
+            match push {
+                Some((payload, fingerprint)) => {
+                    let due = sent
+                        .as_ref()
+                        .is_none_or(|(f, at)| *f != fingerprint || at.elapsed() >= BRAIN_KEY_AGAIN);
+                    if due && let Some(handler) = commands.handler("llm.push") {
+                        // Before the push: the firewall keeps the payer in its store before it calls
+                        // the brain, so even a brain that never answered has an entry to take off.
+                        if let Some(vm) = &now_vm
+                            && let Err(e) = brain_key::set_keyed(&db, vm, true)
+                        {
+                            tracing::error!("[cc-local] the brain's model key: {e}");
+                        }
+                        let (outcome, _) = crate::commands::run_as_admin(handler, "llm.push", payload).await;
+                        if outcome.ok {
+                            tracing::info!("[cc-local] the brain has its model key");
+                            sent = Some((fingerprint, std::time::Instant::now()));
+                            warned = false;
+                        } else {
+                            if !warned {
+                                tracing::warn!(
+                                    "[cc-local] the brain's model key did not reach it, trying again every 30 s: {}",
+                                    outcome.message.as_deref().unwrap_or("no answer")
+                                );
+                                warned = true;
+                            }
+                            sent = None;
+                        }
+                    }
+                }
+                None => sent = None,
+            }
+            tokio::time::sleep(BRAIN_KEY_LOOK).await;
+        }
+    });
 }

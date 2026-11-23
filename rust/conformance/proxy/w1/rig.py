@@ -1,12 +1,12 @@
-"""Wire-level proxy cases, run against mitmproxy 12.2.2 with addon.py or against cc-proxy.
+"""Wire-level proxy cases, run against cc-proxy.
 
-    python3 rig.py --target mitmproxy|cc-proxy|both [--filter text] [case.yaml|folder ...]
+    python3 rig.py [--filter text] [case.yaml|folder ...]
 
 Runs as root inside the rig image (run.sh builds it): it puts the fixture addresses on `lo`, names
 in /etc/hosts and the origin CA in the system store, then for each case starts the proxy on a fresh
-config folder, runs the steps and stops it. A case is only valid once it passes on mitmproxy; one
-that passes there and fails on cc-proxy is a bug in cc-proxy. `skip: {cc-proxy: "P3"}` marks a gap
-that is known and owned.
+config folder, runs the steps and stops it. The cases were written against mitmproxy with addon.py
+and held both proxies to the same answers until that proxy was retired. `skip: {cc-proxy: "P3"}`
+marks a gap that is known and owned.
 
 The case format is in README.md.
 """
@@ -34,9 +34,7 @@ import fixtures as fx
 
 HERE = Path(__file__).resolve().parent
 REPO = Path(os.environ.get("CC_REPO", HERE.parents[3]))
-ADDON = Path(os.environ.get("CC_ADDON", REPO / "packages/mitm-proxy/addon.py"))
 CC_PROXY = Path(os.environ.get("CC_PROXY_BIN", REPO / "rust/target/debug/cc-proxy"))
-MITMDUMP = os.environ.get("CC_MITMDUMP", "mitmdump")
 WORK = Path(os.environ.get("CC_RIG_WORK", "/tmp/cc-rig"))
 
 # Names the origins answer to. Each resolves through /etc/hosts, the way a real name resolves
@@ -125,7 +123,7 @@ def setup(root: Path) -> ssl.SSLContext:
         run(["update-ca-certificates"])
     ca = root / "ca"
     if not (ca / "mitmproxy-ca.pem").exists():
-        run(["bash", str(REPO / "packages/mitm-proxy/gen-ca.sh"), str(ca)])
+        run(["bash", str(REPO / "rust/bins/cc-proxy/gen-ca.sh"), str(ca)])
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(origin / "leaf.pem", origin / "leaf-key.pem")
     ctx.set_alpn_protocols(["http/1.1"])
@@ -153,7 +151,7 @@ class Proxy:
         self.config.mkdir(parents=True)
         self.logs = root / "logs"
         self.logs.mkdir()
-        # What the agent writes on every box; the addon refuses every request body without it.
+        # What the agent writes on every box; the proxy refuses every request body without it.
         # rules.json too: the agent writes it at its first sync, and cc-proxy refuses everything
         # until it has read one (`rules.json: null` in a case leaves it out).
         files = {"content-rules.json": {"version": 1, "rules": []}, "rules.json": []}
@@ -187,27 +185,8 @@ class Proxy:
         env.update({k: str(v) for k, v in (case.get("env") or {}).items()})
         self.env = env
         self.ca = rig / "ca"
-        addon = ADDON
-        if target == "mitmproxy" and env.get("MITM_DEV_MEET_RANGES"):
-            # The addon's Meet TURN ranges are Google's only; cc-proxy takes the rig's range from
-            # MITM_DEV_MEET_RANGES, and a copy of the addon gets the same added here.
-            addon = root / "addon.py"
-            text = ADDON.read_text()
-            anchor = "MEETING_MAX_BYTES = "
-            extra = ("for _sni, _net in (e.split('=', 1) for e in os.environ['MITM_DEV_MEET_RANGES'].split(',')):\n"
-                     "    MEETING_MEDIA_RANGES[_sni] = MEETING_MEDIA_RANGES.get(_sni, ()) + (ipaddress.ip_network(_net),)\n")
-            addon.write_text(text.replace(anchor, extra + anchor, 1))
-        if target == "mitmproxy":
-            # As the unit runs it (controlclaw-ansible tasks/mitmbox.yml), plus the rig's origin CA.
-            argv = [MITMDUMP, "--listen-port", str(PROXY_PORT),
-                    "--ignore-hosts", f"^{re.escape(env['MITM_CONTROL_PLANE_HOST'])}:[0-9]+$",
-                    "--set", "flow_detail=0", "--set", "connection_strategy=lazy",
-                    "--set", f"confdir={self.ca}",
-                    "--set", f"ssl_verify_upstream_trusted_ca={rig / 'origin/ca.pem'}",
-                    "-s", str(addon)]
-        else:
-            env["MITM_CA_DIR"] = str(self.ca)
-            argv = [str(CC_PROXY), "--listen", f"0.0.0.0:{PROXY_PORT}"]
+        env["MITM_CA_DIR"] = str(self.ca)
+        argv = [str(CC_PROXY), "--listen", f"0.0.0.0:{PROXY_PORT}"]
         self.out = open(root / "proxy.log", "wb")
         argv = ["ip", "netns", "exec", NETNS] + argv
         self.proc = subprocess.Popen(argv, env=env, stdout=self.out, stderr=subprocess.STDOUT, cwd=root)
@@ -464,7 +443,7 @@ class Runner:
                     return
             if not proxy.wait_ready():
                 raise CaseFailed(f"proxy exited:\n{proxy.output()[-3000:]}")
-            # mitmproxy reads its addon after it listens; give both a moment to settle.
+            # Give the proxy a moment to settle after it listens.
             time.sleep(0.3)
             for i, step in enumerate(case["steps"]):
                 try:
@@ -789,15 +768,13 @@ def collect(paths: list[str]) -> list[Path]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("cases", nargs="*", default=[str(HERE / "cases")])
-    ap.add_argument("--target", choices=["mitmproxy", "cc-proxy", "both"], default="both")
     ap.add_argument("--filter")
     args = ap.parse_args()
     rig = WORK / "rig"
     fixtures = fx.Fixtures(setup(rig))
     runner = Runner(fixtures, rig)
-    targets = ["mitmproxy", "cc-proxy"] if args.target == "both" else [args.target]
     passed = failed = skipped = 0
-    print(f"{'case':<70} {'mitmproxy':<14} {'cc-proxy':<14}")
+    print(f"{'case':<70} {'cc-proxy':<14}")
     for path in collect(args.cases):
         for case in yaml.safe_load_all(path.read_text()):
             if not case:
@@ -805,10 +782,7 @@ def main() -> int:
             if args.filter and args.filter not in case["name"]:
                 continue
             cols, errors = [], []
-            for t in ["mitmproxy", "cc-proxy"]:
-                if t not in targets:
-                    cols.append("-")
-                    continue
+            for t in ["cc-proxy"]:
                 why = (case.get("skip") or {}).get(t)
                 if why:
                     skipped += 1
@@ -826,7 +800,7 @@ def main() -> int:
                     failed += 1
                     cols.append("FAIL")
                     errors.append(f"[{t}] {case['name']}: {traceback.format_exc()}")
-            print(f"{case['name'][:70]:<70} {cols[0]:<14} {cols[1]:<14}", flush=True)
+            print(f"{case['name'][:70]:<70} {cols[0]:<14}", flush=True)
             for e in errors:
                 print("   " + e.replace("\n", "\n   "), file=sys.stderr, flush=True)
     print(f"\n{passed} passed, {failed} failed, {skipped} skipped")

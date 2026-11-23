@@ -32,6 +32,8 @@ pub mod backup_manifest;
 // Also used by later groups (C3-C6), W4 and W5.
 #[allow(dead_code)]
 pub mod beat;
+/// The brain's own pages, relayed to the browser on a standalone firewall.
+pub mod brain_pages;
 // Also used by later groups (C3-C6), W4 and W5.
 #[allow(dead_code)]
 pub mod code_message;
@@ -49,6 +51,7 @@ pub mod firewall_update;
 mod first_use_tests;
 pub mod fw_logs;
 pub mod gbrain;
+mod gbrain_client_tests;
 // Also used by later groups (C3-C6), W4 and W5.
 #[allow(dead_code)]
 pub mod fw_shell;
@@ -90,7 +93,6 @@ pub mod software;
 pub mod ssh;
 pub mod startup;
 pub mod store_client;
-mod store_roundtrip;
 pub mod sync;
 pub mod tailscale;
 pub mod update;
@@ -609,7 +611,10 @@ fn register_controls(reg: &mut Registry, app: &Arc<App>, core: &Arc<Core>) {
     handle(reg, "search.forget", &se, |s, p| async move { s.forget(p) });
     core.beat.feature("web_search", || true);
 
-    if !standalone {
+    // The brain: on the SaaS, and on a standalone firewall through its tools gate (docs/plans/
+    // standalone-brain.md B). Outside AI apps, the heartbeat's features, backups and updates stay
+    // the SaaS's.
+    {
         // The whole map, brain included: `agents` is agents only. The lock comes from the kill store.
         let c = core.clone();
         let boxes: gbrain::Boxes = Arc::new(move || {
@@ -630,7 +635,7 @@ fn register_controls(reg: &mut Registry, app: &Arc<App>, core: &Arc<Core>) {
             }
             None => (false, Vec::new()),
         });
-        let b = Arc::new(gbrain::Brain::new(
+        let mut brain = gbrain::Brain::new(
             Core::store_path("GBRAIN_STORE_PATH", "gbrain.enc"),
             key,
             &cfg.org_id,
@@ -639,12 +644,22 @@ fn register_controls(reg: &mut Registry, app: &Arc<App>, core: &Arc<Core>) {
             core.kit("gbrain"),
             boxes,
             lock,
-        ));
+        );
+        if standalone {
+            // Any address the gate listens on: an agent writes the entry on its own `firewall.gate`.
+            let (bind, _) = crate::integrations::gate_binds(app, crate::integrations::Env.gate_bind());
+            brain = brain.standalone(Some(bind));
+        }
+        let b = Arc::new(brain);
         tracing::info!(
             "[mitm-agent] brain store loaded ({} agent(s) connected)",
             b.summary()["connections"]
         );
         let _ = core.brain.set(b.clone());
+        if standalone {
+            // The tools gate's `/brain/mcp`.
+            app.contracts.brain_relay.set(b.clone());
+        }
         handle(reg, "gbrain.propose", &b, |b, p| async move { b.propose(p).await });
         handle(reg, "gbrain.confirm", &b, |b, p| async move { b.confirm(p).await });
         handle(reg, "gbrain.cancel", &b, |b, p| async move { b.cancel(p) });
@@ -654,7 +669,28 @@ fn register_controls(reg: &mut Registry, app: &Arc<App>, core: &Arc<Core>) {
             &b,
             |b, p| async move { b.disconnect(p).await },
         );
+        // The standalone panel's Brain page (registered on both, as the contract names every action).
+        handle(reg, "gbrain.read", &b, |b, _| async move { b.read().await });
+        handle(reg, "gbrain.lock", &b, |b, p| async move { b.set_admin_lock(p).await });
+        handle(reg, "gbrain.status", &b, |b, _| async move { b.status().await });
+        handle(reg, "gbrain.model", &b, |b, p| async move { b.model(p).await });
+        // Outside AI apps on the brain's public MCP address: the SaaS's.
+        if !standalone {
+            handle(reg, "gbrain.client.propose", &b, |b, p| async move {
+                b.client_propose(p).await
+            });
+            handle(reg, "gbrain.client.confirm", &b, |b, p| async move {
+                b.client_confirm(p).await
+            });
+            handle(reg, "gbrain.client.disconnect", &b, |b, p| async move {
+                b.client_disconnect(p).await
+            });
+        }
+    }
+    if !standalone {
         core.beat.feature("gbrain", || true);
+        // Outside AI apps on the brain's MCP address (`gbrain.client.*`).
+        core.beat.feature("gbrain_clients", || true);
 
         register_backups(reg, app, core);
         register_updates(reg, app, core);
@@ -1419,6 +1455,9 @@ pub async fn start(app: &Arc<App>) {
     }
 
     pages::start(&core);
+    if !core.app.config.mode.saas() && core.brain.get().is_some() {
+        brain_pages::start(&core);
+    }
     let h = core.health.clone();
     tokio::spawn(async move { h.tick().await });
     let h = core.health.clone();

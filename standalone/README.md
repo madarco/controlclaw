@@ -90,6 +90,7 @@ fw.example.com {
 | 123 udp | NTP for the agents (VM only) | your agents only |
 | 8801 | pairing (`POST /pair`): answers only with a waiting one-time code | your agents' machines, while they pair |
 | 8800 | the local panel and its API (`LOCAL_PANEL_BIND`) | you, on loopback or through an SSH tunnel |
+| 8803 | the brain's pages, relayed to the brain (`BRAIN_PAGES_BIND`, [`brain.md`](../docs/standalone/brain.md)) | you, through HTTPS with the pages' own name in front |
 
 Never open 8080 or 53 to the internet: anyone who reaches them can use your firewall as their proxy
 or their resolver.

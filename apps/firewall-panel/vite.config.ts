@@ -42,8 +42,14 @@ function connectorIcons(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss(), panelHtml(), connectorIcons()],
+  // `pnpm dev`: the console's env names the shared views read (`exit-presets.ts`) are not in the
+  // browser, where `process` does not exist; a build replaces them by itself.
+  define:
+    command === "serve"
+      ? { "process.env.NEXT_PUBLIC_EXIT_RELAY_HOST": "undefined", "process.env.NEXT_PUBLIC_EXIT_RELAY_PORT": "undefined" }
+      : {},
   base: "/",
   build: {
     outDir: "dist",
@@ -60,4 +66,4 @@ export default defineConfig({
   },
   // `pnpm dev`: the API of a firewall on this machine (or an SSH tunnel to one).
   server: { proxy: { "/api": process.env.PANEL_API ?? "http://127.0.0.1:8800" } },
-});
+}));

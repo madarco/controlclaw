@@ -860,12 +860,9 @@ mod tests {
         too_long: bool,
     }
 
-    /// The same cases the proxy's engine and the TS are held to.
+    /// The same cases the proxy's engine is held to (rust/fixtures/content-vectors.json).
     fn vectors() -> Vectors {
-        serde_json::from_str(include_str!(
-            "../../../../../packages/mitm-agent/src/content-vectors.json"
-        ))
-        .expect("vectors")
+        serde_json::from_str(include_str!("../../../../fixtures/content-vectors.json")).expect("vectors")
     }
 
     fn ids(rules: &[EngineRule]) -> Vec<&str> {

@@ -4,6 +4,8 @@
 #   standalone/release/release.sh 0.3.0
 #   CC_MINISIGN_KEY=~/.minisign/controlclaw.key standalone/release/release.sh 0.3.0   # and sign it
 #   standalone/release/release.sh --check 0.3.0   # after signing by hand: check, then the publish lines
+#   CC_RELEASE_DIR=<dir> standalone/release/release.sh --check 0.3.0   # a release kept in <dir>
+#   CC_RELEASE_FROM=<dir> standalone/release/release.sh 0.3.0   # binaries from a compared two-machine build
 #   CC_RELEASE_DRY_RUN=1 CC_RELEASE_PUBKEY_FILE=test.pub CC_MINISIGN_KEY=test.key \
 #     standalone/release/release.sh 0.0.1                                             # a try
 #
@@ -15,6 +17,7 @@
 #   <bin>-<arch>-linux-musl, mitm-agent-ui-*   the box binaries and page assets, both architectures,
 #                                              built twice and compared (rust/scripts/release.sh)
 #   controlclaw-firewall-<version>.oci.tar     the image, both platforms (standalone/docker/build.sh)
+#   files-ui.tar.gz                            the pages a brain serves (controlclaw brain install)
 #   controlclaw-<version>.tgz                  the CLI for npm, with the release URL and key stamped in
 #   controlclaw-install-<version>.tar.gz       install.sh and its lib files, with the same stamps
 #   SHA256SUMS, SHA256SUMS.minisig             their hashes, and the signature (SIGNING.md)
@@ -39,6 +42,12 @@ URL="https://github.com/$CC_PUBLIC_REPO/releases/download/v{version}"
 OUT="$REPO/rust/dist/standalone/$VERSION"
 # A try never lands where a release is looked for, and prints nothing to publish.
 [ "$DRY" != 1 ] || OUT="$REPO/rust/dist/standalone-dry/$VERSION"
+# --check of a release kept elsewhere (scripts/ship-release.sh keeps it in its state folder, with
+# <dir>.commit beside it).
+if [ -n "${CC_RELEASE_DIR:-}" ]; then
+  [ "$CHECK" = 1 ] || { echo "CC_RELEASE_DIR is for --check only" >&2; exit 1; }
+  OUT="${CC_RELEASE_DIR%/}"
+fi
 COMMENT="controlclaw $VERSION"
 
 # The key the release is checked with. Another one only for a try: a real release is signed with the
@@ -51,18 +60,40 @@ fi
 PUBKEY="$(sed -n 2p "$PUBFILE")"
 case "$PUBKEY" in ""|*PLACEHOLDER*) echo "$PUBFILE has no release key yet: see $HERE/SIGNING.md" >&2; exit 1 ;; esac
 
+# --check runs on the host that signs, often a Mac: no GNU find or sha256sum, and LibreSSL as openssl.
+sha256() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+# The signature: with OpenSSL 3, the very check install.sh and the CLI make (cc_minisign_verify).
+# Without it (macOS has LibreSSL), with minisign, which the signing host has; the prehashed form,
+# which install.sh and the CLI require, is then checked by its algorithm bytes ("ED").
+verify_signature() {
+  case "$(openssl version 2>/dev/null)" in
+    "OpenSSL "[3-9].*)
+      cc_minisign_verify "$PUBKEY" "$OUT/SHA256SUMS" "$OUT/SHA256SUMS.minisig" || return 1
+      echo "  signature: good, key $PUBFILE, checked with $(openssl version | cut -d' ' -f1-2) as install.sh does"
+      return ;;
+  esac
+  command -v minisign >/dev/null || { echo "checking the signature needs OpenSSL 3 or minisign" >&2; return 1; }
+  [ "$(sed -n 2p "$OUT/SHA256SUMS.minisig" | python3 -c 'import sys,base64; print(base64.b64decode(sys.stdin.read().strip())[:2].decode("latin1"))')" = ED ] \
+    || { echo "not a prehashed signature (minisign -H)" >&2; return 1; }
+  minisign -V -q -P "$PUBKEY" -m "$OUT/SHA256SUMS" -x "$OUT/SHA256SUMS.minisig" || return 1
+  echo "  signature: good, key $PUBFILE, prehashed, checked with minisign -V (no OpenSSL 3 here)"
+}
+
 # The signature over SHA256SUMS: this commit's key, the prehashed form, this version's trusted
 # comment, and every asset matching its line. Then what to publish (none for a try).
 check_and_print() {
   [ -f "$OUT/SHA256SUMS.minisig" ] || { echo "no $OUT/SHA256SUMS.minisig: sign SHA256SUMS first" >&2; exit 1; }
-  cc_minisign_verify "$PUBKEY" "$OUT/SHA256SUMS" "$OUT/SHA256SUMS.minisig" || { echo "the signature does not match $PUBFILE" >&2; exit 1; }
+  verify_signature || { echo "the signature does not match $PUBFILE" >&2; exit 1; }
   [ "$(sed -n 3p "$OUT/SHA256SUMS.minisig")" = "trusted comment: $COMMENT" ] \
     || { echo "the signature's trusted comment is not \"$COMMENT\"" >&2; exit 1; }
-  (cd "$OUT" && sha256sum -c --quiet SHA256SUMS) || { echo "an asset in $OUT does not match SHA256SUMS" >&2; exit 1; }
+  echo "  trusted comment: \"$COMMENT\""
+  (cd "$OUT" && sha256 -c --status SHA256SUMS) || { echo "an asset in $OUT does not match SHA256SUMS" >&2; exit 1; }
+  echo "  assets: all $(wc -l < "$OUT/SHA256SUMS" | tr -d ' ') in SHA256SUMS match ($(du -sh "$OUT" | cut -f1) hashed)"
   # Everything in the folder is published: nothing may be there that the signature does not cover.
-  extra="$(cd "$OUT" && find . -mindepth 1 -maxdepth 1 ! -name SHA256SUMS ! -name SHA256SUMS.minisig -printf '%f\n' \
+  extra="$(cd "$OUT" && find . -mindepth 1 -maxdepth 1 ! -name SHA256SUMS ! -name SHA256SUMS.minisig | sed 's|^\./||' \
     | LC_ALL=C sort | comm -23 - <(sed 's/^[0-9a-f]*  //' SHA256SUMS | LC_ALL=C sort))"
   [ -z "$extra" ] || { echo "$OUT has files SHA256SUMS does not list, which would be published unsigned: $extra" >&2; exit 1; }
+  echo "  no file in the folder that SHA256SUMS does not list"
   [ -s "$OUT.commit" ] || { echo "no $OUT.commit: the commit the release was built from is unknown" >&2; exit 1; }
   echo "signed and checked: $OUT/SHA256SUMS.minisig"
   if [ "$DRY" = 1 ]; then echo "a try ($OUT): nothing to publish"; return; fi
@@ -95,8 +126,19 @@ WORK="$(mktemp -d)"
 done=0
 trap 'rm -rf "$WORK"; [ "$done" = 1 ] || rm -rf "$OUT"' EXIT
 
-# 1. The box binaries: the role's release script, without the role's vars.
-CC_RELEASE_STANDALONE=1 CC_RELEASE_REPO="$CC_PUBLIC_REPO" CC_RELEASE_OUT="$OUT" "$REPO/rust/scripts/release.sh" "$VERSION"
+# 1. The box binaries: the role's release script, without the role's vars. Or, with CC_RELEASE_FROM,
+# a standalone build of this version that was made on two machines and compared already
+# (scripts/ship-release.sh standalone): its files must match its SHA256SUMS.
+if [ -n "${CC_RELEASE_FROM:-}" ]; then
+  if [ ! -s "$CC_RELEASE_FROM/SHA256SUMS" ] || [ -e "$CC_RELEASE_FROM/rust_release.yml" ]; then
+    echo "$CC_RELEASE_FROM is not a standalone build (build-release.sh with CC_RELEASE_STANDALONE=1)" >&2; exit 1
+  fi
+  (cd "$CC_RELEASE_FROM" && sha256 -c --status SHA256SUMS) || { echo "a file in $CC_RELEASE_FROM does not match its SHA256SUMS" >&2; exit 1; }
+  mkdir -p "$OUT"
+  cp -a "$CC_RELEASE_FROM"/. "$OUT"/
+else
+  CC_RELEASE_STANDALONE=1 CC_RELEASE_REPO="$CC_PUBLIC_REPO" CC_RELEASE_OUT="$OUT" "$REPO/rust/scripts/release.sh" "$VERSION"
+fi
 # The commit's time for the image's and the install archive's timestamps. The image is still not
 # byte-for-byte reproducible: its Alpine packages are not pinned (docs/plans/standalone-backlog.md).
 SOURCE_DATE_EPOCH="$(git -C "$REPO" log -1 --format=%ct)"; export SOURCE_DATE_EPOCH
@@ -144,8 +186,16 @@ stamp_install "$I/install.sh"
 tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner -C "$WORK" -cf - "controlclaw-install-$VERSION" \
   | gzip -n > "$OUT/controlclaw-install-$VERSION.tar.gz"
 
+# 4b. The pages a brain serves (controlclaw brain install | connect, docs/standalone/brain.md): the
+# vm-agent's page bundle, which the CLI downloads as files-ui.tar.gz and checks like the vm-agent.
+echo "==> the brain's pages"
+(cd "$REPO/apps/saas" && node scripts/build-box-files.mjs >/dev/null)
+[ -f "$REPO/apps/saas/dist-box/files-ui/brain.js" ] || { echo "build-box-files.mjs made no brain.js" >&2; exit 1; }
+tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner -C "$REPO/apps/saas/dist-box" -cf - files-ui \
+  | gzip -n > "$OUT/files-ui.tar.gz"
+
 # 5. The hashes of every asset, then the signature over them.
-(cd "$OUT" && rm SHA256SUMS && find . -maxdepth 1 -type f ! -name 'SHA256SUMS*' -printf '%f\n' | LC_ALL=C sort | xargs sha256sum > SHA256SUMS)
+(cd "$OUT" && rm SHA256SUMS && find . -maxdepth 1 -type f ! -name 'SHA256SUMS*' | sed 's|^\./||' | LC_ALL=C sort | xargs sha256sum > SHA256SUMS)
 # The commit, beside the folder (not an asset), for the release notes --check prints.
 git -C "$REPO" rev-parse HEAD > "$OUT.commit"
 done=1

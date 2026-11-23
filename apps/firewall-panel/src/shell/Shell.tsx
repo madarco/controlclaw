@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { LogOut, Moon, Sun } from "lucide-react";
 import { Button } from "@controlclaw/console-ui/ui/button";
@@ -67,9 +67,12 @@ export function Shell() {
         </header>
         <nav aria-label="Firewall" className="flex min-w-0 gap-0.5 overflow-x-auto px-3 pb-2 md:flex-col md:overflow-x-visible md:overflow-y-auto md:pb-4">
           {NAV.map((p) => (
-            <NavLink key={p.path} to={p.path} icon={p.icon}>
-              {p.title}
-            </NavLink>
+            <Fragment key={p.path}>
+              <NavLink to={p.path} icon={p.icon}>
+                {p.title}
+              </NavLink>
+              {p.sub ? <p.sub /> : null}
+            </Fragment>
           ))}
         </nav>
         <main className="min-w-0 border-t border-line bg-surface shadow-sm md:mr-2 md:mb-2 md:overflow-y-auto md:rounded-tl-2xl md:border">

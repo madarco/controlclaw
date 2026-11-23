@@ -41,11 +41,7 @@ const MEMORY_CORE_PLUGIN: &str = "memory-core";
 const RETIRED_CODEX_PROVIDER_ID: &str = "openai-codex";
 
 fn cli(args: &[&str], stdin: Option<String>) -> CliWrite {
-    CliWrite {
-        args: args.iter().map(|a| a.to_string()).collect(),
-        stdin,
-        timeout: CLI_TIMEOUT,
-    }
+    CliWrite::new(args, stdin, CLI_TIMEOUT)
 }
 
 fn re(p: &str) -> Regex {

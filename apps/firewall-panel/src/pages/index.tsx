@@ -1,6 +1,7 @@
 import type { ComponentType, JSX } from "react";
-import { Activity, Bot, Gauge, Globe, KeyRound, MessageSquare, Plug, Settings, ShieldCheck, Hand } from "lucide-react";
+import { Activity, Bot, Brain, Gauge, Globe, KeyRound, MessageSquare, Plug, Settings, ShieldCheck, Hand } from "lucide-react";
 import { AgentsPage } from "./Agents";
+import { BrainNavPages, BrainPage } from "./Brain";
 import { SettingsPage } from "./Settings";
 import { OverviewPage } from "./Overview";
 import { InternetPage } from "./Internet";
@@ -19,12 +20,15 @@ export interface PanelPage {
   title: string;
   icon: ComponentType<{ className?: string }>;
   component: () => JSX.Element;
+  /** Shown under the page's link in the sidebar (desktop only). */
+  sub?: () => JSX.Element | null;
 }
 
 /** The V1 pages (plan §7), in the sidebar's order. */
 export const NAV: PanelPage[] = [
   { path: "/", title: "Overview", icon: Gauge, component: OverviewPage },
   { path: "/agents", title: "Agents", icon: Bot, component: AgentsPage },
+  { path: "/brain", title: "Brain", icon: Brain, component: BrainPage, sub: BrainNavPages },
   { path: "/internet", title: "Internet access", icon: Globe, component: InternetPage },
   { path: "/security", title: "Security rules", icon: ShieldCheck, component: SecurityPage },
   { path: "/channels", title: "Channels", icon: MessageSquare, component: ChannelsPage },

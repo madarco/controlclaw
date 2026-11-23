@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { emailChange, emailRules } from "@controlclaw/console-ui/lib/agent/email-rules-schema";
+import { emailChange, emailRules } from "./agent/email-rules-schema";
 
 export {
   emailChange,
@@ -13,7 +13,7 @@ export {
   type RuleEntry,
   type OutboundMode,
   type RequireAuth,
-} from "@controlclaw/console-ui/lib/agent/email-rules-schema";
+} from "./agent/email-rules-schema";
 
 /** What the firewall answers to `email.read`: its rules and what it held back this week. */
 export const emailRulesSnapshot = z.object({
