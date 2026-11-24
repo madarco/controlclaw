@@ -25,6 +25,13 @@ pub fn icon_paths(name: &str) -> &'static str {
         "browser" => {
             r#"<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>"#
         }
+        "screen" => r#"<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>"#,
+        "external" => {
+            r#"<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>"#
+        }
+        "shieldCheck" => {
+            r#"<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>"#
+        }
         "doctor" => {
             r#"<path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/>"#
         }
@@ -119,20 +126,75 @@ pub struct ShellHeader<'a> {
     pub console_url: Option<&'a str>,
 }
 
-pub fn shell_header(h: &ShellHeader<'_>) -> String {
-    let back = match h.console_url {
+fn back_link(console_url: Option<&str>) -> String {
+    match console_url {
         Some(url) => format!(
             r#"<a href="{}" class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink shadow-sm hover:bg-bg">{}<span class="hidden sm:inline">Back to console</span><span class="sm:hidden">Console</span></a>"#,
             escape_html(url),
             icon("back", "h-4 w-4 text-ink-2")
         ),
         None => String::new(),
-    };
+    }
+}
+
+/// `shellHeader`: the pages before sign-in, the box's name and address, and Back to console.
+pub fn shell_header(h: &ShellHeader<'_>) -> String {
     format!(
-        r#"<header class="flex h-full min-w-0 items-center gap-3 px-4 md:px-5"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">{}</span><div class="min-w-0 leading-tight"><div class="truncate text-[14px] font-semibold text-ink">{}</div><div class="truncate font-mono text-[11.5px] text-ink-2">{}</div></div><span class="flex-1"></span>{back}</header>"#,
+        r#"<header class="flex h-full min-w-0 items-center gap-3 px-4 md:px-5"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">{}</span><div class="min-w-0 leading-tight"><div class="truncate text-[14px] font-semibold text-ink">{}</div><div class="truncate font-mono text-[11.5px] text-ink-2">{}</div></div><span class="flex-1"></span>{}</header>"#,
         icon(h.mark, "h-[18px] w-[18px]"),
         escape_html(h.name),
-        escape_html(h.sub)
+        escape_html(h.sub),
+        back_link(h.console_url)
+    )
+}
+
+/// `brandMark(size)`: the ControlClaw mark, as the console's header draws it.
+pub fn brand_mark(size: u32) -> String {
+    let claw = |d: &str| {
+        format!(
+            r#"<path d="{d}" stroke="white" stroke-width="2.4" stroke-linecap="round" fill="none" opacity="0.95"/>"#
+        )
+    };
+    format!(
+        r#"<svg width="{size}" height="{size}" viewBox="0 0 48 48" fill="none" aria-hidden="true" class="shrink-0"><defs><linearGradient id="cc-brand-mark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="oklch(0.7 0.17 265)"/><stop offset="1" stop-color="oklch(0.34 0.17 265)"/></linearGradient></defs><path d="M24 3 L42 10 L42 24 C42 34 34 42 24 45 C14 42 6 34 6 24 L6 10 Z" fill="url(#cc-brand-mark)"/>{}{}{}</svg>"#,
+        claw("M15 18 C18 23 20 28 19 34"),
+        claw("M22 15 C25 21 27 28 25 35"),
+        claw("M29 16 C32 22 33 28 31 34")
+    )
+}
+
+/// `shellBrandHeader`: the signed-in pages, ControlClaw, where you are (box › page), Back to console.
+pub fn shell_brand_header(h: &ShellHeader<'_>, page: &str) -> String {
+    format!(
+        r#"<header class="flex h-full min-w-0 items-center gap-3 px-4 md:px-5"><span class="flex min-w-0 items-center gap-[9px] md:w-[196px] md:shrink-0">{}<span class="hidden text-[15px] font-semibold tracking-[-0.01em] text-ink md:inline">ControlClaw</span><span class="truncate text-[14px] font-semibold text-ink md:hidden">{name}</span></span><nav aria-label="Breadcrumb" class="hidden min-w-0 items-center gap-2 text-[13.5px] text-ink-2 md:flex"><span class="truncate">{name}</span><span aria-hidden="true" class="text-muted-foreground">›</span><span aria-current="page" class="truncate font-medium text-ink">{}</span></nav><span class="flex-1"></span>{}</header>"#,
+        brand_mark(26),
+        escape_html(page),
+        back_link(h.console_url),
+        name = escape_html(h.name),
+    )
+}
+
+/// The card at the top of the sidebar (`ShellCard`).
+pub struct ShellCard<'a> {
+    pub mark: &'a str,
+    pub name: &'a str,
+    pub sub: &'a str,
+    pub status: Option<&'a str>,
+}
+
+fn shell_card(c: &ShellCard<'_>) -> String {
+    let status = match c.status {
+        Some(s) if !s.is_empty() => format!(
+            r#"<div class="flex items-center gap-1.5 px-[10px] pt-2 text-[11.5px] text-ink-2"><span aria-hidden="true" class="h-[7px] w-[7px] shrink-0 rounded-full bg-allow"></span><span class="truncate">{}</span></div>"#,
+            escape_html(s)
+        ),
+        _ => String::new(),
+    };
+    format!(
+        r#"<div class="hidden pb-3 md:block"><div class="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-surface px-[10px] py-2.5 shadow-sm"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white">{}</span><div class="min-w-0 leading-tight"><div class="truncate text-[13.5px] font-semibold text-ink">{}</div><div class="truncate font-mono text-[11px] text-ink-2">{}</div></div></div>{status}</div>"#,
+        icon(c.mark, "h-[17px] w-[17px]"),
+        escape_html(c.name),
+        escape_html(c.sub)
     )
 }
 
@@ -143,46 +205,105 @@ pub struct NavItem {
     pub href: Option<String>,
     pub icon: &'static str,
     pub active: bool,
+    /// A short red note beside the label ("live").
+    pub badge: Option<String>,
+    /// The link leaves this box (Doctor).
+    pub external: bool,
+    /// A label printed above the first entry of each group.
+    pub group: Option<&'static str>,
+}
+
+fn nav_link(item: &NavItem) -> String {
+    let tag = if item.href.is_none() { "span" } else { "a" };
+    let href = item
+        .href
+        .as_ref()
+        .map(|h| format!(r#" href="{}""#, escape_html(h)))
+        .unwrap_or_default();
+    let current = if item.active { r#" aria-current="page""# } else { "" };
+    let cls = if item.active {
+        "bg-surface font-semibold text-ink shadow-sm"
+    } else {
+        "text-ink-2 hover:bg-bg"
+    };
+    let icon_cls = format!(
+        "h-4 w-4 shrink-0 {}",
+        if item.active { "text-brand" } else { "text-ink-2" }
+    );
+    let badge = match &item.badge {
+        Some(b) if !b.is_empty() => format!(
+            r#"<span class="ml-auto inline-flex shrink-0 items-center gap-1 pl-1 text-[11px] font-medium text-block-fg"><span aria-hidden="true" class="h-1.5 w-1.5 rounded-full bg-block"></span>{}</span>"#,
+            escape_html(b)
+        ),
+        _ => String::new(),
+    };
+    let ext = if item.external {
+        format!(
+            r#"{}<span class="sr-only"> (opens through the console)</span>"#,
+            icon(
+                "external",
+                "ml-auto hidden h-3.5 w-3.5 shrink-0 text-muted-foreground md:block"
+            )
+        )
+    } else {
+        String::new()
+    };
+    format!(
+        r#"<{tag}{href}{current} class="flex shrink-0 items-center gap-[11px] rounded-lg px-[10px] py-2 text-[13.5px] focus-visible:outline-2 focus-visible:outline-brand {cls}">{}<span>{}</span>{badge}{ext}</{tag}>"#,
+        icon(item.icon, &icon_cls),
+        escape_html(&item.label)
+    )
+}
+
+/// `shellFoot`: the note under the sidebar, where these pages come from.
+pub fn shell_foot(title: &str, text: &str) -> String {
+    format!(
+        r#"<div class="mt-auto hidden pt-4 md:block"><div class="rounded-xl border border-line bg-surface p-3 shadow-sm"><div class="flex items-center gap-1.5 text-[12.5px] font-semibold text-ink">{}{}</div><p class="mt-1 text-[11.5px] leading-[1.45] text-ink-2">{}</p></div></div>"#,
+        icon("shieldCheck", "h-3.5 w-3.5 shrink-0 text-brand"),
+        escape_html(title),
+        escape_html(text)
+    )
+}
+
+/// What `shellFrame` takes beyond the header: the page's name, the sidebar card, its entries and foot.
+pub struct Frame<'a> {
+    pub title: &'a str,
+    pub header: &'a ShellHeader<'a>,
+    pub page: &'a str,
+    pub card: &'a ShellCard<'a>,
+    pub nav_label: &'a str,
+    pub nav: &'a [NavItem],
+    pub foot: &'a str,
+    pub body: &'a str,
+    pub head: &'a str,
+    pub tail: &'a str,
 }
 
 /// `shellFrame`: the header and the sidebar, `body` in the main panel.
-pub fn shell_frame(
-    title: &str,
-    header: &ShellHeader<'_>,
-    nav_label: &str,
-    nav: &[NavItem],
-    body: &str,
-    head: &str,
-    tail: &str,
-) -> String {
-    let links: String = nav
-        .iter()
-        .map(|item| {
-            let tag = if item.href.is_none() { "span" } else { "a" };
-            let href = item
-                .href
-                .as_ref()
-                .map(|h| format!(r#" href="{}""#, escape_html(h)))
-                .unwrap_or_default();
-            let current = if item.active { r#" aria-current="page""# } else { "" };
-            let cls = if item.active {
-                "bg-surface font-semibold text-ink shadow-sm"
-            } else {
-                "text-ink-2 hover:bg-bg"
-            };
-            let icon_cls = format!("h-4 w-4 shrink-0 {}", if item.active { "text-brand" } else { "text-ink-2" });
-            format!(
-                r#"<{tag}{href}{current} class="flex shrink-0 items-center gap-[11px] rounded-lg px-[10px] py-2 text-[13.5px] {cls}">{}<span>{}</span></{tag}>"#,
-                icon(item.icon, &icon_cls),
-                escape_html(&item.label)
-            )
-        })
-        .collect();
+pub fn shell_frame(f: &Frame<'_>) -> String {
+    let mut group: Option<&str> = None;
+    let mut links = String::new();
+    for item in f.nav {
+        if let Some(g) = item.group
+            && Some(g) != group
+        {
+            links.push_str(&format!(
+                r#"<div class="hidden px-[10px] pt-4 pb-1 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase md:block">{}</div>"#,
+                escape_html(g)
+            ));
+        }
+        group = item.group;
+        links.push_str(&nav_link(item));
+    }
     format!(
-        r#"{}{BODY}<div class="grid min-h-dvh grid-rows-[58px_auto_1fr] md:h-dvh md:grid-cols-[220px_1fr] md:grid-rows-[58px_1fr] md:overflow-hidden"><div class="min-w-0 md:col-span-2">{}</div><nav aria-label="{}" class="flex min-w-0 gap-0.5 overflow-x-auto px-3 pb-2 md:flex-col md:overflow-x-visible md:overflow-y-auto md:pb-4">{links}</nav><main class="min-w-0 border-t border-line bg-surface md:overflow-y-auto md:mr-2 md:mb-2 md:rounded-tl-2xl md:border shadow-sm">{body}</main></div>{tail}</body></html>"#,
-        shell_head(title, head),
-        shell_header(header),
-        escape_html(nav_label)
+        r#"{}{BODY}<div class="grid min-h-dvh grid-cols-[minmax(0,1fr)] grid-rows-[58px_auto_1fr] md:h-dvh md:grid-cols-[232px_minmax(0,1fr)] md:grid-rows-[58px_1fr] md:overflow-hidden"><div class="min-w-0 md:col-span-2">{}</div><div class="relative min-w-0 md:flex md:min-h-0 md:flex-col md:overflow-y-auto md:px-3 md:pb-3">{}<nav aria-label="{}" class="relative flex min-w-0 gap-0.5 overflow-x-auto px-3 pr-8 pb-2 md:flex-col md:overflow-x-visible md:px-0 md:pr-0 md:pb-0">{links}</nav><span aria-hidden="true" class="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-bg-2 to-transparent md:hidden"></span>{}</div><main class="min-w-0 border-t border-line bg-surface md:overflow-y-auto md:mr-2 md:mb-2 md:rounded-tl-2xl md:border shadow-sm">{}</main></div>{}</body></html>"#,
+        shell_head(f.title, f.head),
+        shell_brand_header(f.header, f.page),
+        shell_card(f.card),
+        escape_html(f.nav_label),
+        f.foot,
+        f.body,
+        f.tail
     )
 }
 
@@ -204,14 +325,18 @@ pub struct ShellContext {
     pub console_url: String,
     /// Absent on a box that is not an agent (a brain).
     pub doctor_url: Option<String>,
+    /// "Running · OpenClaw 2026.11.5" under the sidebar card, when the box knows both cheaply.
+    pub status: Option<String>,
 }
 
-/// Which optional pages this agent has (`ShellNavState`). Files, Logs and Browser are on every agent box.
+/// Which optional pages this agent has (`ShellNavState`). Screen, Files and Logs are on every agent box.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct NavState {
     pub meetings: bool,
     pub phone: bool,
     pub whatsapp: bool,
+    /// A meeting is on now: "live" beside Meetings. From the service's own state, no new request.
+    pub meeting_live: bool,
 }
 
 impl NavState {
@@ -227,6 +352,7 @@ impl NavState {
                 .get()
                 .and_then(|w| w.whatsapp_login())
                 .is_some_and(|l| l.state != "idle"),
+            meeting_live: pages.as_ref().is_some_and(|p| p.meeting_live()),
         }
     }
 }
@@ -277,15 +403,44 @@ pub fn is_doctor_path(pathname: &str) -> bool {
     pathname == "/__cc/doctor" || pathname.starts_with("/__cc/doctor/")
 }
 
-/// (page, label, href, listed only when)
-const NAV: &[(&str, &str, &str, Option<&str>)] = &[
-    ("meetings", "Meetings", "/__cc/meetings", Some("meetings")),
-    ("phone", "Calls", "/__cc/phone", Some("phone")),
-    ("whatsapp", "WhatsApp", "/__cc/whatsapp", Some("whatsapp")),
-    ("files", "Files", "/__cc/files", None),
-    ("logs", "Logs", "/__cc/logs", None),
-    ("browser", "Browser", "/__cc/browser", None),
+/// (page, label, href, listed only when, icon, group). Screen keeps `/__cc/browser`, the path the
+/// console's Screen button and old links use.
+type NavRow = (
+    &'static str,
+    &'static str,
+    &'static str,
+    Option<&'static str>,
+    &'static str,
+    Option<&'static str>,
+);
+
+const NAV: &[NavRow] = &[
+    (
+        "meetings",
+        "Meetings",
+        "/__cc/meetings",
+        Some("meetings"),
+        "meetings",
+        None,
+    ),
+    ("phone", "Calls", "/__cc/phone", Some("phone"), "phone", None),
+    ("browser", "Screen", "/__cc/browser", None, "screen", None),
+    ("files", "Files", "/__cc/files", None, "files", None),
+    ("logs", "Logs", "/__cc/logs", None, "logs", None),
+    (
+        "whatsapp",
+        "Link WhatsApp",
+        "/__cc/whatsapp",
+        Some("whatsapp"),
+        "whatsapp",
+        Some("Waiting for you"),
+    ),
 ];
+
+/// The breadcrumb's name of a page: its sidebar label.
+pub fn page_name(page: Option<&str>) -> &'static str {
+    NAV.iter().find(|n| Some(n.0) == page).map_or("", |n| n.1)
+}
 
 /// The pages a firewall login ticket may name in `next` (`LOGIN_PAGES`).
 pub const LOGIN_PAGES: &[&str] = &["files", "logs", "whatsapp", "meetings", "phone"];
@@ -302,7 +457,7 @@ pub fn login_landing(page: &str) -> Option<&'static str> {
 /// The sidebar entries for this agent; the current page is always listed (`shellNav`).
 pub fn shell_nav(active: Option<&str>, state: NavState) -> Vec<(&'static str, &'static str, &'static str)> {
     NAV.iter()
-        .filter(|(page, _, _, when)| {
+        .filter(|(page, _, _, when, _, _)| {
             let listed = match when {
                 None => true,
                 Some("meetings") => state.meetings,
@@ -312,7 +467,7 @@ pub fn shell_nav(active: Option<&str>, state: NavState) -> Vec<(&'static str, &'
             };
             listed || Some(*page) == active
         })
-        .map(|(p, l, h, _)| (*p, *l, *h))
+        .map(|(p, l, h, _, _, _)| (*p, *l, *h))
         .collect()
 }
 
@@ -334,11 +489,17 @@ pub fn shell_page(
 ) -> String {
     let mut items: Vec<NavItem> = shell_nav(active, nav)
         .into_iter()
-        .map(|(page, label, href)| NavItem {
-            label: label.to_string(),
-            href: Some(href.to_string()),
-            icon: page,
-            active: Some(page) == active,
+        .map(|(page, label, href)| {
+            let row = NAV.iter().find(|n| n.0 == page);
+            NavItem {
+                label: label.to_string(),
+                href: Some(href.to_string()),
+                icon: row.map_or(page, |n| n.4),
+                active: Some(page) == active,
+                badge: (page == "meetings" && nav.meeting_live).then(|| "live".to_string()),
+                external: false,
+                group: row.and_then(|n| n.5),
+            }
         })
         .collect();
     // Doctor runs on the firewall, so this entry leaves the box: never the current page.
@@ -350,6 +511,9 @@ pub fn shell_page(
             href: Some(d.clone()),
             icon: "doctor",
             active: false,
+            badge: None,
+            external: true,
+            group: Some("Help"),
         });
     }
     let (name, sub) = header(ctx);
@@ -359,7 +523,31 @@ pub fn shell_page(
         sub: &sub,
         console_url: Some(&ctx.console_url),
     };
-    shell_frame(title, &h, "Agent pages", &items, body, head, "")
+    let card = ShellCard {
+        mark: "mark",
+        name: &name,
+        sub: &sub,
+        status: ctx.status.as_deref(),
+    };
+    let foot = shell_foot(
+        "Served by this agent",
+        &format!(
+            "What you see here is read straight from {}. It never passes through ControlClaw.",
+            if sub.is_empty() { "this agent" } else { &sub }
+        ),
+    );
+    shell_frame(&Frame {
+        title,
+        header: &h,
+        page: page_name(active),
+        card: &card,
+        nav_label: "Agent pages",
+        nav: &items,
+        foot: &foot,
+        body,
+        head,
+        tail: "",
+    })
 }
 
 /// `shellBarePage`: the header alone, over a centred card.
@@ -388,11 +576,100 @@ pub fn shell_bare_page(ctx: &ShellContext, title: &str, body: &str, css: &str, s
 mod tests {
     use super::*;
 
+    /// The TS twin (`packages/cc-shell`, `twin.test.ts`) renders the same inputs and checks the same
+    /// file, so the two shells cannot drift. Keep the inputs in step with that test.
+    #[test]
+    fn frame_matches_the_ts_twin() {
+        let item = |label: &str, href: Option<&str>, icon, active, badge: Option<&str>, external, group| NavItem {
+            label: label.into(),
+            href: href.map(String::from),
+            icon,
+            active,
+            badge: badge.map(String::from),
+            external,
+            group,
+        };
+        let nav = [
+            item(
+                "Meetings",
+                Some("/__cc/meetings"),
+                "meetings",
+                true,
+                Some("live"),
+                false,
+                None,
+            ),
+            item("Screen", Some("/__cc/browser"), "screen", false, None, false, None),
+            item(
+                "Link <WhatsApp>",
+                Some("/__cc/whatsapp?a=1&b=2"),
+                "whatsapp",
+                false,
+                None,
+                false,
+                Some("Waiting for you"),
+            ),
+            item(
+                "Doctor",
+                Some("https://console.example/doctor?vm=1&x=2"),
+                "doctor",
+                false,
+                None,
+                true,
+                Some("Help & more"),
+            ),
+            item("Nowhere", None, "logs", false, None, false, Some("Help & more")),
+        ];
+        let header = ShellHeader {
+            mark: "mark",
+            name: "a&b <x>",
+            sub: "a&b.example \"q\"",
+            console_url: Some("https://console.example/agents/1?x=1&y=\"2\""),
+        };
+        let card = ShellCard {
+            mark: "mark",
+            name: "a&b <x>",
+            sub: "a&b.example \"q\"",
+            status: Some("Running · OpenClaw 2026.11.5 <b>"),
+        };
+        let foot = shell_foot(
+            "Served by <this> agent",
+            "Read from a&b.example. It never passes through ControlClaw.",
+        );
+        let html = shell_frame(&Frame {
+            title: "Screen & <co>",
+            header: &header,
+            page: "Screen <1>",
+            card: &card,
+            nav_label: "Agent \"pages\"",
+            nav: &nav,
+            foot: &foot,
+            body: "<p>body</p>",
+            head: r#"<meta name="x">"#,
+            tail: r#"<script src="/t.js"></script>"#,
+        });
+        let want = include_str!("../../../../../packages/cc-shell/fixtures/frame.html");
+        if html != want {
+            let at = html
+                .bytes()
+                .zip(want.bytes())
+                .position(|(a, b)| a != b)
+                .unwrap_or(html.len().min(want.len()));
+            let from = at.saturating_sub(80);
+            panic!(
+                "the Rust shell differs from the TS twin at byte {at}:\n rust: {}\n   ts: {}",
+                html.get(from..(at + 80).min(html.len())).unwrap_or(""),
+                want.get(from..(at + 80).min(want.len())).unwrap_or("")
+            );
+        }
+    }
+
     fn ctx() -> ShellContext {
         ShellContext {
             hostname: Some("ada.ccl.bot".into()),
             console_url: "https://console.example/dashboard/agents/vm_1".into(),
             doctor_url: None,
+            status: None,
         }
     }
 
@@ -400,6 +677,7 @@ mod tests {
         meetings: false,
         phone: false,
         whatsapp: false,
+        meeting_live: false,
     };
 
     fn pages(v: Vec<(&str, &str, &str)>) -> Vec<String> {
@@ -408,20 +686,50 @@ mod tests {
 
     #[test]
     fn the_sidebar_lists_only_the_pages_this_agent_has_and_always_the_current_one() {
-        assert_eq!(pages(shell_nav(None, NONE)), ["files", "logs", "browser"]);
+        assert_eq!(pages(shell_nav(None, NONE)), ["browser", "files", "logs"]);
         let mp = NavState {
             meetings: true,
             phone: true,
-            whatsapp: false,
+            ..NONE
         };
         assert_eq!(
             pages(shell_nav(None, mp)),
-            ["meetings", "phone", "files", "logs", "browser"]
+            ["meetings", "phone", "browser", "files", "logs"]
         );
         assert_eq!(
             pages(shell_nav(Some("whatsapp"), NONE)),
-            ["whatsapp", "files", "logs", "browser"]
+            ["browser", "files", "logs", "whatsapp"]
         );
+    }
+
+    #[test]
+    fn screen_is_the_browser_path_whatsapp_waits_for_you_and_a_live_meeting_is_marked() {
+        let live = NavState {
+            meetings: true,
+            whatsapp: true,
+            meeting_live: true,
+            ..NONE
+        };
+        let mut c = ctx();
+        c.doctor_url = Some("https://console.example/dashboard/doctor/firewall?vm=vm_1".into());
+        c.status = Some("Running · OpenClaw 2026.11.5".into());
+        let page = shell_page(&c, "x", Some("browser"), "", "", live);
+        assert!(page.contains(r#"<a href="/__cc/browser" aria-current="page""#));
+        assert!(page.contains("<span>Screen</span>"));
+        assert!(!page.contains("<span>Browser</span>"));
+        assert!(page.contains(r#"<span aria-current="page" class="truncate font-medium text-ink">Screen</span>"#));
+        let wa = page.find("Waiting for you").expect("group");
+        assert!(wa < page.find("<span>Link WhatsApp</span>").expect("whatsapp"));
+        assert!(page.find("Help").expect("help") < page.find("<span>Doctor</span>").expect("doctor"));
+        let re = regex::Regex::new(r#"<span>Meetings</span><span class="[^"]*text-block-fg[^"]*">.*?live</span>"#)
+            .expect("re");
+        assert!(re.is_match(&page));
+        assert!(page.contains("(opens through the console)"));
+        assert!(page.contains("Running · OpenClaw 2026.11.5"));
+        assert!(page.contains("It never passes through ControlClaw."));
+        // No status known: no line.
+        assert!(!shell_page(&ctx(), "x", Some("files"), "", "", NONE).contains("Running ·"));
+        assert_eq!(login_landing("files"), Some("/__cc/files"));
     }
 
     #[test]
@@ -461,7 +769,7 @@ mod tests {
         let mut c = ctx();
         c.doctor_url = Some("https://console.example/dashboard/doctor/firewall?vm=vm_1&x=<y>".into());
         let page = shell_page(&c, "x", Some("files"), "", "", NONE);
-        let re = regex::Regex::new(r#"<a href="https://console\.example/dashboard/doctor/firewall\?vm=vm_1&amp;x=&lt;y&gt;" class="[^"]*"><svg[^>]*>.*?</svg><span>Doctor</span></a></nav>"#).expect("re");
+        let re = regex::Regex::new(r#"<a href="https://console\.example/dashboard/doctor/firewall\?vm=vm_1&amp;x=&lt;y&gt;" class="[^"]*"><svg[^>]*>.*?</svg><span>Doctor</span><svg[^>]*>.*?</svg><span class="sr-only"> \(opens through the console\)</span></a></nav>"#).expect("re");
         assert!(re.is_match(&page));
         assert!(!shell_page(&ctx(), "x", Some("files"), "", "", NONE).contains("<span>Doctor</span>"));
     }

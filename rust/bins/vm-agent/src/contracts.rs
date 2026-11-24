@@ -83,6 +83,10 @@ pub trait AgentPages: Send + Sync {
     fn meetings_listed(&self) -> bool;
     /// A phone number is active, or calls are on record.
     fn phone_listed(&self) -> bool;
+    /// A meeting is on now (`MeetingControl::busy`): "live" beside Meetings.
+    fn meeting_live(&self) -> bool {
+        false
+    }
 }
 
 /// The WhatsApp link the channels service has open (`channels.whatsappLogin()`, handed to

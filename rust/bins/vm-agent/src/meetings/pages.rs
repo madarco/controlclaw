@@ -87,6 +87,12 @@ pub fn summarize_meeting(m: &Value) -> Value {
         "none"
     };
     let or_null = |k: &str| m.get(k).cloned().unwrap_or(Value::Null);
+    let requests_waiting = m
+        .pointer("/followUp/requests")
+        .and_then(Value::as_array)
+        .map_or(0, |r| {
+            r.iter().filter(|q| q.get("state") == Some(&json!("waiting"))).count()
+        });
     json!({
         "id": or_null("id"),
         "startedAt": or_null("startedAt"),
@@ -98,6 +104,7 @@ pub fn summarize_meeting(m: &Value) -> Value {
         "notes": notes,
         "captions": captions,
         "failed": m.get("state") == Some(&json!("failed")) || error,
+        "requestsWaiting": requests_waiting,
     })
 }
 
@@ -173,6 +180,20 @@ pub fn meetings_page(all: &[Value], page: f64) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The list row counts what people asked in the meeting that still waits for the owner.
+    #[test]
+    fn requests_waiting() {
+        let m = json!({"id": "x", "startedAt": "2026-10-08T09:30:00.000Z", "state": "complete", "transcript": [],
+            "followUp": {"state": "done", "requests": [
+                {"id": "r1", "state": "waiting"}, {"id": "r2", "state": "approved"},
+                {"id": "r3", "state": "waiting"}, {"id": "r4", "state": "dismissed"}]}});
+        assert_eq!(summarize_meeting(&m)["requestsWaiting"], json!(2));
+        let none = json!({"id": "y", "startedAt": "2026-10-08T09:30:00.000Z", "state": "complete", "transcript": []});
+        assert_eq!(summarize_meeting(&none)["requestsWaiting"], json!(0));
+        let odd = json!({"id": "z", "state": "complete", "followUp": {"requests": "nope"}});
+        assert_eq!(summarize_meeting(&odd)["requestsWaiting"], json!(0));
+    }
 
     /// `archive.test.ts`: "a session key becomes its path in the OpenClaw dashboard".
     #[test]

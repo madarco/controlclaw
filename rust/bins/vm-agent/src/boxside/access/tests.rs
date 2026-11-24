@@ -391,3 +391,61 @@ fn assert_bind_cleared(r: &reqwest::Response) {
         "{set:?}"
     );
 }
+
+#[tokio::test]
+async fn screen_has_a_strict_csp_and_no_inline_script() {
+    let b = test_box();
+    let access = crate::boxside::access(&b.app, None);
+    let mut router = cc_http::Router::new(&["cc", "prefixed"]);
+    crate::boxside::register_access(&mut router, &b.app, &access, AccessOptions::default(), "cc", "prefixed");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let url = format!("http://{}", listener.local_addr().expect("addr"));
+    tokio::spawn(cc_http::serve(listener, Arc::new(router)));
+    let c = reqwest::Client::new();
+
+    let r = c.get(format!("{url}/__cc/browser")).send().await.expect("page");
+    assert_eq!(r.status(), 200);
+    let csp = r.headers()["content-security-policy"]
+        .to_str()
+        .expect("csp")
+        .to_string();
+    for want in [
+        "script-src 'self';",
+        "frame-ancestors 'none'",
+        "base-uri 'none'",
+        "object-src 'none'",
+    ] {
+        assert!(csp.contains(want), "{want} in {csp}");
+    }
+    assert!(csp.contains("connect-src 'self' wss://"), "{csp}");
+    assert!(!csp.contains("unsafe-eval") && !csp.contains("script-src 'self' 'unsafe-inline'"));
+    let body = r.text().await.expect("body");
+    // Every script is a file (or JSON data, which is never run).
+    for tag in body.split("<script").skip(1) {
+        let open = tag.split('>').next().unwrap_or_default();
+        assert!(
+            open.contains("src=") || open.contains("application/json"),
+            "inline script: <script{open}>"
+        );
+    }
+    assert!(body.contains(r#"<script type="module" src="/__cc/screen.js"></script>"#));
+
+    let js = c.get(format!("{url}/__cc/screen.js")).send().await.expect("js");
+    assert_eq!(js.status(), 200);
+    assert!(
+        js.headers()["content-type"]
+            .to_str()
+            .expect("type")
+            .starts_with("text/javascript")
+    );
+    let js = js.text().await.expect("js text");
+    assert!(js.contains(r#"const RFB_URL = "/__cc/novnc/core/rfb.js";"#));
+    assert!(!js.contains("${"), "every placeholder filled");
+}
+
+#[test]
+fn the_screen_csp_names_only_a_plain_hostname() {
+    assert!(screen_csp(Some("agent-1.cclbot.dev")).contains("connect-src 'self' wss://agent-1.cclbot.dev;"));
+    assert!(screen_csp(Some("evil.dev; script-src *")).contains("connect-src 'self';"));
+    assert!(screen_csp(None).contains("connect-src 'self';"));
+}

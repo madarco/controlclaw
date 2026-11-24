@@ -225,6 +225,23 @@ impl crate::contracts::MeetingControl for FakeMeeting {
 }
 
 #[tokio::test]
+async fn meetings_are_in_the_sidebar_on_every_page_when_meetings_are_saved() {
+    // Meetings off (the fake says not listed), as on an agent whose meetings were turned off or
+    // not applied yet: no entry until a meeting is saved, then on every page.
+    let meeting = Arc::new(FakeMeeting(Default::default()));
+    let m = meeting.clone();
+    let b = start_with("openclaw", false, move |app| app.contracts.meeting.set(m)).await;
+    let nav = || crate::boxside::shell::NavState::current(&b._app.contracts);
+    assert!(!nav().meetings);
+    let root = crate::meetings::archive_paths(&b._app).0;
+    std::fs::create_dir_all(&root).expect("dir");
+    std::fs::write(root.join("notes.json"), "{}").expect("other file");
+    assert!(!nav().meetings, "only a saved meeting's file counts");
+    std::fs::write(root.join("2037d76f-9c30-4eda-a315-b758912e3649.json"), "{}").expect("record");
+    assert!(nav().meetings);
+}
+
+#[tokio::test]
 async fn stop_leaves_the_meeting_first_and_stops_anyway() {
     let _turn = STOP_MARK.lock().await;
     let meeting = Arc::new(FakeMeeting(Default::default()));

@@ -120,6 +120,12 @@ pub fn atomic_json(path: &Path, value: &Value) -> std::io::Result<()> {
 static ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-f0-9-]{36}$").expect("regex"));
 static FILE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-f0-9-]{36}\.json$").expect("regex"));
 
+/// Whether the folder holds at least one saved meeting. Stops at the first: the sidebar asks on
+/// every page. A deleted meeting's file is removed, so its tombstone need not be read.
+pub fn any_saved(root: &std::path::Path) -> bool {
+    std::fs::read_dir(root).is_ok_and(|d| d.flatten().any(|e| FILE.is_match(&e.file_name().to_string_lossy())))
+}
+
 /// The meetings archive (`MeetingArchive`). Tombstones are outside the backed-up home; a restore
 /// applies them before OpenClaw starts again.
 pub struct MeetingArchive {

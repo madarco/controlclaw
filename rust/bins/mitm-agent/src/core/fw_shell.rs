@@ -65,6 +65,9 @@ pub fn icon_path(name: &str) -> &'static str {
             r#"<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="m14.5 7.5-5 5"/><path d="m9.5 7.5 5 5"/>"#
         }
         "back" => r#"<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>"#,
+        "shieldCheck" => {
+            r#"<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>"#
+        }
         "mark" => {
             r#"<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>"#
         }
@@ -144,24 +147,49 @@ fn shell_head(title: &str, assets: &ShellAssets, extra: &str) -> String {
     )
 }
 
-fn shell_header(h: &ShellHeader) -> String {
-    let back = match &h.console_url {
+const BODY: &str = r#"<body class="bg-bg-2 font-sans text-ink antialiased">"#;
+
+fn back_link(console_url: Option<&str>) -> String {
+    match console_url {
         Some(url) if !url.is_empty() => format!(
             r#"<a href="{}" class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink shadow-sm hover:bg-bg">{}<span class="hidden sm:inline">Back to console</span><span class="sm:hidden">Console</span></a>"#,
             escape_html(url),
             icon("back", "h-4 w-4 text-ink-2")
         ),
         _ => String::new(),
-    };
+    }
+}
+
+/// `shellBrandHeader`: ControlClaw, where you are (firewall › page), Back to console.
+fn shell_brand_header(h: &ShellHeader, page: &str) -> String {
     format!(
-        r#"<header class="flex h-full min-w-0 items-center gap-3 px-4 md:px-5"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">{}</span><div class="min-w-0 leading-tight"><div class="truncate text-[14px] font-semibold text-ink">{}</div><div class="truncate font-mono text-[11.5px] text-ink-2">{}</div></div><span class="flex-1"></span>{back}</header>"#,
-        icon(h.mark, "h-[18px] w-[18px]"),
+        r#"<header class="flex h-full min-w-0 items-center gap-3 px-4 md:px-5"><span class="flex min-w-0 items-center gap-[9px] md:w-[196px] md:shrink-0">{}<span class="hidden text-[15px] font-semibold tracking-[-0.01em] text-ink md:inline">ControlClaw</span><span class="truncate text-[14px] font-semibold text-ink md:hidden">{name}</span></span><nav aria-label="Breadcrumb" class="hidden min-w-0 items-center gap-2 text-[13.5px] text-ink-2 md:flex"><span class="truncate">{name}</span><span aria-hidden="true" class="text-muted-foreground">›</span><span aria-current="page" class="truncate font-medium text-ink">{}</span></nav><span class="flex-1"></span>{}</header>"#,
+        brand_mark(26),
+        escape_html(page),
+        back_link(h.console_url.as_deref()),
+        name = escape_html(&h.name),
+    )
+}
+
+/// The card at the top of the sidebar: the firewall and its address.
+fn shell_card(h: &ShellHeader) -> String {
+    format!(
+        r#"<div class="hidden pb-3 md:block"><div class="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-surface px-[10px] py-2.5 shadow-sm"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white">{}</span><div class="min-w-0 leading-tight"><div class="truncate text-[13.5px] font-semibold text-ink">{}</div><div class="truncate font-mono text-[11px] text-ink-2">{}</div></div></div></div>"#,
+        icon(h.mark, "h-[17px] w-[17px]"),
         escape_html(&h.name),
         escape_html(&h.sub)
     )
 }
 
-const BODY: &str = r#"<body class="bg-bg-2 font-sans text-ink antialiased">"#;
+/// `shellFoot`: the note under the sidebar.
+fn shell_foot(title: &str, text: &str) -> String {
+    format!(
+        r#"<div class="mt-auto hidden pt-4 md:block"><div class="rounded-xl border border-line bg-surface p-3 shadow-sm"><div class="flex items-center gap-1.5 text-[12.5px] font-semibold text-ink">{}{}</div><p class="mt-1 text-[11.5px] leading-[1.45] text-ink-2">{}</p></div></div>"#,
+        icon("shieldCheck", "h-3.5 w-3.5 shrink-0 text-brand"),
+        escape_html(title),
+        escape_html(text)
+    )
+}
 
 pub fn shell_frame(
     title: &str,
@@ -189,16 +217,29 @@ pub fn shell_frame(
             };
             let icls = format!("h-4 w-4 shrink-0 {}", if item.active { "text-brand" } else { "text-ink-2" });
             format!(
-                r#"<{tag}{href}{current} class="flex shrink-0 items-center gap-[11px] rounded-lg px-[10px] py-2 text-[13.5px] {cls}">{}<span>{}</span></{tag}>"#,
+                r#"<{tag}{href}{current} class="flex shrink-0 items-center gap-[11px] rounded-lg px-[10px] py-2 text-[13.5px] focus-visible:outline-2 focus-visible:outline-brand {cls}">{}<span>{}</span></{tag}>"#,
                 icon(item.icon, &icls),
                 escape_html(item.label)
             )
         })
         .collect();
+    let page = nav.iter().find(|i| i.active).map_or(title, |i| i.label);
+    let foot = shell_foot(
+        "Served by this firewall",
+        &format!(
+            "What you see here is read straight from {}. It never passes through ControlClaw.",
+            if header.sub.is_empty() {
+                "the firewall"
+            } else {
+                &header.sub
+            }
+        ),
+    );
     format!(
-        r#"{}{BODY}<div class="grid min-h-dvh grid-rows-[58px_auto_1fr] md:h-dvh md:grid-cols-[220px_1fr] md:grid-rows-[58px_1fr] md:overflow-hidden"><div class="min-w-0 md:col-span-2">{}</div><nav aria-label="{}" class="flex min-w-0 gap-0.5 overflow-x-auto px-3 pb-2 md:flex-col md:overflow-x-visible md:overflow-y-auto md:pb-4">{links}</nav><main class="min-w-0 border-t border-line bg-surface md:overflow-y-auto md:mr-2 md:mb-2 md:rounded-tl-2xl md:border shadow-sm">{body}</main></div>{tail}</body></html>"#,
+        r#"{}{BODY}<div class="grid min-h-dvh grid-cols-[minmax(0,1fr)] grid-rows-[58px_auto_1fr] md:h-dvh md:grid-cols-[232px_minmax(0,1fr)] md:grid-rows-[58px_1fr] md:overflow-hidden"><div class="min-w-0 md:col-span-2">{}</div><div class="relative min-w-0 md:flex md:min-h-0 md:flex-col md:overflow-y-auto md:px-3 md:pb-3">{}<nav aria-label="{}" class="relative flex min-w-0 gap-0.5 overflow-x-auto px-3 pr-8 pb-2 md:flex-col md:overflow-x-visible md:px-0 md:pr-0 md:pb-0">{links}</nav><span aria-hidden="true" class="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-bg-2 to-transparent md:hidden"></span>{foot}</div><main class="min-w-0 border-t border-line bg-surface md:overflow-y-auto md:mr-2 md:mb-2 md:rounded-tl-2xl md:border shadow-sm">{body}</main></div>{tail}</body></html>"#,
         shell_head(title, assets, ""),
-        shell_header(header),
+        shell_brand_header(header, page),
+        shell_card(header),
         escape_html(nav_label)
     )
 }

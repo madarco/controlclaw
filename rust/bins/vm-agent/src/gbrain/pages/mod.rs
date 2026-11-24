@@ -274,6 +274,9 @@ pub fn brain_shell(ctx: &shell::ShellContext, view: &str, data: &Value) -> Strin
             href: Some((*href).into()),
             icon,
             active: *v == view,
+            badge: None,
+            external: false,
+            group: None,
         })
         .collect();
     items.push(NavItem {
@@ -281,6 +284,9 @@ pub fn brain_shell(ctx: &shell::ShellContext, view: &str, data: &Value) -> Strin
         href: Some("/__cc/brain/admin".into()),
         icon: "admin",
         active: false,
+        badge: None,
+        external: false,
+        group: None,
     });
     let name = shell::agent_name_of(ctx.hostname.as_deref());
     let sub = ctx.hostname.clone().unwrap_or_default();
@@ -291,18 +297,31 @@ pub fn brain_shell(ctx: &shell::ShellContext, view: &str, data: &Value) -> Strin
         console_url: Some(&ctx.console_url),
     };
     let label = VIEWS.iter().find(|v| v.0 == view).map_or("Pages", |v| v.1);
-    shell::shell_frame(
-        &format!("{name} · {}", label.to_lowercase()),
-        &header,
-        "Brain pages",
-        &items,
-        &format!(
+    let card = shell::ShellCard {
+        mark: "mark",
+        name: &name,
+        sub: &sub,
+        status: None,
+    };
+    let foot = shell::shell_foot(
+        "Served by this brain",
+        "What you see here is read straight from the brain. It never passes through ControlClaw.",
+    );
+    shell::shell_frame(&shell::Frame {
+        title: &format!("{name} · {}", label.to_lowercase()),
+        header: &header,
+        page: label,
+        card: &card,
+        nav_label: "Brain pages",
+        nav: &items,
+        foot: &foot,
+        body: &format!(
             r#"<div id="root"></div><script id="cc-brain" type="application/json">{}</script><script type="module" src="/__cc/files-ui/brain.js"></script>"#,
             shell::inline_json(data)
         ),
-        r#"<link rel="stylesheet" href="/__cc/files-ui/brain.css">"#,
-        "",
-    )
+        head: r#"<link rel="stylesheet" href="/__cc/files-ui/brain.css">"#,
+        tail: "",
+    })
 }
 
 fn err_resp(e: &PagesError, cors: &[(&str, String)]) -> Resp {

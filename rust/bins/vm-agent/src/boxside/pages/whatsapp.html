@@ -1,5 +1,30 @@
-<h1 id="h">Link WhatsApp to ${agent}</h1><p class="host">${host}</p>
-<p class="lead" id="lead">On your phone, open WhatsApp, go to Linked devices, and scan this code.</p>
-<div id="qr" style="display:grid;place-items:center;min-height:16rem"></div>
-<div class="err" id="err"></div>
-<p class="note">Anyone who scans this code links their WhatsApp to your agent, so only scan it yourself, and close this tab when you are done.</p>
+<div class="mx-auto w-full max-w-[900px] min-w-0 px-4 pt-6 pb-12 md:px-9 md:pt-8">
+  <div class="mb-5 min-w-0">
+    <h1 id="h" class="text-[24px] font-semibold tracking-[-0.02em] text-ink">Link WhatsApp to ${agent}</h1>
+    <p class="mt-1 text-[13.5px] text-pretty text-ink-2">Scan the code with the phone whose WhatsApp the agent will use.</p>
+  </div>
+  <div class="grid min-w-0 gap-6 rounded-xl border border-line bg-surface p-5 shadow-sm sm:p-6 md:grid-cols-[1fr_auto] md:items-center">
+    <ol class="grid min-w-0 gap-4" aria-label="Steps">
+      <li data-step="1" class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[12.5px] font-semibold"></span><div class="min-w-0"><div class="text-[14px] font-semibold text-ink">Open WhatsApp on the phone</div><p class="mt-0.5 text-[13px] text-ink-2">The number the agent will answer from.</p></div></li>
+      <li data-step="2" class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[12.5px] font-semibold"></span><div class="min-w-0"><div class="text-[14px] font-semibold text-ink">Settings → Linked devices → Link a device</div><p class="mt-0.5 text-[13px] text-ink-2">Then point the camera at the code.</p></div></li>
+      <li data-step="3" class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[12.5px] font-semibold"></span><div class="min-w-0"><div class="text-[14px] font-semibold text-ink">The agent is linked</div><p class="mt-0.5 text-[13px] text-ink-2">Messages to that number reach the agent, through the firewall.</p></div></li>
+    </ol>
+    <div class="mx-auto grid w-[272px] max-w-full justify-items-center gap-3">
+      <div id="qr-box" class="relative grid aspect-square w-full place-items-center overflow-hidden rounded-xl border border-line bg-white p-2">
+        <div id="qr" class="grid h-full w-full place-items-center"></div>
+        <div id="over" class="absolute inset-0 grid place-items-center bg-surface/90 p-4 text-center" hidden>
+          <div class="grid justify-items-center gap-2">
+            <div id="over-spin" aria-hidden="true" class="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-brand" hidden></div>
+            <svg id="over-ok" class="h-10 w-10 text-allow-fg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+            <div id="over-title" class="text-[14px] font-semibold text-ink"></div>
+            <p id="over-text" class="text-[12.5px] text-pretty text-ink-2"></p>
+            <a id="over-new" href="${consoleChannelsUrl}" class="mt-1 inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12.5px] font-medium text-white shadow-sm hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" hidden><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>New code</a>
+            <a id="over-back" href="${consoleUrl}" class="mt-1 inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[12.5px] font-medium text-ink shadow-sm hover:bg-bg focus-visible:outline-2 focus-visible:outline-brand" hidden>Back to console</a>
+          </div>
+        </div>
+      </div>
+      <p id="lead" role="status" aria-live="polite" class="text-center text-[12.5px] text-pretty text-ink-2"></p>
+    </div>
+  </div>
+  <p class="mt-3 flex items-start gap-1.5 text-[12.5px] text-pretty text-ink-2"><svg class="mt-0.5 h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>Anyone who scans this code links their WhatsApp to your agent. Use a phone number set aside for the agent, scan it yourself, and close this tab when you are done.</p>
+</div>

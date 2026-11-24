@@ -33,7 +33,49 @@ const DASHBOARD_RETRY_WAIT_MS: u64 = 3_000;
 const DASHBOARD_MIN_ATTEMPT_MS: u64 = 5_000;
 
 /// Where `/__cc/browser` sends you once the view cookie is set.
-const NOVNC_URL: &str = "/__cc/novnc/vnc_lite.html?path=__cc/novnc/websockify&scale=1";
+/// The Screen page's script, with noVNC's paths filled in.
+fn screen_script() -> String {
+    fill(
+        text::SCREEN_JS,
+        &[
+            ("RFB_URL", &json_string(&json!(NOVNC_RFB))),
+            ("WS_PATH", &json_string(&json!(NOVNC_WS))),
+        ],
+    )
+}
+
+/// The Screen page holds the live view people type passwords into: scripts only from this agent
+/// (its own file and noVNC's modules), connections only back to it. noVNC draws decoded frames
+/// and its cursor from `data:` and `blob:` images. `wss://` is named as well as `'self'`, for
+/// browsers whose `'self'` does not cover WebSockets.
+pub fn screen_csp(hostname: Option<&str>) -> String {
+    let ws = hostname
+        .filter(|h| h.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-'))
+        .map(|h| format!(" wss://{h}"))
+        .unwrap_or_default();
+    format!(
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'{ws}; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'"
+    )
+}
+
+/// The OpenClaw version, read from disk at most once a minute: it changes only with an update, and
+/// the shell asks on every page.
+fn cached_openclaw_version() -> Option<String> {
+    static CACHE: std::sync::Mutex<Option<(std::time::Instant, Option<String>)>> = std::sync::Mutex::new(None);
+    let mut c = CACHE.lock().ok()?;
+    if let Some((at, v)) = c.as_ref()
+        && at.elapsed() < Duration::from_secs(60)
+    {
+        return v.clone();
+    }
+    let v = crate::platform::software::openclaw_version();
+    *c = Some((std::time::Instant::now(), v.clone()));
+    v
+}
+
+/// noVNC's client module and its WebSocket bridge, behind Caddy's view check (`/__cc/verify-view`).
+const NOVNC_RFB: &str = "/__cc/novnc/core/rfb.js";
+const NOVNC_WS: &str = "/__cc/novnc/websockify";
 
 pub const BIND_COOKIE_PREFIX: &str = "__Host-cc_bind_";
 const BIND_TTL_S: i64 = 15 * 60;
@@ -135,8 +177,8 @@ mod text {
     pub const DENIED_PHONE: &str = include_str!("pages/denied_phone.html");
     pub const DENIED_MEETINGS: &str = include_str!("pages/denied_meetings.html");
     pub const DENIED_LOGS: &str = include_str!("pages/denied_logs.html");
-    pub const BROWSER_HTML: &str = include_str!("pages/browser.html");
-    pub const BROWSER_JS: &str = include_str!("pages/browser.js");
+    pub const SCREEN_HTML: &str = include_str!("pages/screen.html");
+    pub const SCREEN_JS: &str = include_str!("pages/screen.js");
     pub const OPEN_HTML: &str = include_str!("pages/open.html");
     pub const OPEN_JS: &str = include_str!("pages/open.js");
     pub const MINUS_SVG: &str = include_str!("pages/minus.svg");
@@ -562,7 +604,21 @@ impl Access {
                 Some(_) => None,
                 None => Some(shell::console_doctor_url(origin.as_deref(), &vm_id)),
             },
+            status: self.openclaw_status(),
         }
+    }
+
+    /// "Running · OpenClaw <version>": only on an agent whose gateway answers and whose version
+    /// is on disk (one small file read). Nothing otherwise.
+    fn openclaw_status(&self) -> Option<String> {
+        if self.console_page.is_some() {
+            return None;
+        }
+        let running = self.app.contracts.openclaw.get().is_some_and(|o| o.client.connected());
+        running
+            .then(cached_openclaw_version)
+            .flatten()
+            .map(|v| format!("Running · OpenClaw {v}"))
     }
 
     pub fn nav(&self) -> NavState {
@@ -641,11 +697,37 @@ impl Access {
         self.page(&format!("Opening {agent}…"), &body, &script)
     }
 
-    fn browser_page(&self) -> String {
-        let (agent, host) = self.names();
-        let body = fill(text::BROWSER_HTML, &[("host", &host)]);
-        let script = fill(text::BROWSER_JS, &[("NOVNC_URL", &json_string(&json!(NOVNC_URL)))]);
-        self.page(&format!("Connecting to {agent}…"), &body, &script)
+    /// Screen (`/__cc/browser`): the live browser in the shell's main panel. The sidebar lists every
+    /// page this agent has only for a browser signed in to it; one holding only a view pass (its
+    /// cookie is sent under `/__cc/novnc` alone) or none sees the pages every agent has.
+    fn screen_page(&self, cookie: Option<&str>, vm_id: &str) -> String {
+        let (_, host) = self.names();
+        let ctx = self.shell_context();
+        let body = fill(
+            text::SCREEN_HTML,
+            &[
+                ("host", &host),
+                (
+                    "consoleScreenUrl",
+                    &escape_html(&format!("{}/browser", ctx.console_url)),
+                ),
+            ],
+        );
+        // A browser not signed in to the agent sees only what the old front door showed: no version
+        // line and only the pages every agent has.
+        let (nav, ctx) = if self.sessions.verify_session(cookie, vm_id) {
+            (self.nav(), ctx)
+        } else {
+            (NavState::default(), ShellContext { status: None, ..ctx })
+        };
+        shell::shell_page(
+            &ctx,
+            "Screen",
+            Some("browser"),
+            &format!(r#"{body}<script type="module" src="/__cc/screen.js"></script>"#),
+            "",
+            nav,
+        )
     }
 
     fn open_page(&self) -> String {
@@ -721,16 +803,26 @@ impl Access {
     }
 
     fn whatsapp_page(&self) -> String {
-        let (agent, host) = self.names();
-        let body = fill(text::WHATSAPP_HTML, &[("agent", &agent), ("host", &host)]);
+        let (agent, _) = self.names();
+        let ctx = self.shell_context();
+        let body = fill(
+            text::WHATSAPP_HTML,
+            &[
+                ("agent", &agent),
+                ("consoleUrl", &escape_html(&ctx.console_url)),
+                (
+                    "consoleChannelsUrl",
+                    &escape_html(&format!("{}/channels", ctx.console_url)),
+                ),
+            ],
+        );
         let script = fill(text::WHATSAPP_JS, &[("TEXT", &json_string(&object(WHATSAPP_TEXT)))]);
-        // `withSidebar`: the same card, with the sidebar of the agent's pages.
         shell::shell_page(
-            &self.shell_context(),
+            &ctx,
             "Link WhatsApp",
             Some("whatsapp"),
-            &format!(r#"<div class="mx-auto max-w-[34rem] px-4 py-8 md:px-9">{body}</div><script>{script}</script>"#),
-            &format!("<style>{}</style>", text::PAGE_CSS),
+            &format!(r#"{body}<script>{script}</script>"#),
+            "",
             self.nav(),
         )
     }
@@ -1268,6 +1360,16 @@ impl Access {
             let (parts, _) = req.into_parts();
             return self.handle_sandbox(&parts, &pathname, &vm_id);
         }
+        // The Screen page's script, a file so the page's CSP allows no inline script.
+        if pathname == "/__cc/screen.js" && method == Method::GET {
+            return with_headers(
+                full(StatusCode::OK, "text/javascript; charset=utf-8", screen_script()),
+                &[
+                    ("cache-control", "no-cache".into()),
+                    ("x-content-type-options", "nosniff".into()),
+                ],
+            );
+        }
         if pathname == "/__cc/shell.js" && method == Method::GET {
             return with_headers(
                 full(StatusCode::OK, "text/javascript; charset=utf-8", shell::SHELL_JS),
@@ -1334,7 +1436,14 @@ impl Access {
                 self.session_exchange(http::Request::from_parts(parts, body), opts, &vm_id)
                     .await
             }
-            ("GET", "/__cc/browser") => html(200, self.browser_page(), &[]),
+            ("GET", "/__cc/browser") => {
+                let csp = screen_csp(self.read_key("vm_hostname").as_deref());
+                html(
+                    200,
+                    self.screen_page(cookie.as_deref(), &vm_id),
+                    &[("content-security-policy", csp)],
+                )
+            }
             ("POST", "/__cc/view-session") => self.view_exchange(http::Request::from_parts(parts, body), &vm_id).await,
             ("GET", "/__cc/verify-view") => {
                 // VIEW_POLICY is AGENT_POLICY's twin: own origins, top-level navigation allowed.

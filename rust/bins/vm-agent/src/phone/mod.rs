@@ -140,19 +140,30 @@ fn call_sessions(calls: &[Value], now: f64, lookback: f64) -> Vec<CallSession> {
         .collect()
 }
 
-/// Which optional pages the shared shell lists (`setShellNav`): meetings when they are on, calls
-/// when a number is active or calls are on record.
+/// Which optional pages the shared shell lists (`setShellNav`): meetings when they are on or
+/// meetings are saved, calls when a number is active or calls are on record.
+///
+/// Meetings used to be listed only when the meetings service said they were on, while the page
+/// you are on is always listed. With meetings off on the agent (or not applied yet, or the service
+/// not built because the gateway is not up) but meetings saved, the Meetings page still opened and
+/// showed them, and the entry was in the sidebar only on that page.
 struct Pages(Arc<Phone>, std::sync::Weak<App>);
 
 impl AgentPages for Pages {
     fn meetings_listed(&self) -> bool {
-        self.1
-            .upgrade()
-            .and_then(|a| a.contracts.meeting.get())
-            .is_some_and(|m| m.listed())
+        self.1.upgrade().is_some_and(|a| {
+            a.contracts.meeting.get().is_some_and(|m| m.listed())
+                || crate::meetings::archive::any_saved(&crate::meetings::archive_paths(&a).0)
+        })
     }
     fn phone_listed(&self) -> bool {
         self.0.service.active() || self.0.seen().1
+    }
+    fn meeting_live(&self) -> bool {
+        self.1
+            .upgrade()
+            .and_then(|a| a.contracts.meeting.get())
+            .is_some_and(|m| m.busy())
     }
 }
 

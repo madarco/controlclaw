@@ -412,6 +412,7 @@ async fn a_pages_ticket_lands_on_the_pages() {
         hostname: Some("brain-abc.ccl.bot".into()),
         console_url: "https://controlclaw.com/dashboard/brain".into(),
         doctor_url: None,
+        status: None,
     };
     let html = brain_shell(&ctx, "pages", &json!({"view": "</script>"}));
     // The page data cannot close its script element.
