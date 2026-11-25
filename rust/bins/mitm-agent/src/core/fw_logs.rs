@@ -15,7 +15,7 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use super::access::AccessFirewall;
-use super::fw_shell::{FwPage, fw_notice, fw_shell_page};
+use super::fw_shell::{FwPage, escape_html, fw_back_url, fw_nav_href, fw_notice, fw_shell_page};
 
 pub const FW_LOGS_HELPER: &str = "/usr/local/bin/cc-fw-logs";
 const UPDATE_STATE: &str = "/opt/controlclaw/state/update.json";
@@ -337,6 +337,11 @@ pub struct FwLogsReader {
     pub hostname: Arc<dyn Fn() -> Option<String> + Send + Sync>,
     pub run: Run,
     pub helper_present: Arc<dyn Fn() -> bool + Send + Sync>,
+    /// Running in a container (the standalone image, under Docker or Podman), where there is no
+    /// journal at all.
+    pub in_container: Arc<dyn Fn() -> bool + Send + Sync>,
+    /// A standalone firewall: it has no console and no Update button to send the person to.
+    pub standalone: bool,
     pub update: Arc<dyn Fn() -> Value + Send + Sync>,
 }
 
@@ -366,6 +371,12 @@ impl FwLogsReader {
             hostname,
             run,
             helper_present: Arc::new(|| std::path::Path::new(FW_LOGS_HELPER).exists()),
+            in_container: Arc::new(|| {
+                ["/.dockerenv", "/run/.containerenv"]
+                    .iter()
+                    .any(|p| std::path::Path::new(p).exists())
+            }),
+            standalone: false,
             update: Arc::new(update_state),
         }
     }
@@ -393,7 +404,21 @@ impl FwLogsReader {
             Err(_) => Vec::new(),
         };
         base.insert("services".into(), json!(services));
-        if !(self.helper_present)() {
+        if !(self.helper_present)() && (self.in_container)() {
+            // The standalone image: its services log to the container, and there is no systemd.
+            base.insert(
+                "warning".into(),
+                json!("This firewall runs in a container, which has no system journal. Read its log on the machine that runs it: docker compose logs firewall (podman compose logs firewall under Podman)."),
+            );
+            return Value::Object(base);
+        } else if !(self.helper_present)() && self.standalone {
+            // No console, so no Update button to point at.
+            base.insert(
+                "warning".into(),
+                json!("This firewall has no log reader installed, so this page cannot read its journal. Read its log on the machine that runs it, with journalctl."),
+            );
+            return Value::Object(base);
+        } else if !(self.helper_present)() {
             base.insert(
                 "warning".into(),
                 json!("This firewall is on a build that cannot read its logs yet. Press Update on the Firewall page."),
@@ -458,6 +483,8 @@ const GRANTS_MAX: usize = 1000;
 struct Grant {
     user_id: String,
     device_id: String,
+    /// An owner or admin.
+    can_write: bool,
     expires_at: u64,
 }
 
@@ -549,6 +576,11 @@ impl FwPageDoor {
         )
     }
 
+    /// Whether the granted viewer is an owner or admin (false without a grant).
+    pub fn can_write(&self, cookie: Option<&str>) -> bool {
+        self.grant(cookie).is_some_and(|g| g.can_write)
+    }
+
     fn grant(&self, cookie: Option<&str>) -> Option<Grant> {
         let name = format!("{}=", self.cookie);
         let matches: Vec<&str> = cookie
@@ -638,6 +670,7 @@ impl FwPageDoor {
                 Grant {
                     user_id: identity.user_id,
                     device_id: identity.device_id,
+                    can_write: identity.can_write,
                     expires_at: now + GRANT_MS,
                 },
             );
@@ -741,13 +774,23 @@ impl FwLogsPage {
             return r;
         }
         if req.path == format!("{root}/") {
+            // The page offers the Firewall page and Doctor next to a failing service: the same
+            // addresses as the shell's Back to console and Doctor entry.
+            let st = super::fw_shell::state_for(self.door.can_write(req.cookie.as_deref()));
+            let back = Some((self.console_url)());
+            let attr = |v: Option<String>| escape_html(&v.unwrap_or_default());
+            let body = format!(
+                r#"<div id="root" data-firewall-url="{}" data-doctor-url="{}"></div>"#,
+                attr(fw_back_url(Some(FwPage::Logs), back.clone(), &st)),
+                attr(fw_nav_href(FwPage::Doctor, &st)),
+            );
             let html = fw_shell_page(
                 "Firewall logs",
                 Some(FwPage::Logs),
-                r#"<div id="root"></div>"#,
-                Some((self.console_url)()),
+                &body,
+                back,
                 r#"<script type="module" src="app.js"></script>"#,
-                None,
+                Some(&st),
             );
             return self.door.send(200, &html, "text/html");
         }

@@ -642,6 +642,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "cc-shell"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "cc-store"
 version = "0.1.0"
 dependencies = [
@@ -1850,6 +1857,7 @@ dependencies = [
  "cc-meetings",
  "cc-proc",
  "cc-redact",
+ "cc-shell",
  "cc-store",
  "cc-testkit",
  "ed25519-dalek",
@@ -3537,6 +3545,7 @@ dependencies = [
  "cc-origin",
  "cc-proc",
  "cc-redact",
+ "cc-shell",
  "cc-store",
  "cc-testkit",
  "crc32fast",

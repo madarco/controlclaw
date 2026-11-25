@@ -38,9 +38,7 @@ const root = document.getElementById("root")!;
 
 createRoot(root).render(
   <StrictMode>
-    <div className="mx-auto w-full max-w-[860px] min-w-0 px-4 pt-6 pb-16 md:px-9">
-      <h1 className="mb-1 text-[22px] font-semibold tracking-[-0.02em] text-ink">Doctor</h1>
-      <p className="mb-5 max-w-[70ch] text-[13.5px] text-ink-2">Repair an agent that stopped answering, from your firewall.</p>
+    <div className="mx-auto w-full max-w-[860px] min-w-0 px-4 pt-6 pb-16 md:px-9 md:pt-8">
       <DoctorStartPage source={source} />
     </div>
   </StrictMode>,

@@ -181,6 +181,7 @@ pub fn words_summary(patterns: &[String]) -> String {
 
 fn typed(label: &str, text: &str) -> TypedLine {
     TypedLine {
+        whole: false,
         label: label.into(),
         text: text.into(),
         more: None,
@@ -456,6 +457,11 @@ struct HeldMessage {
     /// The agent that wrote it: under an emergency stop, Send sends nothing.
     vm_id: String,
     send: Option<Send_>,
+}
+
+/// A hold that still waits for Send or Don't send: not answered, and not being asked about.
+fn waiting(h: &Hold) -> bool {
+    !h.done && !h.asking
 }
 
 struct Hold {
@@ -1575,6 +1581,18 @@ impl ContentRulesFirewall {
         );
     }
 
+    /// How many messages wait for Send or Don't send now, for the sidebar's badge on every firewall
+    /// page: `held_now().len()` without its copies, and read only. A hold past its time is not
+    /// counted but is left for the sweep, so drawing a page never writes to the store.
+    pub fn held_count(&self) -> usize {
+        let now = self.now();
+        self.holds()
+            .map
+            .values()
+            .filter(|h| waiting(h) && now - h.created_at <= HOLD_TTL_MS)
+            .count()
+    }
+
     /// The holds waiting for someone's Send or Don't send, newest first.
     pub fn held_now(&self) -> Vec<Value> {
         self.sweep();
@@ -1583,7 +1601,7 @@ impl ContentRulesFirewall {
             holds
                 .map
                 .iter()
-                .filter(|(_, h)| !h.done && !h.asking)
+                .filter(|(_, h)| waiting(h))
                 .map(|(id, h)| {
                     let v = json!({
                         "id": id, "at": h.created_at, "expiresAt": h.created_at + HOLD_TTL_MS, "rule": h.held.rule,

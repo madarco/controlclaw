@@ -1,53 +1,229 @@
-<h1 id="title" class="text-[22px] font-semibold tracking-[-0.02em] text-ink">Add a website login</h1>
-<p id="ask" hidden class="mt-3 rounded-xl border border-brand-border bg-brand-soft px-4 py-3 text-[14px] text-ink [overflow-wrap:anywhere]"></p>
-<p class="text-[13px] text-ink-2 mt-2">The password goes straight to your organization's firewall and stays there. Your agents never see it, and neither does the ControlClaw console: when an agent signs in, the firewall puts the password into the sign-in request, and only on the sites you list here.</p>
-<form id="form" autocomplete="off" hidden class="mt-5 grid gap-4">
-<div><label for="name" class="mb-1.5 block text-[13px] font-medium text-ink">Name</label><input id="name" class="block w-full min-w-0 rounded-lg border border-line-2 bg-surface px-3 py-2 text-[16px] text-ink shadow-sm outline-none placeholder:text-ink-2/60 focus:border-brand focus:ring-[3px] focus:ring-brand/20 md:text-[14px]" type="text" maxlength="64" required placeholder="GitHub (ops account)"></div>
-<div><label for="sites" class="mb-1.5 block text-[13px] font-medium text-ink">Sites</label><textarea id="sites" class="block w-full min-w-0 rounded-lg border border-line-2 bg-surface px-3 py-2 text-[16px] text-ink shadow-sm outline-none placeholder:text-ink-2/60 focus:border-brand focus:ring-[3px] focus:ring-brand/20 md:text-[14px] min-h-[64px] resize-y" required placeholder="github.com"></textarea><div class="mt-1 block text-[12.5px] font-normal text-ink-2">One per line. Write *.example.com to cover every subdomain. The password is only ever sent to these.</div></div>
-<div><label for="url" class="mb-1.5 block text-[13px] font-medium text-ink">Sign-in page</label><input id="url" class="block w-full min-w-0 rounded-lg border border-line-2 bg-surface px-3 py-2 text-[16px] text-ink shadow-sm outline-none placeholder:text-ink-2/60 focus:border-brand focus:ring-[3px] focus:ring-brand/20 md:text-[14px]" type="url" maxlength="2048" placeholder="https://github.com/login"><div class="mt-1 block text-[12.5px] font-normal text-ink-2">The page with the password field, exactly as it shows in the address bar (https). The password is only put into the sign-in request of this page, and nowhere else on the site, so a login without it does not work. Not needed for HTTP Basic or for "Typed into the page". The top page of a site (an address ending in just /) is not accepted as a sign-in page. If the address has a ?query, the sign-in request has to carry exactly that query.</div><div id="suggest" hidden class="mt-2 rounded-xl border border-line-2 px-3 py-2 text-[13.5px] text-ink [overflow-wrap:anywhere]"><div>The agent suggests: <strong class="font-semibold" id="suggesturl"></strong></div><div class="mt-1 block text-[12.5px] font-normal text-ink-2">This address decides where your password may be sent. Check it against the page you sign in on yourself before you use it: the agent may have been given a wrong one.</div><button type="button" id="usesuggest" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 border border-line-2 bg-surface text-ink shadow-sm hover:bg-bg mt-2">Use this address</button></div><p id="needspage" hidden class="mt-2 rounded-xl border border-block/40 px-3 py-2 text-[13.5px] text-block">This login needs a sign-in page. Until it has one, your firewall puts its password nowhere.</p></div>
-<div><label for="username" class="mb-1.5 block text-[13px] font-medium text-ink">Username or email</label><input id="username" class="block w-full min-w-0 rounded-lg border border-line-2 bg-surface px-3 py-2 text-[16px] text-ink shadow-sm outline-none placeholder:text-ink-2/60 focus:border-brand focus:ring-[3px] focus:ring-brand/20 md:text-[14px]" type="text" maxlength="256" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
-<div><label for="password" class="mb-1.5 block text-[13px] font-medium text-ink">Password</label><div class="flex gap-2"><input id="password" class="block w-full min-w-0 rounded-lg border border-line-2 bg-surface px-3 py-2 text-[16px] text-ink shadow-sm outline-none placeholder:text-ink-2/60 focus:border-brand focus:ring-[3px] focus:ring-brand/20 md:text-[14px]" type="password" maxlength="1024" required autocomplete="new-password" spellcheck="false"><button type="button" id="show" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 border border-line-2 bg-surface text-ink shadow-sm hover:bg-bg h-auto self-stretch">Show</button></div><div class="mt-1 block text-[12.5px] font-normal text-ink-2" id="pwhint"></div></div>
-<div><label for="totp" class="mb-1.5 block text-[13px] font-medium text-ink">Two-step key <span class="font-normal text-ink-2">(optional)</span></label><input id="totp" class="block w-full min-w-0 rounded-lg border border-line-2 bg-surface px-3 py-2 text-[16px] text-ink shadow-sm outline-none placeholder:text-ink-2/60 focus:border-brand focus:ring-[3px] focus:ring-brand/20 md:text-[14px]" type="password" maxlength="1024" autocomplete="off" spellcheck="false" placeholder="JBSW Y3DP EHPK 3PXP or otpauth://..."><div class="mt-1 block text-[12.5px] font-normal text-ink-2" id="totphint">If the site asks for a code from an authenticator app, paste the key it shows under "can't scan the code?" (or the otpauth:// link). Your firewall then makes the codes for the agent.</div><label class="flex items-center gap-2 py-1 text-[14px] text-ink mt-1" id="totpremove" hidden><input type="checkbox" id="removetotp" class="h-[18px] w-[18px] shrink-0 accent-brand"> Remove the two-step key</label></div>
-<fieldset class="min-w-0 rounded-xl border border-line px-3.5 pt-1 pb-3"><legend class="px-1 text-[13px] font-medium text-ink">Agents that may use it</legend><div id="agents" class="text-[14px] text-ink"></div></fieldset>
-<fieldset class="min-w-0 rounded-xl border border-line px-3.5 pt-1 pb-3"><legend class="px-1 text-[13px] font-medium text-ink">How the agent signs in</legend>
-<label class="flex items-start gap-2 py-1.5 text-[14px] text-ink"><input type="radio" name="mode" value="swap" checked class="mt-1 shrink-0 accent-brand"><span><strong class="font-semibold">Standard</strong> (recommended)<span class="mt-1 block text-[12.5px] font-normal text-ink-2">The agent types a stand-in; your firewall puts the real password into the sign-in request, only on these sites.</span></span></label>
-<label class="flex items-start gap-2 py-1.5 text-[14px] text-ink"><input type="radio" name="mode" value="type" class="mt-1 shrink-0 accent-brand"><span><strong class="font-semibold">Typed into the page</strong><span class="mt-1 block text-[12.5px] font-normal text-ink-2">For sites that scramble the password in the page before sending it, where Standard does not work. <span class="text-block">Weaker: once typed, the agent could read the password from the page.</span></span></span></label>
+<div id="head" class="mb-5">
+<a id="back" hidden href="__ALL_LOGINS__" class="mb-3 inline-flex items-center gap-1.5 rounded text-[13px] font-medium text-brand hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"><span data-icon="chevronRight" data-icon-class="h-3.5 w-3.5 rotate-180"></span>All logins</a>
+<div class="flex flex-wrap items-end gap-x-4 gap-y-3">
+<div class="min-w-0 flex-1 basis-[280px]">
+<h1 class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[24px] font-semibold tracking-[-0.02em] text-ink [overflow-wrap:anywhere]"><span id="title">Website logins</span><span id="titlepills" class="inline-flex flex-wrap gap-1.5"></span></h1>
+<p id="sub" class="mt-1 max-w-[72ch] text-[13.5px] text-pretty text-ink-2">Passwords go from this page straight to your firewall and stay there. Your agents and the ControlClaw console never see them: the firewall puts the password into the sign-in request, and only on the sites you list.</p>
+</div>
+<a id="alllogins" href="__ALL_LOGINS__" target="_blank" rel="noopener noreferrer" class="inline-flex h-[32px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-ink shadow-sm hover:bg-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">All logins<span data-icon="external" data-icon-class="h-3.5 w-3.5 text-ink-2"></span><span class="sr-only">(opens in a new tab)</span></a>
+</div>
+</div>
+<div id="ask" hidden class="mb-4 flex items-start gap-3 rounded-xl border border-brand-border bg-brand-soft p-4">
+<span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand text-white"><span data-icon="bot" data-icon-class="h-4 w-4"></span></span>
+<div class="min-w-0 flex-1">
+<h1 id="asktitle" class="text-[17px] leading-snug font-semibold tracking-[-0.01em] text-ink [overflow-wrap:anywhere]"></h1>
+<p id="askreason" hidden class="mt-1 text-[13.5px] text-ink [overflow-wrap:anywhere]"></p>
+</div>
+</div>
+<p id="askintro" hidden class="mb-5 text-[13.5px] text-pretty text-ink-2">Passwords go from this page straight to your firewall and stay there. Your agents and the ControlClaw console never see them: the firewall puts the password into the sign-in request, and only on the sites you list. This link works for 30 minutes.</p>
+<div id="tabs" hidden class="mb-4"></div>
+<div id="layout" class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
+<div class="min-w-0">
+<div id="formcard">
+<form id="form" autocomplete="off" hidden>
+<section class="grid gap-4">
+<h2 id="loginh" class="text-[14.5px] font-semibold text-ink">The login</h2>
+<p id="opnote" hidden class="flex items-start gap-2 rounded-xl border border-brand-border bg-brand-soft px-3.5 py-2.5 text-[13px] text-ink"><span data-icon="key" data-icon-class="mt-0.5 h-3.5 w-3.5 text-brand"></span><span>From 1Password: change its name, sites and password there. The sign-in page, the kind and the addresses below are kept on this firewall.</span></p>
+<div class="grid gap-4 sm:grid-cols-2">
+<div class="min-w-0">
+<label for="name" class="mb-1.5 block text-[13px] font-medium text-ink">Name</label>
+<input id="name" class="block h-[38px] w-full min-w-0 rounded-[10px] border border-line-2 bg-surface px-3 text-[16px] text-ink placeholder:text-ink-2/70 focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:opacity-60 sm:text-[13.5px]" type="text" maxlength="64" required placeholder="GitHub (ops account)">
+</div>
+<div class="min-w-0">
+<label for="username" class="mb-1.5 block text-[13px] font-medium text-ink">Username or email</label>
+<input id="username" class="block h-[38px] w-full min-w-0 rounded-[10px] border border-line-2 bg-surface px-3 text-[16px] text-ink placeholder:text-ink-2/70 focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:opacity-60 sm:text-[13.5px]" type="text" maxlength="256" autocomplete="off" autocapitalize="none" spellcheck="false">
+</div>
+</div>
+<div class="min-w-0">
+<label for="sites" class="mb-1.5 block text-[13px] font-medium text-ink">Sites</label>
+<textarea id="sites" aria-describedby="siteshint" class="block min-h-[64px] w-full min-w-0 resize-y rounded-[10px] border border-line-2 bg-surface px-3 py-2 text-[16px] text-ink placeholder:text-ink-2/70 focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:opacity-60 sm:text-[13.5px]" rows="2" required placeholder="github.com"></textarea>
+<p id="siteshint" class="mt-1.5 text-[12px] text-pretty text-ink-2">One per line. *.example.com covers every subdomain. The password is only ever sent to these.</p>
+</div>
+<div class="min-w-0">
+<label for="url" class="mb-1.5 block text-[13px] font-medium text-ink">Sign-in page</label>
+<input id="url" aria-describedby="urlhint" class="block h-[38px] w-full min-w-0 rounded-[10px] border border-line-2 bg-surface px-3 font-mono text-[16px] text-ink placeholder:text-ink-2/70 focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:opacity-60 sm:text-[13px]" type="url" maxlength="2048" placeholder="https://github.com/login">
+<p id="urlhint" class="mt-1.5 text-[12px] text-pretty text-ink-2">The page with the password field, as the address bar shows it (https). The password goes into this page's sign-in request and nowhere else on the site, so a login without it does not work. Not needed for HTTP Basic or Typed into the page. A site's top page (an address ending in just /) is not accepted, and a ?query must match exactly.</p>
+<div id="suggest" hidden class="mt-2.5 flex flex-wrap items-start gap-3 rounded-xl border border-line-2 bg-bg px-3.5 py-3 text-[13.5px] text-ink">
+<div class="min-w-0 flex-1 basis-[240px] [overflow-wrap:anywhere]">
+<div>The agent suggests <strong class="font-mono text-[12.5px] font-semibold" id="suggesturl"></strong></div>
+<p class="mt-1 text-[12px] text-pretty text-ink-2">This address decides where your password may be sent. Check it against the page you sign in on yourself: the agent may have been given a wrong one.</p>
+</div>
+<button type="button" id="usesuggest" class="inline-flex h-[32px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-ink shadow-sm hover:bg-bg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Use this address</button>
+</div>
+<p id="needspage" hidden role="alert" class="mt-2.5 flex items-start gap-2 rounded-xl border border-block-border bg-block-soft px-3.5 py-2.5 text-[13px] text-ink"><span data-icon="xCircle" data-icon-class="mt-0.5 h-4 w-4 text-block-fg"></span><span>This login needs a sign-in page. Until it has one, your firewall puts its password nowhere.</span></p>
+</div>
+<div class="grid gap-4 sm:grid-cols-2">
+<div class="min-w-0">
+<label for="password" class="mb-1.5 block text-[13px] font-medium text-ink">Password</label>
+<div class="flex gap-2">
+<input id="password" aria-describedby="pwhint" class="block h-[38px] w-full min-w-0 rounded-[10px] border border-line-2 bg-surface px-3 text-[16px] text-ink placeholder:text-ink-2/70 focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:opacity-60 sm:text-[13.5px]" type="password" maxlength="1024" required autocomplete="new-password" spellcheck="false">
+<button type="button" id="show" aria-pressed="false" aria-label="Show the password" class="inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] border border-line-2 bg-surface text-ink hover:bg-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"><span data-icon="eye" data-icon-class="h-[15px] w-[15px]"></span></button>
+</div>
+<p class="mt-1.5 text-[12px] text-pretty text-ink-2" id="pwhint"></p>
+</div>
+<div class="min-w-0">
+<label for="totp" class="mb-1.5 flex items-baseline gap-1.5 text-[13px] font-medium text-ink">Two-step key <span class="font-normal text-ink-2">optional</span></label>
+<input id="totp" aria-describedby="totphint" class="block h-[38px] w-full min-w-0 rounded-[10px] border border-line-2 bg-surface px-3 font-mono text-[16px] text-ink placeholder:text-ink-2/70 focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:opacity-60 sm:text-[13px]" type="password" maxlength="1024" autocomplete="off" spellcheck="false" placeholder="JBSW Y3DP… or otpauth://…">
+<p class="mt-1.5 text-[12px] text-pretty text-ink-2" id="totphint">If the site asks for a code from an authenticator app, paste the key under "can't scan the code?" (or the otpauth:// link). The firewall then makes the codes.</p>
+<label class="mt-1.5 flex items-center gap-2 text-[13px] text-ink" id="totpremove" hidden><input type="checkbox" id="removetotp" class="h-4 w-4 shrink-0 accent-brand"> Remove the two-step key</label>
+</div>
+</div>
+</section>
+<section class="mt-6 border-t border-line pt-5">
+<fieldset class="min-w-0">
+<legend class="mb-3 text-[14.5px] font-semibold text-ink">Who may use it</legend>
+<div id="agents" class="flex flex-wrap gap-2 text-[13.5px] text-ink"></div>
 </fieldset>
-<fieldset class="min-w-0 rounded-xl border border-line px-3.5 pt-1 pb-3"><legend class="px-1 text-[13px] font-medium text-ink">How the site takes the password</legend>
-<label class="flex items-start gap-2 py-1.5 text-[14px] text-ink"><input type="radio" name="auth" value="form" checked class="mt-1 shrink-0 accent-brand"><span><strong class="font-semibold">A sign-in form</strong> (most sites)<span class="mt-1 block text-[12.5px] font-normal text-ink-2">The password goes into the form the sign-in page sends, and nowhere else.</span></span></label>
-<label class="flex items-start gap-2 py-1.5 text-[14px] text-ink"><input type="radio" name="auth" value="basic" class="mt-1 shrink-0 accent-brand"><span><strong class="font-semibold">HTTP Basic</strong><span class="mt-1 block text-[12.5px] font-normal text-ink-2">For sites and APIs that ask for the user name and password in a browser prompt or an Authorization header. The password goes into that header on these sites, and nowhere else.</span></span></label>
+</section>
+<section class="mt-6 border-t border-line pt-5">
+<fieldset class="min-w-0">
+<legend class="mb-3 text-[14.5px] font-semibold text-ink">How the agent signs in</legend>
+<div class="grid gap-2.5 sm:grid-cols-2">
+<label class="flex min-w-0 cursor-pointer gap-2.5 rounded-xl border border-line-2 bg-surface p-3.5 has-[:checked]:border-brand has-[:checked]:ring-1 has-[:checked]:ring-brand has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand">
+<input type="radio" name="mode" value="swap" checked class="mt-0.5 h-4 w-4 shrink-0 accent-brand">
+<span class="min-w-0"><strong class="block text-[13.5px] font-semibold text-ink">Standard (recommended)</strong><span class="mt-1 block text-[12.5px] text-pretty text-ink-2">The agent types a stand-in. The firewall puts the real password into the sign-in request, only on these sites.</span></span>
+</label>
+<label class="flex min-w-0 cursor-pointer gap-2.5 rounded-xl border border-line-2 bg-surface p-3.5 has-[:checked]:border-brand has-[:checked]:ring-1 has-[:checked]:ring-brand has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand">
+<input type="radio" name="mode" value="type" class="mt-0.5 h-4 w-4 shrink-0 accent-brand">
+<span class="min-w-0"><strong class="block text-[13.5px] font-semibold text-ink">Typed into the page</strong><span class="mt-1 block text-[12.5px] text-pretty text-ink-2">For sites that scramble the password before sending it, where Standard does not work.</span><span class="mt-1.5 flex items-start gap-1.5 text-[12.5px] font-medium text-block-fg"><span data-icon="alert" data-icon-class="mt-0.5 h-3 w-3"></span>Weaker: once typed, the agent could read it from the page.</span></span>
+</label>
+</div>
 </fieldset>
-<div><label for="paths" class="mb-1.5 block text-[13px] font-medium text-ink">Extra sign-in addresses <span class="font-normal text-ink-2">(optional)</span></label><textarea id="paths" class="block w-full min-w-0 rounded-lg border border-line-2 bg-surface px-3 py-2 text-[16px] text-ink shadow-sm outline-none placeholder:text-ink-2/60 focus:border-brand focus:ring-[3px] focus:ring-brand/20 md:text-[14px] min-h-[52px] resize-y" spellcheck="false" placeholder="/session"></textarea><div class="mt-1 block text-[12.5px] font-normal text-ink-2">Only if Activity shows this login "blocked, not on its sign-in page" while the agent was signing in. One per line, each one exact address. A path such as /session is on the sign-in page's own site; to name another of the sites above, write it first: api.example.com/auth/login. An extra address is still a sign-in: the password is put in only into a field named like a password (password, pwd, pass, user_password…) of an ordinary form, or into a top-level field with such a name of a JSON request. It does not make a general API address work. <span class="text-block">Add only an address that does nothing but sign in. On an address that also does other things (a general API or a GraphQL endpoint), an agent that was tricked could send your password there in a field named like a password, and the site would do with it whatever that request asks.</span> <span class="text-block">Ending in /* an address covers everything under it, so the password may then be sent to any page there: use it only when the sign-in address changes every time, and never for a folder where people can post.</span> / and /*, the top page of a site and the whole site, are not accepted.</div></div>
-<div id="learned" hidden><div class="mb-1.5 block text-[13px] font-medium text-ink">Read off the sign-in page</div><div class="mt-1 block text-[12.5px] font-normal text-ink-2">Addresses your firewall found in forms on the sign-in page. None of them is used unless you tick it and save. Tick one only if it is where this site's own sign-in form sends the password: your password will be sent there. If you are not sure, leave it unticked; nothing breaks except that the agent's sign-in stays blocked. Untick one you allowed to remove it.</div><div id="learnedlist" class="mt-1 text-[14px] text-ink [overflow-wrap:anywhere]"></div><div class="mt-3 flex flex-wrap gap-2.5"><button type="button" id="savescope" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 border border-line-2 bg-surface text-ink shadow-sm hover:bg-bg">Save sign-in settings</button><span id="scopesaved" class="text-[13px] text-ink-2 self-center"></span></div><div class="mt-1 block text-[12.5px] font-normal text-ink-2">Saves the sign-in page, the kind, the extra addresses and the ticks above, without retyping the password.</div></div>
-<p id="error" role="alert" class="min-h-[1.5em] text-[13.5px] text-block [overflow-wrap:anywhere]"></p>
-<div class="flex flex-wrap items-center justify-between gap-3"><button type="button" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 border border-line-2 bg-surface text-block shadow-sm hover:bg-block-soft" id="delete" hidden>Delete this login</button><button class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 bg-brand text-white shadow-sm hover:bg-brand-ink ml-auto" id="save" type="submit">Save login</button></div>
+<fieldset class="mt-5 min-w-0">
+<legend class="mb-2.5 text-[13px] font-medium text-ink">How the site takes the password</legend>
+<div class="grid gap-2.5 sm:grid-cols-2">
+<label class="flex min-w-0 cursor-pointer gap-2.5 rounded-xl border border-line-2 bg-surface p-3.5 has-[:checked]:border-brand has-[:checked]:ring-1 has-[:checked]:ring-brand has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand">
+<input type="radio" name="auth" value="form" checked class="mt-0.5 h-4 w-4 shrink-0 accent-brand">
+<span class="min-w-0"><strong class="block text-[13.5px] font-semibold text-ink">A sign-in form</strong><span class="mt-1 block text-[12.5px] text-pretty text-ink-2">Most sites. The password goes into the form the sign-in page sends, and nowhere else.</span></span>
+</label>
+<label class="flex min-w-0 cursor-pointer gap-2.5 rounded-xl border border-line-2 bg-surface p-3.5 has-[:checked]:border-brand has-[:checked]:ring-1 has-[:checked]:ring-brand has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand">
+<input type="radio" name="auth" value="basic" class="mt-0.5 h-4 w-4 shrink-0 accent-brand">
+<span class="min-w-0"><strong class="block text-[13.5px] font-semibold text-ink">HTTP Basic</strong><span class="mt-1 block text-[12.5px] text-pretty text-ink-2">A browser prompt or an Authorization header. The password goes into that header on these sites, and nowhere else.</span></span>
+</label>
+</div>
+</fieldset>
+<details id="extra" class="group mt-4 rounded-xl border border-line-2">
+<summary class="flex cursor-pointer list-none items-center gap-2 rounded-xl px-3.5 py-3 text-[13.5px] font-semibold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand [&::-webkit-details-marker]:hidden"><span data-icon="chevronRight" data-icon-class="h-3.5 w-3.5 text-ink-2 transition-transform group-open:rotate-90"></span>Extra sign-in addresses <span class="font-normal text-ink-2">optional</span></summary>
+<div class="border-t border-line px-3.5 pt-3 pb-3.5">
+<label for="paths" class="mb-1.5 block text-[13px] font-medium text-ink">Only if Activity shows this login "blocked, not on its sign-in page" while the agent signed in</label>
+<textarea id="paths" aria-describedby="pathshint" class="block min-h-[52px] w-full min-w-0 resize-y rounded-[10px] border border-line-2 bg-surface px-3 py-2 font-mono text-[16px] text-ink placeholder:text-ink-2/70 focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:opacity-60 sm:text-[13px]" rows="2" spellcheck="false" placeholder="/session"></textarea>
+<p id="pathshint" class="mt-1.5 text-[12px] text-pretty text-ink-2">One exact address per line. /session is on the sign-in page's own site; for another of the sites above, write it first: api.example.com/auth/login. An extra address is still a sign-in: the password goes only into a field named like a password (password, pwd, pass, user_password…) of an ordinary form, or into a top-level field with such a name of a JSON request. It does not make a general API address work.</p>
+<ul class="mt-3 grid gap-2 text-[12.5px] text-pretty text-block-fg">
+<li class="flex items-start gap-2"><span data-icon="alert" data-icon-class="mt-0.5 h-3.5 w-3.5"></span><span>Add only an address that does nothing but sign in. On an address that also does other things (a general API or a GraphQL address), a tricked agent could send your password there in a field named like a password, and the site would do with it whatever that request asks.</span></li>
+<li class="flex items-start gap-2"><span data-icon="alert" data-icon-class="mt-0.5 h-3.5 w-3.5"></span><span>An address ending in /* covers everything under it, so the password may be sent to any page there. Use it only when the sign-in address changes every time, never for a folder where people can post. / and /*, a site's top page and the whole site, are not accepted.</span></li>
+</ul>
+</div>
+</details>
+</section>
+<section id="learned" hidden class="mt-6 border-t border-line pt-5">
+<h2 class="text-[14.5px] font-semibold text-ink">Read off the sign-in page</h2>
+<p class="mt-1.5 text-[12.5px] text-pretty text-ink-2">Addresses your firewall found in forms on the sign-in page. None is used unless you tick it and save. Tick one only if it is where this site's own sign-in form sends the password: your password will be sent there. If you are not sure, leave it: nothing breaks, the agent's sign-in just stays blocked. Untick one you allowed to remove it.</p>
+<div id="learnedlist" class="mt-3 text-[13.5px] text-ink [overflow-wrap:anywhere]"></div>
+<div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+<button type="button" id="savescope" class="inline-flex h-[32px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-ink shadow-sm hover:bg-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50">Save sign-in settings</button>
+<span id="scopesaved" role="status" class="text-[13px] font-medium text-allow-fg"></span>
+<span class="min-w-0 flex-1 basis-[220px] text-[12px] text-pretty text-ink-2">Saves the sign-in page, the kind, the extra addresses and the ticks, without the password.</span>
+</div>
+</section>
+<p id="error" role="alert" class="mt-4 min-h-[1.25em] text-[13.5px] text-block-fg [overflow-wrap:anywhere]"></p>
+<div id="formfoot" class="mt-2 flex flex-wrap items-center gap-3">
+<button type="button" class="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-block-border bg-surface px-3.5 text-[13.5px] font-medium whitespace-nowrap text-block-fg hover:bg-block-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50" id="delete" hidden><span data-icon="trash" data-icon-class="h-3.5 w-3.5"></span>Delete this login</button>
+<button class="ml-auto inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand px-4 text-[13.5px] font-medium whitespace-nowrap text-white shadow-sm hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50" id="save" type="submit"><span data-icon="lock" data-icon-class="h-3.5 w-3.5"></span>Save login</button>
+</div>
 </form>
-<section id="import" hidden class="mt-9 border-t border-line pt-5">
-<h2 class="text-[16px] font-semibold tracking-[-0.01em] text-ink">Import from a password manager</h2>
-<p class="text-[13px] text-ink-2 mt-1.5 mb-3">Export a CSV from 1Password, Bitwarden or Chrome, and pick it here. It is read in this page and sent only to your firewall. The agents you ticked above get the logins. Delete the CSV file afterwards: it holds every password in plain text.</p>
-<input id="csv" type="file" accept=".csv,text/csv" class="block w-full min-w-0 text-[13.5px] text-ink-2 file:mr-3 file:h-9 file:cursor-pointer file:rounded-lg file:border file:border-solid file:border-line-2 file:bg-surface file:px-3.5 file:text-[13.5px] file:font-medium file:text-ink">
-<p id="preview" class="text-[13px] text-ink-2 mt-2"></p>
-<p id="importerror" role="alert" class="min-h-[1.5em] text-[13.5px] text-block [overflow-wrap:anywhere]"></p>
-<div class="mt-3 flex flex-wrap gap-2.5"><button type="button" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 bg-brand text-white shadow-sm hover:bg-brand-ink" id="doimport" hidden>Import</button></div>
+</div>
+<section id="import" hidden aria-labelledby="importh" class="overflow-hidden rounded-xl border border-line bg-surface">
+<div class="grid gap-4 p-5">
+<h2 id="importh" class="sr-only">Import a CSV</h2>
+<p class="text-[13.5px] text-pretty text-ink-2">Export a CSV from 1Password, Bitwarden or Chrome and pick it here. It is read in this page and sent only to your firewall. Each row becomes a login for the site in its URL.</p>
+<label id="drop" class="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-line-2 bg-bg px-4 py-4 hover:bg-bg-2 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand">
+<input id="csv" type="file" accept=".csv,text/csv" class="sr-only">
+<span id="dropicon" class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface text-ink-2"><span data-icon="file" data-icon-class="h-[18px] w-[18px]"></span></span>
+<span class="min-w-0 flex-1 [overflow-wrap:anywhere]"><b id="dropname" class="block text-[13.5px] font-semibold text-ink">Choose a CSV file</b><small id="preview" class="mt-0.5 block text-[12.5px] text-ink-2">Read in this page, never uploaded to ControlClaw</small></span>
+<span id="dropchange" hidden aria-hidden="true" class="shrink-0 rounded-lg px-2.5 py-1 text-[12.5px] font-medium text-ink-2">Change</span>
+</label>
+<fieldset id="importwho" hidden class="min-w-0">
+<legend class="mb-2.5 text-[13px] font-medium text-ink">Agents that get these logins</legend>
+<div id="importagents" class="flex flex-wrap gap-2 text-[13.5px] text-ink"></div>
+</fieldset>
+<p class="flex items-start gap-2 rounded-xl border border-ask-border bg-ask-soft px-3.5 py-2.5 text-[13px] text-ink"><span data-icon="alert" data-icon-class="mt-0.5 h-4 w-4 text-ask-fg"></span><span>Delete the CSV file afterwards: it holds every password in plain text.</span></p>
+<p id="importerror" role="alert" class="text-[13.5px] text-block-fg [overflow-wrap:anywhere] empty:hidden"></p>
+</div>
+<div class="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-bg px-5 py-3">
+<button type="button" class="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand px-4 text-[13.5px] font-medium whitespace-nowrap text-white shadow-sm hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50" id="doimport" disabled><span data-icon="upload" data-icon-class="h-3.5 w-3.5"></span><span id="doimportlabel">Import</span></button>
+</div>
 </section>
-<section id="op" hidden class="mt-9 border-t border-line pt-5">
-<h2 class="text-[16px] font-semibold tracking-[-0.01em] text-ink">Connect 1Password</h2>
+<section id="op" hidden aria-labelledby="oph" class="overflow-hidden rounded-xl border border-line bg-surface">
+<h2 id="oph" class="sr-only">1Password</h2>
 <div id="opoff">
-<p class="text-[13px] text-ink-2 mt-1.5 mb-3">Let your agents use the logins in one or more 1Password vaults. In 1Password, make a <strong class="font-semibold">service account</strong> with read access to a vault for your agents (not your personal one), and paste its token here. The token stays on your firewall; the logins are read from 1Password every hour and are used exactly like the ones above. The agents you ticked in the form above get them.</p>
-<label for="optoken" class="mb-1.5 block text-[13px] font-medium text-ink">Service account token</label>
-<div class="flex gap-2"><input id="optoken" class="block w-full min-w-0 rounded-lg border border-line-2 bg-surface px-3 py-2 text-[16px] text-ink shadow-sm outline-none placeholder:text-ink-2/60 focus:border-brand focus:ring-[3px] focus:ring-brand/20 md:text-[14px]" type="password" autocomplete="off" spellcheck="false" placeholder="ops_..."><button type="button" id="opfind" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 border border-line-2 bg-surface text-ink shadow-sm hover:bg-bg h-auto self-stretch">Find vaults</button></div>
-<div id="opvaults" class="mt-2 text-[14px] text-ink"></div>
-<div class="mt-3 flex flex-wrap gap-2.5"><button type="button" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 bg-brand text-white shadow-sm hover:bg-brand-ink" id="opconnect" hidden>Connect</button></div>
+<ol class="grid gap-5 p-5">
+<li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-allow-soft text-[12.5px] font-semibold text-allow-fg">1</span><div class="min-w-0 flex-1"><b class="block text-[14px] font-semibold text-ink">Make a service account in 1Password</b><p class="mt-0.5 text-[13px] text-pretty text-ink-2">With read access to a vault for your agents, not your personal one. The agents get every login in the vaults you pick.</p></div></li>
+<li class="flex gap-3"><span id="opstep2" class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand text-[12.5px] font-semibold text-white">2</span><div class="min-w-0 flex-1"><b class="block text-[14px] font-semibold text-ink">Paste its token</b><p class="mt-0.5 text-[13px] text-pretty text-ink-2">It stays on your firewall. ControlClaw never receives it.</p>
+<div class="mt-2 flex gap-2"><label for="optoken" class="sr-only">Service account token</label><input id="optoken" class="block h-[38px] w-full min-w-0 rounded-[10px] border border-line-2 bg-surface px-3 font-mono text-[16px] text-ink placeholder:text-ink-2/70 focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 sm:text-[13px]" type="password" autocomplete="off" spellcheck="false" placeholder="ops_..."><button type="button" id="opfind" class="inline-flex h-[38px] shrink-0 items-center justify-center gap-1.5 rounded-[10px] border border-line-2 bg-surface px-3.5 text-[13.5px] font-medium whitespace-nowrap text-ink hover:bg-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50">Find vaults</button></div></div></li>
+<li class="flex gap-3"><span id="opstep3" class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-bg-2 text-[12.5px] font-semibold text-ink-2">3</span><div class="min-w-0 flex-1"><b class="block text-[14px] font-semibold text-ink">Pick the vaults and the agents</b><p class="mt-0.5 text-[13px] text-pretty text-ink-2">The logins are read now, then every hour, and work like the ones you type in.</p>
+<div id="opvaults" class="mt-2.5 text-[13.5px] text-ink empty:hidden"></div>
+<fieldset id="opwho" hidden class="mt-3 min-w-0">
+<legend class="mb-2.5 text-[13px] font-medium text-ink">Agents that get them</legend>
+<div id="opagents" class="flex flex-wrap gap-2 text-[13.5px] text-ink"></div>
+</fieldset></div></li>
+</ol>
+<p id="operror" role="alert" class="px-5 pb-4 text-[13.5px] text-block-fg [overflow-wrap:anywhere] empty:hidden"></p>
+<div class="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-bg px-5 py-3">
+<button type="button" class="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand px-4 text-[13.5px] font-medium whitespace-nowrap text-white shadow-sm hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50" id="opconnect" disabled>Connect</button>
 </div>
-<div id="opon" hidden><p id="opstatus" class="mt-1.5 text-[14px] text-ink [overflow-wrap:anywhere]"></p><div class="mt-3 flex flex-wrap gap-2.5"><button type="button" id="opsync" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 border border-line-2 bg-surface text-ink shadow-sm hover:bg-bg">Read 1Password now</button><button type="button" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 border border-line-2 bg-surface text-block shadow-sm hover:bg-block-soft" id="opdisconnect">Disconnect</button></div></div>
-<p id="operror" role="alert" class="min-h-[1.5em] text-[13.5px] text-block [overflow-wrap:anywhere]"></p>
+</div>
+<div id="opon" hidden>
+<div class="flex items-start gap-3 p-5">
+<span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-allow-soft text-allow-fg"><span data-icon="key" data-icon-class="h-[17px] w-[17px]"></span></span>
+<div class="min-w-0 flex-1">
+<div class="flex flex-wrap items-center gap-2 text-[14.5px] font-semibold text-ink">1Password connected<span id="opcount"></span></div>
+<p id="opstatus" class="mt-0.5 text-[13px] text-ink-2 [overflow-wrap:anywhere]"></p>
+<p id="oplast" hidden class="mt-1.5 text-[13px] text-block-fg [overflow-wrap:anywhere]"></p>
+</div>
+</div>
+<p id="opbusy" role="status" class="px-5 pb-3 text-[13px] text-ink-2 empty:hidden"></p>
+<div class="flex flex-wrap items-center gap-2 border-t border-line bg-bg px-5 py-3">
+<button type="button" class="inline-flex h-[32px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-block-border bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-block-fg hover:bg-block-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50" id="opdisconnect">Disconnect</button>
+<button type="button" id="opsync" class="ml-auto inline-flex h-[32px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-ink shadow-sm hover:bg-bg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"><span data-icon="refresh" data-icon-class="h-3.5 w-3.5"></span>Read now</button>
+</div>
+</div>
 </section>
-<div id="session" hidden class="mt-5 grid gap-3 text-[14px] text-ink">
-<p>This site needs you to sign in yourself (Google or Microsoft sign-in, a passkey, a CAPTCHA). You do it in the agent's own browser; only the signed-in session stays there.</p>
-<ol class="grid list-decimal gap-1.5 pl-5"><li>Press <strong class="font-semibold">Open the agent's browser</strong>. The site opens in a new tab of the agent's browser, and the agent's screen opens here.</li><li>Sign in there as you normally would.</li><li>Come back to this page and press <strong class="font-semibold">I have signed it in</strong>.</li></ol>
-<p class="text-[13px] text-ink-2">While you sign in, the agent can see its own screen. Password fields show dots. To sign the agent out later, delete this login in ControlClaw (Secrets, Logins). If you sign in with Google or Microsoft, the agent's browser also stays signed in to that account: deleting the login does not undo that, so use an account made for the agent, or sign it out of that account in the agent's browser.</p>
-<div class="flex flex-wrap gap-2.5"><button type="button" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 bg-brand text-white shadow-sm hover:bg-brand-ink" id="opentab">Open the agent's browser</button><button type="button" id="sessiondone" class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-[13.5px] font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-60 border border-line-2 bg-surface text-ink shadow-sm hover:bg-bg">I have signed it in</button></div>
-<p id="sessionerror" role="alert" class="min-h-[1.5em] text-[13.5px] text-block [overflow-wrap:anywhere]"></p>
+<div id="session" hidden class="text-[13.5px] text-ink">
+<p class="text-pretty">This site needs a person to sign in (Google or Microsoft sign-in, a passkey, a CAPTCHA). You do it in the agent's own browser. No password is kept; the signed-in session stays there.</p>
+<ol id="steps" class="mt-5 grid gap-4">
+<li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand text-[12.5px] font-semibold text-white">1</span><div class="min-w-0 flex-1"><b class="block text-[14px] font-semibold text-ink">Open the agent's browser</b><p class="mt-0.5 text-[13px] text-pretty text-ink-2">The site opens in a new tab there, and the agent's screen opens in a new tab here.</p></div></li>
+<li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-bg-2 text-[12.5px] font-semibold text-ink-2">2</span><div class="min-w-0 flex-1"><b class="block text-[14px] font-semibold text-ink">Sign in as you normally would</b><p class="mt-0.5 text-[13px] text-pretty text-ink-2">The agent sees its own screen. Password fields show dots; anything else you type, it can see.</p></div></li>
+<li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-bg-2 text-[12.5px] font-semibold text-ink-2">3</span><div class="min-w-0 flex-1"><b class="block text-[14px] font-semibold text-ink">Come back and press I have signed it in</b></div></li>
+</ol>
+<p class="mt-5 flex items-start gap-2 rounded-xl border border-ask-border bg-ask-soft px-3.5 py-2.5 text-[13px] text-ink"><span data-icon="info" data-icon-class="mt-0.5 h-4 w-4 text-ask-fg"></span><span>With Google or Microsoft, the agent's browser also stays signed in to that account, and deleting the login does not undo it. Use an account made for the agent, or sign it out of that account in the agent's browser.</span></p>
+<p id="sessionerror" role="alert" class="mt-3 text-[13.5px] text-block-fg [overflow-wrap:anywhere] empty:hidden"></p>
+<div class="mt-4 flex flex-wrap items-center gap-3">
+<button type="button" id="sessiondone" class="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 text-[13.5px] font-medium whitespace-nowrap text-ink shadow-sm hover:bg-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50">I have signed it in</button>
+<button type="button" class="ml-auto inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand px-4 text-[13.5px] font-medium whitespace-nowrap text-white shadow-sm hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50" id="opentab"><span data-icon="external" data-icon-class="h-3.5 w-3.5"></span>Open the agent's browser</button>
 </div>
-<div id="done" hidden class="mt-5 rounded-xl border border-line bg-bg px-4 py-3.5"><h2 class="mb-1 text-[16px] font-semibold text-allow">Saved on your firewall</h2><p id="donetext" class="text-[14px] text-ink [overflow-wrap:anywhere]"></p><p class="text-[13px] text-ink-2 mt-2">You can close this page.</p></div>
-<p id="status" class="text-[13px] text-ink-2 mt-4">Loading…</p>
+<p class="mt-3 text-[12.5px] text-pretty text-ink-2">To sign it out later, delete this login in __WHERE__.</p>
+</div>
+<div id="done" hidden class="focus:outline-none flex flex-col items-center gap-2 rounded-xl border border-line bg-surface px-6 py-10 text-center">
+<span id="doneicon" class="text-allow-fg"><span data-icon="checkCircle" data-icon-class="h-9 w-9"></span></span>
+<h2 id="donetitle" class="mt-1 text-[17px] font-semibold tracking-[-0.01em] text-ink">Saved on your firewall</h2>
+<p id="donetext" class="max-w-[52ch] text-[13.5px] text-pretty text-ink [overflow-wrap:anywhere]"></p>
+<a id="again" hidden href="/__cc/logins/" class="mt-2 inline-flex h-[32px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-ink shadow-sm hover:bg-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Add another</a>
+<p class="mt-1 text-[12.5px] text-ink-2">You can close this page.</p>
+</div>
+<div id="status" role="status" class="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-10 text-[13px] text-ink-2"><span aria-hidden="true" class="inline-block h-4 w-4 shrink-0 rounded-full border-2 border-current/25 border-t-current text-brand motion-safe:animate-spin"></span>Loading…</div>
+</div>
+<aside id="aside" class="grid min-w-0 gap-3">
+<div class="rounded-xl border border-line bg-surface p-4">
+<h2 class="text-[11.5px] font-semibold tracking-[0.06em] text-ink-2 uppercase">What the agent gets</h2>
+<p class="mt-2 text-[13px] text-pretty text-ink">The username and a stand-in: a random string as long as the password. Only the sign-in request on these sites gets the real one. A stand-in sent anywhere else is blocked and shows in Activity.</p>
+</div>
+<div class="rounded-xl border border-line bg-surface p-4">
+<h2 class="text-[11.5px] font-semibold tracking-[0.06em] text-ink-2 uppercase">Two-step codes</h2>
+<p class="mt-2 text-[13px] text-pretty text-ink">With a two-step key the firewall makes the codes. The agent asks for each one when the site wants it; Activity records every read.</p>
+</div>
+<div class="rounded-xl border border-line bg-surface p-4">
+<h2 class="text-[11.5px] font-semibold tracking-[0.06em] text-ink-2 uppercase">Changing it later</h2>
+<p class="mt-2 text-[13px] text-pretty text-ink">__LATER__</p>
+</div>
+</aside>
+</div>

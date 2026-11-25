@@ -17,7 +17,8 @@ export const PANEL_ROUTES: ConsoleRoutes = {
   brain: "/brain",
   agent: () => "/agents",
   firewall: "/",
-  firewallLogs: "/activity",
+  // The firewall's own Logs page, through the panel's door (pages/OpenFirewallPage.tsx).
+  firewallLogs: "/open/firewall-logs",
   aiFirewall: "/internet#ai-firewall",
   aiReview: "/internet#ai-review",
   agentMailIntegration: "/integrations/agentmail",

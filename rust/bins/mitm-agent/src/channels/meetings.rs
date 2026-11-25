@@ -152,6 +152,7 @@ pub fn instructions_code_parts(hostname: &str, text: &str, settings: &str) -> Co
         .iter()
         .enumerate()
         .map(|(i, l)| TypedLine {
+            whole: false,
             label: format!("Line {}", i + 1),
             text: l.clone(),
             more: None,
@@ -159,6 +160,7 @@ pub fn instructions_code_parts(hostname: &str, text: &str, settings: &str) -> Co
         .collect();
     if n > 0 {
         typed.push(TypedLine {
+            whole: false,
             label: "End".into(),
             text: n.to_string(),
             more: None,

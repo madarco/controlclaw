@@ -8,7 +8,7 @@ use serde_json::{Map, Value, json};
 use super::history::{AiReviewHistory, ROOT};
 use super::trace_store::{AiReviewRun, AiReviewTraceStore, TraceEvent, TraceSink};
 use crate::integrations::doctor::pages_test::{Access, ORIGIN, client, cookie_of, open, person, serve};
-use crate::integrations::doctor::transcript::{TRANSCRIPT_BOX, TRANSCRIPT_EMPTY, TRANSCRIPT_JS};
+use crate::integrations::doctor::transcript::TRANSCRIPT_JS;
 
 const NOW: i64 = 1_800_000_000_000;
 
@@ -36,9 +36,10 @@ fn run(id: &str, vm: &str, at: i64, outcome: &str) -> AiReviewRun {
 
 #[test]
 fn the_page_draws_with_the_shared_transcript() {
-    assert!(include_str!("page/history_app.js").starts_with(TRANSCRIPT_JS));
-    let body = include_str!("page/history_body.html");
-    assert!(body.contains(TRANSCRIPT_BOX) && body.contains(TRANSCRIPT_EMPTY));
+    // The run's other events are drawn by the renderer Doctor's chat uses; the page itself is the kit's.
+    let js = include_str!("page/history_app.js");
+    assert!(js.starts_with(TRANSCRIPT_JS) && js.contains("renderTranscriptEvent(e, NAMES)"));
+    assert!(include_str!("page/history_body.html").contains(r#"id="ai-review""#));
 }
 
 #[tokio::test]

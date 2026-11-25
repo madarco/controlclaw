@@ -13,7 +13,9 @@ use super::firewall::ContentRulesFirewall;
 use super::stopped::ContentStoppedStore;
 use crate::core::access::AccessFirewall;
 use crate::core::fw_logs::{FwPageDoor, PageReply, PageRequest};
-use crate::core::fw_shell::{FwPage, fw_shell_page};
+use crate::core::fw_shell::{
+    FwPage, escape_html, fw_back_url, fw_content, fw_kit_tag, fw_shell_page, state as fw_state,
+};
 
 pub const CONTENT_PAGE_ROOT: &str = "/__cc/doctor/content-rules";
 const CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; font-src data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
@@ -71,13 +73,21 @@ impl ContentRulesPage {
             return r;
         }
         if req.path == format!("{root}/") {
+            let st = fw_state();
+            let back = Some((self.console_url)());
+            let edit = fw_back_url(Some(FwPage::Content), back.clone(), &st).unwrap_or_default();
+            let body = PAGE_BODY.replacen(
+                r#"<div id="content-rules""#,
+                &format!(r#"<div id="content-rules" data-edit-url="{}""#, escape_html(&edit)),
+                1,
+            );
             let html = fw_shell_page(
                 "Content rules",
                 Some(FwPage::Content),
-                PAGE_BODY,
-                Some((self.console_url)()),
-                r#"<script src="app.js"></script>"#,
-                None,
+                &fw_content(&body, "page"),
+                back,
+                &format!(r#"{}<script src="app.js"></script>"#, fw_kit_tag()),
+                Some(&st),
             );
             return self.door.send(200, &html, "text/html");
         }

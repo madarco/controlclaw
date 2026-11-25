@@ -382,6 +382,7 @@ pub fn describe(app: &App, change: &Change, rules: &[AutoRule]) -> (String, Vec<
             plural(n, "applies", "apply"),
         );
         typed.extend(above.into_iter().map(|r| TypedLine {
+            whole: false,
             label: "Above the rule".into(),
             text: r.name,
             more: None,
@@ -397,6 +398,7 @@ pub fn describe(app: &App, change: &Change, rules: &[AutoRule]) -> (String, Vec<
             plural(n, "approves", "approve"),
         );
         typed.extend(below.into_iter().map(|r| TypedLine {
+            whole: false,
             label: "Below the rule".into(),
             text: r.name,
             more: None,
@@ -408,12 +410,14 @@ pub fn describe(app: &App, change: &Change, rules: &[AutoRule]) -> (String, Vec<
 fn describe_change(app: &App, change: &Change, rules: &[AutoRule]) -> (String, Vec<TypedLine>) {
     let typed = |r: &AutoRule| {
         let mut t = vec![TypedLine {
+            whole: false,
             label: "Rule name".into(),
             text: r.name.clone(),
             more: None,
         }];
         if let Some(title) = r.title() {
             t.push(TypedLine {
+                whole: false,
                 label: "Text".into(),
                 text: title.to_string(),
                 more: None,

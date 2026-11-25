@@ -47,12 +47,15 @@ fn err<T>(m: &str) -> Result<T, CodeMessageError> {
     Err(CodeMessageError(m.to_string()))
 }
 
-/// A label of ours and a text from elsewhere; `more` is said after the text.
+/// A label of ours and a text from elsewhere; `more` is said after the text. A `whole` line is
+/// never cut or left out: it is what the person approves word for word (Doctor's question), so a
+/// message that cannot show all of it is not written.
 #[derive(Debug, Clone, Default)]
 pub struct TypedLine {
     pub label: String,
     pub text: String,
     pub more: Option<String>,
+    pub whole: bool,
 }
 
 /// What the rest of the message turned out to be, for details that say where the texts are.
@@ -212,7 +215,7 @@ fn typed_line(line: &TypedLine, room: i64) -> String {
         }
     );
     let chars: Vec<char> = text.chars().collect();
-    if chars.len() <= LINE_TEXT_MAX && cost(&format!("{head}{text}{notes}")) <= room {
+    if line.whole || (chars.len() <= LINE_TEXT_MAX && cost(&format!("{head}{text}{notes}")) <= room) {
         let shown = if text.is_empty() {
             "(nothing that can be shown)"
         } else {
@@ -307,6 +310,7 @@ pub fn build_code_message(
     let mut typed: Vec<TypedLine> = parts.map(|p| p.typed.clone()).unwrap_or_default();
     if let Some(v) = via.filter(|v| !v.is_empty()) {
         typed.push(TypedLine {
+            whole: false,
             label: "Asked through the app (MCP)".into(),
             text: v.into(),
             more: None,
@@ -326,25 +330,36 @@ pub fn build_code_message(
             if left == 1 { "line" } else { "lines" }
         )
     };
-    let lay = |one: &str| -> (String, usize) {
+    // Whole lines are always shown in full; the others share what is left.
+    let fixed: i64 = lines
+        .iter()
+        .filter(|l| l.whole)
+        .map(|l| cost(&typed_line(l, i64::MAX)) + 1)
+        .sum();
+    let rest: Vec<&TypedLine> = lines.iter().filter(|l| !l.whole).collect();
+    let lay = |one: &str| -> Result<(String, usize), CodeMessageError> {
         if lines.is_empty() {
-            return (one.to_string(), 0);
+            return Ok((one.to_string(), 0));
         }
         let room = MESSAGE_MAX - cost(one) - cost(&format!("\n\n{TYPED_HEADING}"));
-        let whole: Vec<String> = lines.iter().map(|l| typed_line(l, i64::MAX)).collect();
-        if cost(&whole.join("\n")) <= room {
-            return (format!("{one}\n\n{TYPED_HEADING}\n{}", whole.join("\n")), 0);
+        let all: Vec<String> = lines.iter().map(|l| typed_line(l, i64::MAX)).collect();
+        if cost(&all.join("\n")) <= room {
+            return Ok((format!("{one}\n\n{TYPED_HEADING}\n{}", all.join("\n")), 0));
+        }
+        let room = room - fixed;
+        if fixed > 0 && (room < 0 || (!rest.is_empty() && room < LINE_MIN)) {
+            return err("a text that must be shown in full does not fit the message");
         }
         let share_of = |shown: usize| -> i64 {
-            let t = if shown < lines.len() {
-                cost(&tail(lines.len() - shown))
+            let t = if shown < rest.len() {
+                cost(&tail(rest.len() - shown))
             } else {
                 0
             };
-            ((room - t) as f64 / shown as f64).floor() as i64 - 1
+            ((room - t) as f64 / shown.max(1) as f64).floor() as i64 - 1
         };
         let needs = |shown: usize| -> i64 {
-            lines[..shown]
+            rest[..shown]
                 .iter()
                 .map(|l| {
                     cost(&format!("{}: {}", l.label, l.more.as_deref().unwrap_or("")))
@@ -354,30 +369,41 @@ pub fn build_code_message(
                 .max()
                 .unwrap_or(i64::MIN)
         };
-        let mut shown = lines.len();
+        let mut shown = rest.len();
         while shown > 1 && share_of(shown) < needs(shown) {
             shown -= 1;
         }
-        let left = lines.len() - shown;
-        let body: Vec<String> = lines[..shown].iter().map(|l| typed_line(l, share_of(shown))).collect();
-        (
+        let left = rest.len() - shown;
+        let share = share_of(shown);
+        let mut n = 0;
+        let body: Vec<String> = lines
+            .iter()
+            .filter_map(|l| {
+                if l.whole {
+                    return Some(typed_line(l, i64::MAX));
+                }
+                n += 1;
+                (n <= shown).then(|| typed_line(l, share))
+            })
+            .collect();
+        Ok((
             format!(
                 "{one}\n\n{TYPED_HEADING}\n{}{}",
                 body.join("\n"),
                 if left > 0 { tail(left) } else { String::new() }
             ),
             left,
-        )
+        ))
     };
     let (first, left) = lay(&part_one(Laid {
         left_out: false,
         long: false,
-    })?);
+    })?)?;
     let text = if left > 0 || first.encode_utf16().count() > OLD_AGENT_KEEPS {
         lay(&part_one(Laid {
             left_out: true,
             long: true,
-        })?)
+        })?)?
         .0
     } else {
         first
@@ -503,6 +529,7 @@ mod tests {
                 outro: Some(ch.repeat(5000)),
                 typed: (0..200)
                     .map(|i| TypedLine {
+                        whole: false,
                         label: format!("Line {i}"),
                         text: ch.repeat(5000),
                         more: None,
@@ -553,6 +580,7 @@ mod tests {
         let parts = |text: &str| CodeParts {
             ask: "Apply".into(),
             typed: vec![TypedLine {
+                whole: false,
                 label: "Note".into(),
                 text: text.into(),
                 more: None,
@@ -609,5 +637,34 @@ mod tests {
         assert_eq!(record_name(Some("Bad Name"), "vm_1"), "vm_1");
         assert_eq!(record_name(None, "bad id"), "an agent");
         assert_eq!(record_host(Some("x\ny")), "address not on record");
+    }
+
+    #[test]
+    fn a_whole_line_is_never_cut_and_a_message_that_cannot_hold_it_is_not_written() {
+        let long = "word ".repeat(190) + "LAST";
+        let parts = |text: &str, others: usize| CodeParts {
+            ask: "Let Claude Code look".into(),
+            typed: (0..others)
+                .map(|i| TypedLine {
+                    label: format!("Note {i}"),
+                    text: "n".repeat(600),
+                    ..Default::default()
+                })
+                .chain(std::iter::once(TypedLine {
+                    label: "Your question".into(),
+                    text: text.into(),
+                    whole: true,
+                    ..Default::default()
+                }))
+                .collect(),
+            ..Default::default()
+        };
+        for others in [0, 1, 6] {
+            let text = build_code_message(CODE, Some(&parts(&long, others)), "", "", None, None).expect("a message");
+            let (_, two) = parts_of(&text);
+            assert!(two.contains(&format!("Your question: {}", long.trim_end())), "{text}");
+        }
+        // Too much to show whole: no message, so no code.
+        assert!(build_code_message(CODE, Some(&parts(&"&".repeat(1000), 0)), "", "", None, None).is_err());
     }
 }

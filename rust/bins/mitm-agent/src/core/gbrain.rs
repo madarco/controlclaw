@@ -1248,12 +1248,14 @@ impl Brain {
         // The name is the app's own choice at registration and the person is the console's word:
         // shown as what they claim, not as fact.
         let mut typed = vec![TypedLine {
+            whole: false,
             label: "Calls itself".into(),
             text: name.clone(),
             more: None,
         }];
         if !site.is_empty() {
             typed.push(TypedLine {
+                whole: false,
                 label: "Signs in from".into(),
                 text: site.clone(),
                 more: None,
@@ -1261,6 +1263,7 @@ impl Brain {
         }
         if let Some(p) = &person {
             typed.push(TypedLine {
+                whole: false,
                 label: "Asked for in the console by".into(),
                 text: p.clone(),
                 more: None,

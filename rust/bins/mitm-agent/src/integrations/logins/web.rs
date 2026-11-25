@@ -17,9 +17,8 @@
 //!
 //! The grant lives 30 minutes in memory and only while the browser stays enrolled for that person.
 //!
-//! `page/` holds the page's markup and script exactly as `logins-page.ts` builds them. After a
-//! change there, write them again: `tsx` a script that imports `LOGINS_BODY`, `LOGINS_TAIL` and
-//! `LOGINS_APP_JS` and writes them to `page/body.html`, `page/tail.html` and `page/app.js`.
+//! `page/` holds the page's markup (`body.html`, with `__ALL_LOGINS__`, `__LATER__` and `__WHERE__`
+//! filled in here) and its script (`app.js`, which draws with the firewall's page kit, `ccKit`).
 
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -36,6 +35,7 @@ use cc_http::{Req, Resp};
 use super::firewall::{LoginsFirewall, Refused};
 use super::schema::{Issue, LOGIN_ID, REQUEST_ID};
 use crate::app::App;
+use crate::core::fw_shell::{fw_content, fw_kit_tag};
 use crate::integrations::js;
 
 pub const LOGINS_ROOT: &str = "/__cc/logins";
@@ -236,24 +236,55 @@ impl LoginsWeb {
         )
     }
 
+    /// "All logins": the console's list (Settings, Secrets), or the panel's Logins page on a
+    /// standalone firewall.
+    fn all_logins(&self) -> Option<String> {
+        if self.app.config.mode.standalone() {
+            return Some(format!("{}/logins", crate::core::local_cp::panel_origin()));
+        }
+        self.console_url()
+    }
+
+    /// The page's markup with the links and words that depend on where the list of logins is.
+    fn body(&self) -> String {
+        let standalone = self.app.config.mode.standalone();
+        let all = self.all_logins();
+        let body = match &all {
+            Some(u) => LOGINS_BODY.replace("__ALL_LOGINS__", &js::escape_html(u)),
+            None => LOGINS_BODY.replace(r#"href="__ALL_LOGINS__""#, r##"hidden href="#""##),
+        };
+        let (later, place) = if standalone {
+            (
+                "Name, sites and agents are changed on the panel's Logins page.",
+                "the panel (Logins)",
+            )
+        } else {
+            (
+                "Name, sites and agents are changed in the console (Settings, Secrets). Adding a site or an agent there needs a code.",
+                "ControlClaw (Settings, Secrets)",
+            )
+        };
+        body.replace("__LATER__", later).replace("__WHERE__", place)
+    }
+
     /// The form in the firewall's shell, or, for a request an agent sent in a chat (`?request=`),
     /// alone under the ControlClaw mark: that link is opened to do one thing, usually on a phone.
     fn page(&self, uri: &http::Uri) -> String {
+        let body = self.body();
+        let tail = format!("{}{LOGINS_TAIL}", fw_kit_tag());
         let Some(shell) = self.app.contracts.fw_shell.get() else {
-            return format!(
-                "<!doctype html><meta charset=\"utf-8\"><title>Website logins</title>{LOGINS_BODY}{LOGINS_TAIL}"
-            );
+            return format!("<!doctype html><meta charset=\"utf-8\"><title>Website logins</title>{body}{tail}");
         };
         if REQUEST_ID.is_match(&query_get(uri, "request")) {
-            return shell.minimal_page("Website login", LOGINS_BODY, LOGINS_TAIL);
+            return shell.minimal_page("Website login", &body, &tail);
         }
-        let body = shell.content(&format!("<div class=\"max-w-[36rem]\">{LOGINS_BODY}</div>"));
+        // The form and its notes side by side: wider than the default column.
         shell.shell_page(
             "Website logins",
             "logins",
-            &body,
+            &fw_content(&body, "default"),
             self.console_url().as_deref(),
-            LOGINS_TAIL,
+            &tail,
         )
     }
 

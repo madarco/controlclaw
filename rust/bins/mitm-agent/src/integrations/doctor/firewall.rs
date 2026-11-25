@@ -3,7 +3,7 @@
 //! typed. Its turns run in a unit of their own (`cc-doctor-run`), its transcript is sealed here,
 //! and the console learns its state only, never its content.
 //!
-//!   doctor.propose  { sessionId, vmId, cli, credentialId, model, kind?, step?, preset?, finding?, findingNotes? }
+//!   doctor.propose  { sessionId, vmId, cli, credentialId, model, kind?, step?, preset?, finding?, findingNotes?, findingQuestion? }
 //!   doctor.confirm  { sessionId, code }
 //!   doctor.stop     { sessionId }
 
@@ -696,6 +696,7 @@ impl DoctorFirewall {
                     format!("Let {cli_name} repair {who} for up to 2 hours")
                 },
                 typed: std::iter::once(crate::core::code_message::TypedLine {
+                    whole: false,
                     label: "Paid with".into(),
                     text: credential.label.to_string(),
                     more: None,
@@ -703,8 +704,19 @@ impl DoctorFirewall {
                 // Notes from the console go into the session: the person sees that they do, and how long.
                 .chain(finding_.as_ref().and_then(finding::notes_line).map(|text| {
                     crate::core::code_message::TypedLine {
+                        whole: false,
                         label: "With ControlClaw's notes".into(),
                         text,
+                        more: None,
+                    }
+                }))
+                // The person's question becomes part of Doctor's instructions: shown in full, the
+                // same cleaned text Doctor gets, so nothing can hide after what the message shows.
+                .chain(finding_.as_ref().filter(|f| !f.question.is_empty()).map(|f| {
+                    crate::core::code_message::TypedLine {
+                        label: "Your question".into(),
+                        whole: true,
+                        text: f.question.clone(),
                         more: None,
                     }
                 }))
@@ -724,7 +736,11 @@ impl DoctorFirewall {
                 finding::notes_line(f)
                     .map(|n| format!(", with ControlClaw's notes ({n})"))
                     .unwrap_or_default()
-            )
+            ) + if f.question.is_empty() {
+                ""
+            } else {
+                ", and your question"
+            }
         } else if let Some((f, st)) = &repair_ {
             format!(
                 "Let {cli_name} repair {} on {agent} with root access, using {}, for up to {window}",
@@ -1059,10 +1075,26 @@ impl DoctorFirewall {
         let record = self.o.store.get(id).ok().flatten()?;
         let s = self.get(id);
         let mut secrets: Vec<String> = self.all_secrets();
+        // The chat page's head: which agent, which CLI and model, and when the session ends. Only a
+        // live session knows them; the credential's name is not kept here, so it is left out.
+        let mut head = Map::new();
         let (state, busy) = match &s {
             Some(s) => {
                 let g = s.lock().unwrap_or_else(|e| e.into_inner());
                 secrets.extend(g.secrets.iter().cloned());
+                head.insert("agent".into(), json!(g.proposal.target.name));
+                head.insert(
+                    "cli".into(),
+                    json!(match g.proposal.cli {
+                        Cli::Claude => "Claude Code",
+                        Cli::Codex => "Codex",
+                        Cli::Pi => "Pi",
+                    }),
+                );
+                if !g.proposal.model.is_empty() {
+                    head.insert("model".into(), json!(g.proposal.model));
+                }
+                head.insert("expiresAt".into(), json!(g.expires_at));
                 (g.state.to_string(), g.busy)
             }
             None => (
@@ -1093,6 +1125,7 @@ impl DoctorFirewall {
         v.insert("state".into(), json!(state));
         v.insert("busy".into(), json!(busy));
         v.insert("events".into(), serde_json::to_value(events).unwrap_or(Value::Null));
+        v.extend(head);
         Some(Value::Object(v))
     }
 

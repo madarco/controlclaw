@@ -109,7 +109,10 @@ pub fn resolve(cli: Cli, credential: Option<&Value>, model: &str, now: i64) -> R
             expires_at: None,
         });
     }
-    if provider == "vercel_gateway" || included {
+    // The console sends an AI Gateway key under OpenClaw's provider name (`vercel-ai-gateway`); the
+    // console's own id is kept for stores written by hand and the tests.
+    let gateway = provider == "vercel-ai-gateway" || provider == "vercel_gateway";
+    if gateway || included {
         if (cli == Cli::Claude && !model.starts_with("anthropic/"))
             || (cli == Cli::Codex && !model.starts_with("openai/"))
         {

@@ -25,6 +25,7 @@ cc-openclaw = { path = "crates/cc-openclaw" }
 cc-origin = { path = "crates/cc-origin" }
 cc-proc = { path = "crates/cc-proc" }
 cc-redact = { path = "crates/cc-redact" }
+cc-shell = { path = "crates/cc-shell" }
 cc-store = { path = "crates/cc-store" }
 cc-testkit = { path = "crates/cc-testkit" }
 

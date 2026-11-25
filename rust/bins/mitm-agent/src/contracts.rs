@@ -572,6 +572,20 @@ pub trait FwShell: Send + Sync {
     fn notice(&self, title: &str, heading: Option<&str>, text: &str, id: Option<&str>, script: Option<&str>) -> String;
     /// `fwShellPage({title, active, body, consoleUrl, tail})`.
     fn shell_page(&self, title: &str, active: &str, body: &str, console_url: Option<&str>, tail: &str) -> String;
+    /// `shell_page` for a viewer the page knows: `can_write` (an owner or admin) also sees the
+    /// sidebar's held count.
+    fn shell_page_as(
+        &self,
+        title: &str,
+        active: &str,
+        body: &str,
+        console_url: Option<&str>,
+        tail: &str,
+        can_write: bool,
+    ) -> String {
+        let _ = can_write;
+        self.shell_page(title, active, body, console_url, tail)
+    }
     /// `fwMinimalPage({title, body, tail})`.
     fn minimal_page(&self, title: &str, body: &str, tail: &str) -> String;
     /// `fwContent(html)`.

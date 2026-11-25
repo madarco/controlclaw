@@ -22,6 +22,7 @@ cc-local.workspace = true
 cc-meetings.workspace = true
 cc-proc.workspace = true
 cc-redact.workspace = true
+cc-shell.workspace = true
 cc-store.workspace = true
 futures-util.workspace = true
 # Content-Encoding of a webhook delivery the content rules read (gzip, deflate, br).

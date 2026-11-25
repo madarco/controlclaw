@@ -104,6 +104,7 @@ fn page(active: &str) -> Option<FwPage> {
         "doctor" => Some(FwPage::Doctor),
         "logins" => Some(FwPage::Logins),
         "content" => Some(FwPage::Content),
+        "ai-review" => Some(FwPage::AiReview),
         _ => None,
     }
 }
@@ -123,6 +124,25 @@ impl contracts::FwShell for Shell {
             Some(console_url.map(str::to_string)),
             tail,
             None,
+        )
+    }
+
+    fn shell_page_as(
+        &self,
+        title: &str,
+        active: &str,
+        body: &str,
+        console_url: Option<&str>,
+        tail: &str,
+        can_write: bool,
+    ) -> String {
+        fw_shell_page(
+            title,
+            page(active),
+            body,
+            Some(console_url.map(str::to_string)),
+            tail,
+            Some(&super::fw_shell::state_for(can_write)),
         )
     }
 

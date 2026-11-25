@@ -9,7 +9,9 @@ use super::Core;
 use super::access::{AccessFirewall, AccessOptions, access_request, owns_access_path};
 use super::access_store::AccessStoreFile;
 use super::fw_logs::{FW_LOGS_HELPER, FwLogsPage, FwLogsReader, owns_fw_logs_path, page_request, page_response};
-use super::fw_shell::{FwPage, FwShellState, fw_ui_response, owns_fw_ui_path, pages_now, set_fw_shell, set_page};
+use super::fw_shell::{
+    FwPage, FwShellState, badges_now, fw_ui_response, owns_fw_ui_path, pages_now, set_fw_shell, set_page,
+};
 use crate::app::Registry;
 use crate::stages;
 
@@ -159,14 +161,16 @@ pub fn register(reg: &mut Registry, core: &Arc<Core>) {
 
     // This firewall's own Logs page.
     let c = core.clone();
-    let reader = Arc::new(FwLogsReader::new(
+    let mut reader = FwLogsReader::new(
         app.runner.clone(),
         Arc::new(move || firewall_secrets(&c)),
         Arc::new({
             let k = keys.clone();
             move || nonempty(k.read("vm_hostname"))
         }),
-    ));
+    );
+    reader.standalone = standalone;
+    let reader = Arc::new(reader);
     app.contracts.fw_logs.set(Arc::new(super::slots::Logs(reader.clone())));
     let firewall_url = app.config.firewall_url.clone();
     let console = {
@@ -196,16 +200,24 @@ pub fn register(reg: &mut Registry, core: &Arc<Core>) {
     let (k, box_id) = (keys.clone(), app.config.box_id.clone());
     set_fw_shell(Arc::new(move || FwShellState {
         hostname: nonempty(k.read("vm_hostname")),
-        console_origin: firewall_url
-            .starts_with("http")
-            .then(|| {
-                url::Url::parse(&firewall_url)
-                    .ok()
-                    .map(|u| u.origin().ascii_serialization())
-            })
-            .flatten(),
+        // A standalone firewall's pages go back to its panel, and open each other through it.
+        console_origin: if standalone {
+            Some(super::local_cp::panel_origin())
+        } else {
+            firewall_url
+                .starts_with("http")
+                .then(|| {
+                    url::Url::parse(&firewall_url)
+                        .ok()
+                        .map(|u| u.origin().ascii_serialization())
+                })
+                .flatten()
+        },
         firewall_id: box_id.clone(),
         pages: pages_now(),
+        standalone,
+        status: Some(shell_status()),
+        badges: badges_now(),
     }));
     let p = page.clone();
     reg.ingress.route(
@@ -237,6 +249,25 @@ pub fn register(reg: &mut Registry, core: &Arc<Core>) {
             }
         },
     );
+}
+
+/// "Running · 1.58.2" under the sidebar card: the release this firewall runs, from its release
+/// file (the page is served, so it is running). Read at most once a minute: it changes only with
+/// an update, and every page draws the sidebar.
+fn shell_status() -> String {
+    static CACHE: std::sync::Mutex<Option<(std::time::Instant, String)>> = std::sync::Mutex::new(None);
+    let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((at, s)) = cache.as_ref()
+        && at.elapsed() < std::time::Duration::from_secs(60)
+    {
+        return s.clone();
+    }
+    let s = match super::software::read_release(&super::software::release_file())["version"].as_str() {
+        Some(v) => format!("Running · {v}"),
+        None => "Running".into(),
+    };
+    *cache = Some((std::time::Instant::now(), s.clone()));
+    s
 }
 
 /// After the first sync: the access tick at once, then every `ACCESS_TICK_MS`.

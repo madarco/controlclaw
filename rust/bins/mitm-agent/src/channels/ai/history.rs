@@ -19,7 +19,7 @@ use cc_http::{Req, Resp};
 
 use super::trace_store::AiReviewTraceStore;
 use crate::app::App;
-use crate::core::fw_shell::{fw_notice, fw_shell_page};
+use crate::core::fw_shell::{FwPage, fw_content, fw_kit_tag, fw_notice, fw_shell_page};
 use crate::integrations::doctor::chat::{cookie_token, form_get, read_body, same_origin, send};
 use crate::integrations::js;
 
@@ -53,6 +53,8 @@ struct Grant {
     vm_id: String,
     user_id: String,
     device_id: String,
+    /// An owner or admin: the sidebar shows them the held count.
+    can_write: bool,
     expires_at: i64,
 }
 
@@ -165,11 +167,11 @@ impl AiReviewHistory {
             "/" => {
                 let html = fw_shell_page(
                     "AI review history",
+                    Some(FwPage::AiReview),
+                    &fw_content(PAGE_BODY, "wide"),
                     None,
-                    PAGE_BODY,
-                    None,
-                    r#"<script src="app.js"></script>"#,
-                    None,
+                    &format!(r#"{}<script src="app.js"></script>"#, fw_kit_tag()),
+                    Some(&crate::core::fw_shell::state_for(grant.can_write)),
                 );
                 send(200, html, "text/html")
             }
@@ -263,6 +265,7 @@ impl AiReviewHistory {
                     vm_id: vm_id.clone(),
                     user_id: p.user_id,
                     device_id: p.device_id,
+                    can_write: p.can_write,
                     expires_at: now + GRANT_MS,
                 },
             );

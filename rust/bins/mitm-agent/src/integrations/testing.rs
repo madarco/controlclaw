@@ -59,6 +59,8 @@ pub struct FakeCodes {
     pub sent: Mutex<Vec<String>>,
     /// The code messages sent through `CodeService`.
     pub asks: Mutex<Vec<Ask>>,
+    /// Those messages as the person reads them (code 123456).
+    pub rendered: Mutex<Vec<String>>,
 }
 
 impl FakeCodes {
@@ -444,6 +446,16 @@ impl crate::contracts::ModuleCodes for FakeModule {
             .lock()
             .expect("lock")
             .push((req.agent_name.clone(), req.summary.clone(), parts));
+        if let Ok(text) = crate::core::code_message::build_code_message(
+            "123456",
+            req.parts.as_ref(),
+            &req.agent_name,
+            &req.summary,
+            None,
+            None,
+        ) {
+            self.0.rendered.lock().expect("lock").push(text);
+        }
         let old = CodeRequest {
             scope: req.scope,
             change_id: req.change_id,

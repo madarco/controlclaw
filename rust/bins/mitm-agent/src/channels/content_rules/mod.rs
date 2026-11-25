@@ -394,6 +394,12 @@ pub fn register(reg: &mut Registry, app: &Arc<App>, deps: ContentDeps) {
             },
         );
         crate::core::fw_shell::set_page(crate::core::fw_shell::FwPage::Content, || true);
+        // "2 held" beside Content rules: the holds are in memory, so the count costs nothing.
+        let held = rules.clone();
+        crate::core::fw_shell::set_badge(crate::core::fw_shell::FwPage::Content, move || {
+            let n = held.held_count();
+            (n > 0).then(|| (format!("{n} held"), crate::core::fw_shell::Tone::Ask))
+        });
         crate::channels::contracts_fill::feature(app, "open_fw_content_rules", move || access.ready());
     }
     crate::channels::contracts_fill::feature(app, "content_rules", || true);

@@ -10,7 +10,7 @@
  */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { FirewallLogs } from "@controlclaw/console-ui/firewall/logs";
+import { FirewallLogsPage } from "@controlclaw/console-ui/firewall/logs";
 import type { FwLogSource, FwLogsResponse } from "@controlclaw/console-ui/lib/firewall-logs";
 import "./fw.css";
 
@@ -29,17 +29,15 @@ const source: FwLogSource = {
 };
 
 // The header and sidebar around `#root` are the firewall's own (rust/bins/mitm-agent/src/core/fw_shell.rs).
+// `fw_logs.rs` puts on `#root` where the Firewall page (Back to console) and Doctor are, in the
+// console or the standalone panel (empty when there is none); the page offers them next to a
+// failing service and a failed update.
 const root = document.getElementById("root")!;
+const firewallHref = root.dataset.firewallUrl || null;
+const doctorHref = root.dataset.doctorUrl || null;
 
 createRoot(root).render(
   <StrictMode>
-    <div className="mx-auto w-full max-w-[1180px] min-w-0 px-4 pt-6 pb-16 md:px-9">
-      <h1 className="mb-1 text-[22px] font-semibold tracking-[-0.02em] text-ink">Logs</h1>
-      <p className="mb-5 max-w-[70ch] text-[13.5px] text-ink-2">
-        What each service on your firewall wrote, read on the firewall itself. Secrets the firewall holds are removed before they reach this page, and
-        nothing here passes through ControlClaw.
-      </p>
-      <FirewallLogs source={source} />
-    </div>
+    <FirewallLogsPage source={source} firewallHref={firewallHref} doctorHref={doctorHref} />
   </StrictMode>,
 );

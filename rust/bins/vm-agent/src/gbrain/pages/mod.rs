@@ -275,6 +275,7 @@ pub fn brain_shell(ctx: &shell::ShellContext, view: &str, data: &Value) -> Strin
             icon,
             active: *v == view,
             badge: None,
+            badge_tone: None,
             external: false,
             group: None,
         })
@@ -285,6 +286,7 @@ pub fn brain_shell(ctx: &shell::ShellContext, view: &str, data: &Value) -> Strin
         icon: "admin",
         active: false,
         badge: None,
+        badge_tone: None,
         external: false,
         group: None,
     });
@@ -302,6 +304,7 @@ pub fn brain_shell(ctx: &shell::ShellContext, view: &str, data: &Value) -> Strin
         name: &name,
         sub: &sub,
         status: None,
+        status_tone: shell::Tone::Allow,
     };
     let foot = shell::shell_foot(
         "Served by this brain",

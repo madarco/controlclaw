@@ -32,6 +32,9 @@ export const ICONS = {
   mark: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
   shield:
     '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  review:
+    '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="1"/><path d="M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0"/>',
 } as const;
 
 export type ShellIcon = keyof typeof ICONS;
@@ -82,6 +85,12 @@ export interface ShellHeader {
   consoleUrl: string | null;
 }
 
+/** The colour of a dot: green for fine, amber for waiting on someone, red for broken. */
+export type ShellTone = "allow" | "ask" | "block";
+
+const TONE_DOT: Record<ShellTone, string> = { allow: "bg-allow", ask: "bg-ask", block: "bg-block" };
+const TONE_FG: Record<ShellTone, string> = { allow: "text-allow-fg", ask: "text-ask-fg", block: "text-block-fg" };
+
 /** The card at the top of the sidebar: the box these pages are on. */
 export interface ShellCard {
   mark: ShellIcon;
@@ -89,6 +98,8 @@ export interface ShellCard {
   sub: string;
   /** "Running · OpenClaw 2026.11.5", when the box knows it cheaply; no line without it. */
   status?: string | null;
+  /** The status line's dot; green when left out. */
+  statusTone?: ShellTone;
 }
 
 export interface ShellNavItem {
@@ -98,8 +109,10 @@ export interface ShellNavItem {
   icon: ShellIcon;
   /** The page being shown. */
   active?: boolean;
-  /** A short red note beside the label ("live"). */
+  /** A short note beside the label ("live", "1 held"). */
   badge?: string | null;
+  /** The badge's colour: red unless said, amber for something waiting on a person. */
+  badgeTone?: ShellTone;
   /** The link leaves this box (Doctor): an external-link mark. */
   external?: boolean;
   /** A label printed above the first entry of each group ("Waiting for you", "Help"). */
@@ -155,10 +168,10 @@ export function shellBrandHeader(h: ShellHeader, page: string): string {
 
 function shellCard(c: ShellCard): string {
   const status = c.status
-    ? `<div class="flex items-center gap-1.5 px-[10px] pt-2 text-[11.5px] text-ink-2"><span aria-hidden="true" class="h-[7px] w-[7px] shrink-0 rounded-full bg-allow"></span><span class="truncate">${escapeHtml(c.status)}</span></div>`
+    ? `<div class="flex items-center gap-1.5 px-[10px] pt-2 text-[11.5px] text-ink-2"><span aria-hidden="true" class="h-[7px] w-[7px] shrink-0 rounded-full ${TONE_DOT[c.statusTone ?? "allow"]}"></span><span class="truncate">${escapeHtml(c.status)}</span></div>`
     : "";
   return (
-    `<div class="hidden pb-3 md:block"><div class="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-surface px-[10px] py-2.5 shadow-sm">` +
+    `<div class="hidden pb-3 md:block"><div class="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-surface px-[10px] py-2.5">` +
     `<span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white">${icon(c.mark, "h-[17px] w-[17px]")}</span>` +
     `<div class="min-w-0 leading-tight"><div class="truncate text-[13.5px] font-semibold text-ink">${escapeHtml(c.name)}</div>` +
     `<div class="truncate font-mono text-[11px] text-ink-2">${escapeHtml(c.sub)}</div></div></div>${status}</div>`
@@ -167,8 +180,9 @@ function shellCard(c: ShellCard): string {
 
 function navLink(item: ShellNavItem): string {
   const tag = item.href === undefined ? "span" : "a";
+  const tone = item.badgeTone ?? "block";
   const badge = item.badge
-    ? `<span class="ml-auto inline-flex shrink-0 items-center gap-1 pl-1 text-[11px] font-medium text-block-fg"><span aria-hidden="true" class="h-1.5 w-1.5 rounded-full bg-block"></span>${escapeHtml(item.badge)}</span>`
+    ? `<span class="ml-auto inline-flex shrink-0 items-center gap-1 pl-1 text-[11px] font-medium ${TONE_FG[tone]}"><span aria-hidden="true" class="h-1.5 w-1.5 rounded-full ${TONE_DOT[tone]}"></span>${escapeHtml(item.badge)}</span>`
     : "";
   const ext = item.external ? `${icon("external", "ml-auto hidden h-3.5 w-3.5 shrink-0 text-muted-foreground md:block")}<span class="sr-only"> (opens through the console)</span>` : "";
   return (
@@ -180,7 +194,7 @@ function navLink(item: ShellNavItem): string {
 /** The note under the sidebar: where these pages come from. */
 export function shellFoot(title: string, text: string): string {
   return (
-    `<div class="mt-auto hidden pt-4 md:block"><div class="rounded-xl border border-line bg-surface p-3 shadow-sm">` +
+    `<div class="mt-auto hidden pt-4 md:block"><div class="rounded-xl border border-line bg-surface p-3">` +
     `<div class="flex items-center gap-1.5 text-[12.5px] font-semibold text-ink">${icon("shieldCheck", "h-3.5 w-3.5 shrink-0 text-brand")}${escapeHtml(title)}</div>` +
     `<p class="mt-1 text-[11.5px] leading-[1.45] text-ink-2">${escapeHtml(text)}</p></div></div>`
   );
@@ -242,18 +256,26 @@ export function shellCardFrame(opts: { title: string; assets: ShellAssets; heade
   );
 }
 
+/** The line under the minimal frame's card: "Served by …" with the box's address in mono. */
+export function shellMinimalFoot(lead: string, address: string, rest: string): string {
+  return (
+    `<p class="mt-4 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 px-2 text-center text-[12px] text-ink-2">${icon("shieldCheck", "h-3.5 w-3.5 shrink-0 text-brand")}` +
+    `<span>${escapeHtml(lead)}<span class="font-mono">${escapeHtml(address)}</span>${escapeHtml(rest)}</span></p>`
+  );
+}
+
 /**
  * The ControlClaw mark over one card and nothing else: a page with a single purpose, reached from
  * a link (an agent asking for a login in a chat), usually on a phone. No header, no sidebar, no
- * way out to other pages.
+ * way out to other pages. `foot` is `shellMinimalFoot(...)`, or nothing.
  */
-export function shellMinimalFrame(opts: { title: string; assets: ShellAssets; body: string; head?: string; tail?: string }): string {
+export function shellMinimalFrame(opts: { title: string; assets: ShellAssets; body: string; head?: string; tail?: string; foot?: string }): string {
   return (
     shellHead(opts.title, opts.assets, opts.head ?? "") +
     BODY +
     `<div class="mx-auto w-full max-w-[36rem] px-4 pt-6 pb-12 sm:pt-12">` +
     `<div class="mb-5 flex items-center gap-[9px]">${brandMark(26)}<span class="text-[15px] font-semibold tracking-[-0.01em] text-ink">ControlClaw</span></div>` +
-    `<main class="min-w-0 rounded-2xl border border-line bg-surface p-5 shadow-sm sm:p-8">${opts.body}</main>` +
+    `<main class="min-w-0 rounded-2xl border border-line bg-surface p-5 shadow-sm sm:p-8">${opts.body}</main>${opts.foot ?? ""}` +
     `</div>${opts.tail ?? ""}</body></html>`
   );
 }

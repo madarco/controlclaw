@@ -1,20 +1,24 @@
-//! The look of the pages this firewall serves itself (`fw-shell.ts`, and the parts of
-//! `@controlclaw/cc-shell` it uses): the header and sidebar the agent's `/__cc/` pages have, a
-//! minimal frame for a page with one purpose, and the stylesheet and theme script under
-//! `/__cc/doctor/ui/`, the prefix Caddy on every firewall already hands to this daemon.
+//! The look of the pages this firewall serves itself: the frame every box's `/__cc/` pages share
+//! (`cc-shell`, the twin of `packages/cc-shell`) with the firewall's sidebar, a minimal frame for a
+//! page with one purpose, and the stylesheet, theme script and page kit under `/__cc/doctor/ui/`,
+//! the prefix Caddy on every firewall already hands to this daemon.
 //!
 //! The stylesheet is the console's theme built by `apps/firewall-panel/scripts/build-fw-files.mjs`
-//! into the firewall's `dist-ui/app.css`. The Node build inlines it at build time; this one
-//! reads it at start from `CC_FW_UI_DIR`, or `dist-ui/` next to the binary (empty when neither is
-//! there, as the TS is without its build).
+//! into the firewall's `dist-ui/app.css`, read at start from `CC_FW_UI_DIR`, or `dist-ui/` next to
+//! the binary (empty when neither is there). The kit (`fw_kit.js`) is the parts the pages drawn
+//! here share (page head, stat tiles, pills, day headings, segmented buttons), in the classes of
+//! the agent pages' `box-kit`.
 //!
-//! The sidebar's links go through the console: every page here has its own short grant, bought
-//! with an intent only the console can sign.
+//! SaaS: the sidebar's links go through the console, since every page here has its own short grant,
+//! bought with an intent only the console can sign. Standalone: they go through the local panel
+//! (`<panel>/open/<page>`), which makes the same kind of link with this firewall's own key.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 
+use cc_shell::{Assets, Frame, NavItem, ShellCard, ShellHeader};
+pub use cc_shell::{Tone, escape_html};
 use sha2::{Digest, Sha256};
 
 pub const FW_UI_ROOT: &str = "/__cc/doctor/ui";
@@ -35,246 +39,48 @@ pub fn ui_asset(name: &str) -> String {
     std::fs::read_to_string(ui_dir().join(name)).unwrap_or_default()
 }
 
-// ---- @controlclaw/cc-shell ----
-
-pub fn icon_path(name: &str) -> &'static str {
-    match name {
-        "meetings" => {
-            r#"<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>"#
-        }
-        "phone" => {
-            r#"<path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/>"#
-        }
-        "files" => {
-            r#"<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>"#
-        }
-        "logs" => {
-            r#"<path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/>"#
-        }
-        "whatsapp" => r#"<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>"#,
-        "browser" => {
-            r#"<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>"#
-        }
-        "doctor" => {
-            r#"<path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/>"#
-        }
-        "logins" => {
-            r#"<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>"#
-        }
-        "content" => {
-            r#"<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="m14.5 7.5-5 5"/><path d="m9.5 7.5 5 5"/>"#
-        }
-        "back" => r#"<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>"#,
-        "shieldCheck" => {
-            r#"<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>"#
-        }
-        "mark" => {
-            r#"<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>"#
-        }
-        "shield" => {
-            r#"<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>"#
-        }
-        _ => "",
-    }
-}
-
-pub fn icon(name: &str, cls: &str) -> String {
-    format!(
-        r#"<svg class="{cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{}</svg>"#,
-        icon_path(name)
-    )
-}
-
-/// The ControlClaw mark, as the console's header draws it.
-pub fn brand_mark(size: u32) -> String {
-    let claw = |d: &str| {
-        format!(
-            r#"<path d="{d}" stroke="white" stroke-width="2.4" stroke-linecap="round" fill="none" opacity="0.95"/>"#
-        )
-    };
-    format!(
-        r#"<svg width="{size}" height="{size}" viewBox="0 0 48 48" fill="none" aria-hidden="true" class="shrink-0"><defs><linearGradient id="cc-brand-mark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="oklch(0.7 0.17 265)"/><stop offset="1" stop-color="oklch(0.34 0.17 265)"/></linearGradient></defs><path d="M24 3 L42 10 L42 24 C42 34 34 42 24 45 C14 42 6 34 6 24 L6 10 Z" fill="url(#cc-brand-mark)"/>{}{}{}</svg>"#,
-        claw("M15 18 C18 23 20 28 19 34"),
-        claw("M22 15 C25 21 27 28 25 35"),
-        claw("M29 16 C32 22 33 28 31 34")
-    )
-}
-
-pub fn escape_html(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\'' => out.push_str("&#39;"),
-            c => out.push(c),
-        }
-    }
-    out
-}
-
-/// Light or dark from the system, set before the first paint.
-pub const SHELL_JS: &str = r#"(function(){var m=window.matchMedia("(prefers-color-scheme: dark)");var a=function(){document.documentElement.classList.toggle("dark",m.matches)};a();m.addEventListener("change",a)})();"#;
-
-pub struct ShellAssets {
-    pub css: String,
-    pub js: String,
-}
-
-pub struct ShellHeader {
-    pub mark: &'static str,
-    pub name: String,
-    pub sub: String,
-    pub console_url: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ShellNavItem {
-    pub label: &'static str,
-    pub href: Option<String>,
-    pub icon: &'static str,
-    pub active: bool,
-}
-
-fn shell_head(title: &str, assets: &ShellAssets, extra: &str) -> String {
-    format!(
-        r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>{}</title><script src="{}"></script><link rel="stylesheet" href="{}">{extra}</head>"#,
-        escape_html(title),
-        escape_html(&assets.js),
-        escape_html(&assets.css)
-    )
-}
-
-const BODY: &str = r#"<body class="bg-bg-2 font-sans text-ink antialiased">"#;
-
-fn back_link(console_url: Option<&str>) -> String {
-    match console_url {
-        Some(url) if !url.is_empty() => format!(
-            r#"<a href="{}" class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink shadow-sm hover:bg-bg">{}<span class="hidden sm:inline">Back to console</span><span class="sm:hidden">Console</span></a>"#,
-            escape_html(url),
-            icon("back", "h-4 w-4 text-ink-2")
-        ),
-        _ => String::new(),
-    }
-}
-
-/// `shellBrandHeader`: ControlClaw, where you are (firewall › page), Back to console.
-fn shell_brand_header(h: &ShellHeader, page: &str) -> String {
-    format!(
-        r#"<header class="flex h-full min-w-0 items-center gap-3 px-4 md:px-5"><span class="flex min-w-0 items-center gap-[9px] md:w-[196px] md:shrink-0">{}<span class="hidden text-[15px] font-semibold tracking-[-0.01em] text-ink md:inline">ControlClaw</span><span class="truncate text-[14px] font-semibold text-ink md:hidden">{name}</span></span><nav aria-label="Breadcrumb" class="hidden min-w-0 items-center gap-2 text-[13.5px] text-ink-2 md:flex"><span class="truncate">{name}</span><span aria-hidden="true" class="text-muted-foreground">›</span><span aria-current="page" class="truncate font-medium text-ink">{}</span></nav><span class="flex-1"></span>{}</header>"#,
-        brand_mark(26),
-        escape_html(page),
-        back_link(h.console_url.as_deref()),
-        name = escape_html(&h.name),
-    )
-}
-
-/// The card at the top of the sidebar: the firewall and its address.
-fn shell_card(h: &ShellHeader) -> String {
-    format!(
-        r#"<div class="hidden pb-3 md:block"><div class="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-surface px-[10px] py-2.5 shadow-sm"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white">{}</span><div class="min-w-0 leading-tight"><div class="truncate text-[13.5px] font-semibold text-ink">{}</div><div class="truncate font-mono text-[11px] text-ink-2">{}</div></div></div></div>"#,
-        icon(h.mark, "h-[17px] w-[17px]"),
-        escape_html(&h.name),
-        escape_html(&h.sub)
-    )
-}
-
-/// `shellFoot`: the note under the sidebar.
-fn shell_foot(title: &str, text: &str) -> String {
-    format!(
-        r#"<div class="mt-auto hidden pt-4 md:block"><div class="rounded-xl border border-line bg-surface p-3 shadow-sm"><div class="flex items-center gap-1.5 text-[12.5px] font-semibold text-ink">{}{}</div><p class="mt-1 text-[11.5px] leading-[1.45] text-ink-2">{}</p></div></div>"#,
-        icon("shieldCheck", "h-3.5 w-3.5 shrink-0 text-brand"),
-        escape_html(title),
-        escape_html(text)
-    )
-}
-
-pub fn shell_frame(
-    title: &str,
-    assets: &ShellAssets,
-    header: &ShellHeader,
-    nav_label: &str,
-    nav: &[ShellNavItem],
-    body: &str,
-    tail: &str,
-) -> String {
-    let links: String = nav
-        .iter()
-        .map(|item| {
-            let tag = if item.href.is_some() { "a" } else { "span" };
-            let href = item
-                .href
-                .as_ref()
-                .map(|h| format!(r#" href="{}""#, escape_html(h)))
-                .unwrap_or_default();
-            let current = if item.active { r#" aria-current="page""# } else { "" };
-            let cls = if item.active {
-                "bg-surface font-semibold text-ink shadow-sm"
-            } else {
-                "text-ink-2 hover:bg-bg"
-            };
-            let icls = format!("h-4 w-4 shrink-0 {}", if item.active { "text-brand" } else { "text-ink-2" });
-            format!(
-                r#"<{tag}{href}{current} class="flex shrink-0 items-center gap-[11px] rounded-lg px-[10px] py-2 text-[13.5px] focus-visible:outline-2 focus-visible:outline-brand {cls}">{}<span>{}</span></{tag}>"#,
-                icon(item.icon, &icls),
-                escape_html(item.label)
-            )
-        })
-        .collect();
-    let page = nav.iter().find(|i| i.active).map_or(title, |i| i.label);
-    let foot = shell_foot(
-        "Served by this firewall",
-        &format!(
-            "What you see here is read straight from {}. It never passes through ControlClaw.",
-            if header.sub.is_empty() {
-                "the firewall"
-            } else {
-                &header.sub
-            }
-        ),
-    );
-    format!(
-        r#"{}{BODY}<div class="grid min-h-dvh grid-cols-[minmax(0,1fr)] grid-rows-[58px_auto_1fr] md:h-dvh md:grid-cols-[232px_minmax(0,1fr)] md:grid-rows-[58px_1fr] md:overflow-hidden"><div class="min-w-0 md:col-span-2">{}</div><div class="relative min-w-0 md:flex md:min-h-0 md:flex-col md:overflow-y-auto md:px-3 md:pb-3">{}<nav aria-label="{}" class="relative flex min-w-0 gap-0.5 overflow-x-auto px-3 pr-8 pb-2 md:flex-col md:overflow-x-visible md:px-0 md:pr-0 md:pb-0">{links}</nav><span aria-hidden="true" class="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-bg-2 to-transparent md:hidden"></span>{foot}</div><main class="min-w-0 border-t border-line bg-surface md:overflow-y-auto md:mr-2 md:mb-2 md:rounded-tl-2xl md:border shadow-sm">{body}</main></div>{tail}</body></html>"#,
-        shell_head(title, assets, ""),
-        shell_brand_header(header, page),
-        shell_card(header),
-        escape_html(nav_label)
-    )
-}
-
-pub fn shell_minimal_frame(title: &str, assets: &ShellAssets, body: &str, tail: &str) -> String {
-    format!(
-        r#"{}{BODY}<div class="mx-auto w-full max-w-[36rem] px-4 pt-6 pb-12 sm:pt-12"><div class="mb-5 flex items-center gap-[9px]">{}<span class="text-[15px] font-semibold tracking-[-0.01em] text-ink">ControlClaw</span></div><main class="min-w-0 rounded-2xl border border-line bg-surface p-5 shadow-sm sm:p-8">{body}</main></div>{tail}</body></html>"#,
-        shell_head(title, assets, ""),
-        brand_mark(26)
-    )
-}
-
-// ---- fw-shell.ts ----
+// ---- fw-shell ----
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FwPage {
     Logs,
-    Doctor,
-    Logins,
     Content,
+    /// The AI review history, opened per agent from the console: listed only while it is open.
+    AiReview,
+    Logins,
+    Doctor,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct FwShellState {
     pub hostname: Option<String>,
+    /// The console's origin (SaaS), or the local panel's (standalone).
     pub console_origin: Option<String>,
     pub firewall_id: String,
     pub pages: HashMap<FwPage, bool>,
+    /// A standalone firewall: the panel, not the console, makes the links.
+    pub standalone: bool,
+    /// "Running · 1.58.2" under the sidebar card.
+    pub status: Option<String>,
+    /// A count beside an entry ("1 held"), where the count is already at hand.
+    pub badges: HashMap<FwPage, (String, Tone)>,
 }
 
 type StateFn = Arc<dyn Fn() -> FwShellState + Send + Sync>;
 static STATE: OnceLock<StateFn> = OnceLock::new();
-/// Which pages this firewall serves, as each part says (Logs here, Doctor and logins W5, content W4).
+/// Which pages this firewall serves, as each part says (Logs here, Doctor and logins, content rules).
 type PageOn = Arc<dyn Fn() -> bool + Send + Sync>;
 static PAGES: LazyLock<Mutex<HashMap<FwPage, PageOn>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+type BadgeFn = Arc<dyn Fn() -> Option<(String, Tone)> + Send + Sync>;
+static BADGES: LazyLock<Mutex<HashMap<FwPage, BadgeFn>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+const ALL: [FwPage; 5] = [
+    FwPage::Logs,
+    FwPage::Content,
+    FwPage::AiReview,
+    FwPage::Logins,
+    FwPage::Doctor,
+];
 
 /// `setFwShell`: set once, when the pages exist.
 pub fn set_fw_shell(f: StateFn) {
@@ -288,25 +94,40 @@ pub fn set_page(page: FwPage, on: impl Fn() -> bool + Send + Sync + 'static) {
     }
 }
 
+/// A note beside a page's entry, worked out at each page load: only for a count held in memory.
+pub fn set_badge(page: FwPage, badge: impl Fn() -> Option<(String, Tone)> + Send + Sync + 'static) {
+    if let Ok(mut b) = BADGES.lock() {
+        b.insert(page, Arc::new(badge));
+    }
+}
+
 /// What the sidebar may list now.
 pub fn pages_now() -> HashMap<FwPage, bool> {
     let p = PAGES.lock().map(|p| p.clone()).unwrap_or_default();
-    [FwPage::Logs, FwPage::Doctor, FwPage::Logins, FwPage::Content]
-        .into_iter()
-        .map(|k| (k, p.get(&k).is_some_and(|f| f())))
-        .collect()
+    ALL.into_iter().map(|k| (k, p.get(&k).is_some_and(|f| f()))).collect()
 }
 
-fn state() -> FwShellState {
-    match STATE.get() {
-        Some(f) => f(),
-        None => FwShellState {
-            hostname: None,
-            console_origin: None,
-            firewall_id: String::new(),
-            pages: HashMap::new(),
-        },
+/// The badges now.
+pub fn badges_now() -> HashMap<FwPage, (String, Tone)> {
+    let b = BADGES.lock().map(|b| b.clone()).unwrap_or_default();
+    b.into_iter().filter_map(|(k, f)| f().map(|v| (k, v))).collect()
+}
+
+pub fn state() -> FwShellState {
+    STATE.get().map(|f| f()).unwrap_or_default()
+}
+
+/// The shell's state for one viewer. The held count beside Content rules is only for someone who
+/// may open that page (an owner or admin); a member opening Logs or a Doctor chat does not see it.
+pub fn state_for(may_open_content: bool) -> FwShellState {
+    for_viewer(state(), may_open_content)
+}
+
+fn for_viewer(mut st: FwShellState, may_open_content: bool) -> FwShellState {
+    if !may_open_content {
+        st.badges.remove(&FwPage::Content);
     }
+    st
 }
 
 static CSS_OVERRIDE: Mutex<Option<String>> = Mutex::new(None);
@@ -339,11 +160,21 @@ fn stylesheet() -> (String, String) {
     made
 }
 
-pub fn fw_shell_assets() -> ShellAssets {
-    ShellAssets {
-        css: stylesheet().1,
-        js: format!("{FW_UI_ROOT}/shell.js"),
-    }
+/// The page kit every page drawn here loads before its own script (`fw_kit.js`).
+const KIT_JS: &str = include_str!("fw_kit.js");
+static KIT_PATH: LazyLock<String> = LazyLock::new(|| {
+    let hash = hex::encode(Sha256::digest(KIT_JS.as_bytes()));
+    format!("{FW_UI_ROOT}/kit-{}.js", &hash[..12])
+});
+
+/// The kit's address, named by its hash: `<script src="…">` it before the page's own script.
+pub fn fw_kit_src() -> &'static str {
+    &KIT_PATH
+}
+
+/// `<script src="kit"></script>`, for a page's tail.
+pub fn fw_kit_tag() -> String {
+    format!(r#"<script src="{}"></script>"#, fw_kit_src())
 }
 
 pub fn owns_fw_ui_path(path: &str) -> bool {
@@ -372,8 +203,16 @@ pub fn serve_fw_ui(method: &str, path: &str) -> (u16, &'static str, String, &'st
         return (
             200,
             "text/javascript",
-            body(SHELL_JS.to_string()),
+            body(cc_shell::SHELL_JS.to_string()),
             "public, max-age=3600",
+        );
+    }
+    if path == fw_kit_src() {
+        return (
+            200,
+            "text/javascript",
+            body(KIT_JS.to_string()),
+            "public, max-age=31536000, immutable",
         );
     }
     (404, "text/plain", String::new(), "no-store")
@@ -422,65 +261,120 @@ pub fn console_doctor_firewall_url(console_base: &str, vm_id: &str) -> Option<St
 struct Nav {
     page: FwPage,
     label: &'static str,
+    /// The breadcrumb, when it says more than the entry.
+    crumb: &'static str,
     self_path: &'static str,
     icon: &'static str,
+    group: Option<&'static str>,
+    /// The name the local panel opens it by (`local_intent::PAGES`); `None`: not on a standalone
+    /// firewall.
+    local: Option<&'static str>,
 }
 
+/// What the firewall recorded first, then setup, then help, as the agent pages group theirs.
 const NAV: &[Nav] = &[
     Nav {
         page: FwPage::Logs,
         label: "Logs",
+        crumb: "Logs",
         self_path: "/__cc/doctor/logs/",
         icon: "logs",
-    },
-    Nav {
-        page: FwPage::Doctor,
-        label: "Doctor",
-        self_path: "/__cc/doctor/start/",
-        icon: "doctor",
-    },
-    Nav {
-        page: FwPage::Logins,
-        label: "Website logins",
-        self_path: "/__cc/logins/",
-        icon: "logins",
+        group: None,
+        local: Some("firewall-logs"),
     },
     Nav {
         page: FwPage::Content,
         label: "Content rules",
+        crumb: "Content rules",
         self_path: "/__cc/doctor/content-rules/",
         icon: "content",
+        group: None,
+        local: Some("content-rules"),
+    },
+    Nav {
+        page: FwPage::AiReview,
+        label: "AI review",
+        crumb: "AI review history",
+        // Per agent (`/__cc/doctor/ai-review/a/<vm>/`): the page it is on.
+        self_path: "./",
+        icon: "review",
+        group: None,
+        local: None,
+    },
+    Nav {
+        page: FwPage::Logins,
+        label: "Website logins",
+        crumb: "Website logins",
+        self_path: "/__cc/logins/",
+        icon: "logins",
+        group: Some("Set up"),
+        local: Some("logins"),
+    },
+    Nav {
+        page: FwPage::Doctor,
+        label: "Doctor",
+        crumb: "Doctor",
+        self_path: "/__cc/doctor/start/",
+        icon: "doctor",
+        group: Some("Help"),
+        local: None,
     },
 ];
 
-fn entry(page: FwPage, origin: &str, firewall_id: &str) -> String {
-    match page {
-        FwPage::Logs => format!("{origin}/dashboard/firewall/logs/open"),
-        FwPage::Doctor => console_doctor_firewall_url(origin, firewall_id)
-            .unwrap_or_else(|| format!("{origin}/dashboard/doctor/firewall")),
-        FwPage::Logins => format!("{origin}/logins/open"),
-        FwPage::Content => format!("{origin}/dashboard/firewall/content-rules/open"),
+/// Where a page's entry goes from another page: the console route that signs its intent, or the
+/// local panel's `/open/<page>`. `None`: it cannot be opened from here.
+fn entry(item: &Nav, origin: &str, st: &FwShellState) -> Option<String> {
+    if st.standalone {
+        return item.local.map(|l| format!("{origin}/open/{l}"));
+    }
+    match item.page {
+        FwPage::Logs => Some(format!("{origin}/dashboard/firewall/logs/open")),
+        FwPage::Doctor => Some(
+            console_doctor_firewall_url(origin, &st.firewall_id)
+                .unwrap_or_else(|| format!("{origin}/dashboard/doctor/firewall")),
+        ),
+        FwPage::Logins => Some(format!("{origin}/logins/open")),
+        FwPage::Content => Some(format!("{origin}/dashboard/firewall/content-rules/open")),
+        // Opened per agent, from the console's AI review card.
+        FwPage::AiReview => None,
     }
 }
 
-/// `fwShellNav`: the pages this firewall serves, the current one always listed.
-pub fn fw_shell_nav(active: Option<FwPage>, st: &FwShellState) -> Vec<ShellNavItem> {
+/// Where the sidebar's entry for `page` goes, when this firewall serves it and it can be opened
+/// from another page; for a page that links to it from its body (Logs' "Repair with Doctor").
+pub fn fw_nav_href(page: FwPage, st: &FwShellState) -> Option<String> {
+    let item = NAV.iter().find(|i| i.page == page)?;
+    if !st.pages.get(&page).copied().unwrap_or(false) {
+        return None;
+    }
+    entry(item, st.console_origin.as_deref()?, st)
+}
+
+/// `fwShellNav`: the pages this firewall serves and can open from here, the current one always
+/// listed.
+pub fn fw_shell_nav(active: Option<FwPage>, st: &FwShellState) -> Vec<NavItem> {
     let origin = st.console_origin.as_deref();
     NAV.iter()
-        .filter(|item| {
-            Some(item.page) == active || (st.pages.get(&item.page).copied().unwrap_or(false) && origin.is_some())
-        })
-        .map(|item| ShellNavItem {
-            label: item.label,
-            href: origin.map(|o| {
-                if Some(item.page) == active {
-                    item.self_path.to_string()
-                } else {
-                    entry(item.page, o, &st.firewall_id)
-                }
-            }),
-            icon: item.icon,
-            active: Some(item.page) == active,
+        .filter_map(|item| {
+            let on = Some(item.page) == active;
+            let href = if on {
+                origin.map(|_| item.self_path.to_string())
+            } else if st.pages.get(&item.page).copied().unwrap_or(false) {
+                Some(entry(item, origin?, st)?)
+            } else {
+                return None;
+            };
+            let badge = st.badges.get(&item.page);
+            Some(NavItem {
+                label: item.label.into(),
+                href,
+                icon: item.icon,
+                active: on,
+                badge: badge.map(|b| b.0.clone()),
+                badge_tone: badge.map(|b| b.1),
+                external: false,
+                group: item.group,
+            })
         })
         .collect()
 }
@@ -488,6 +382,9 @@ pub fn fw_shell_nav(active: Option<FwPage>, st: &FwShellState) -> Vec<ShellNavIt
 /// `fwConsoleUrl`: an agent's page, or the Firewall page for this firewall itself.
 pub fn fw_console_url(vm_id: &str, st: &FwShellState) -> Option<String> {
     let o = st.console_origin.as_ref()?;
+    if st.standalone {
+        return Some(format!("{o}/"));
+    }
     Some(if !vm_id.is_empty() && vm_id != st.firewall_id {
         format!(
             "{o}/dashboard/agents/{}",
@@ -498,7 +395,33 @@ pub fn fw_console_url(vm_id: &str, st: &FwShellState) -> Option<String> {
     })
 }
 
-/// `consoleUrl` of `fwShellPage`: `None` is "the Firewall page"; `Some(None)` is no button.
+/// "Back to console" on a standalone firewall: the panel's page nearest to this one.
+fn panel_back(origin: &str, active: Option<FwPage>) -> String {
+    let path = match active {
+        Some(FwPage::Logins) => "/logins",
+        Some(FwPage::Content) => "/security",
+        Some(FwPage::AiReview) => "/internet#ai-review",
+        _ => "/",
+    };
+    format!("{origin}{path}")
+}
+
+/// Where "Back to console" goes, as `fw_shell_page` takes `console_url`. A page that links to the
+/// same place from its body (Content rules' "Edit rules") asks here rather than reading the header.
+pub fn fw_back_url(active: Option<FwPage>, console_url: Option<Option<String>>, st: &FwShellState) -> Option<String> {
+    match (st.standalone, console_url) {
+        (true, _) => st.console_origin.as_deref().map(|o| panel_back(o, active)),
+        (false, None) => st.console_origin.as_ref().map(|o| format!("{o}/dashboard/firewall")),
+        (false, Some(u)) => u,
+    }
+}
+
+fn assets() -> (String, String) {
+    (stylesheet().1, format!("{FW_UI_ROOT}/shell.js"))
+}
+
+/// `consoleUrl` of `fwShellPage`: `None` is "the Firewall page"; `Some(None)` is no button. A
+/// standalone firewall always goes back to its panel.
 pub fn fw_shell_page(
     title: &str,
     active: Option<FwPage>,
@@ -510,65 +433,151 @@ pub fn fw_shell_page(
     let owned;
     let st = match st {
         Some(s) => s,
+        // A page that does not say who is viewing shows the held count only where only an owner or
+        // admin gets in.
         None => {
-            owned = state();
+            owned = state_for(matches!(active, Some(FwPage::Content | FwPage::Logins)));
             &owned
         }
     };
-    let back = match console_url {
-        None => st.console_origin.as_ref().map(|o| format!("{o}/dashboard/firewall")),
-        Some(u) => u,
-    };
+    let back = fw_back_url(active, console_url, st);
+    let sub = st.hostname.clone().unwrap_or_default();
     let header = ShellHeader {
         mark: "shield",
-        name: "Firewall".into(),
-        sub: st.hostname.clone().unwrap_or_default(),
-        console_url: back,
+        name: "Firewall",
+        sub: &sub,
+        console_url: back.as_deref(),
     };
-    shell_frame(
+    let card = ShellCard {
+        mark: "shield",
+        name: "Firewall",
+        sub: &sub,
+        status: st.status.as_deref(),
+        status_tone: Tone::Allow,
+    };
+    let nav = fw_shell_nav(active, st);
+    let page = NAV.iter().find(|i| Some(i.page) == active).map_or(title, |i| i.crumb);
+    let foot = cc_shell::shell_foot(
+        "Served by this firewall",
+        &format!(
+            "What you see here is read straight from {}. It never passes through ControlClaw.",
+            if sub.is_empty() { "the firewall" } else { &sub }
+        ),
+    );
+    let (css, js) = assets();
+    cc_shell::shell_frame(&Frame {
         title,
-        &fw_shell_assets(),
-        &header,
-        "Firewall pages",
-        &fw_shell_nav(active, st),
+        assets: &Assets { css: &css, js: &js },
+        header: &header,
+        page,
+        card: &card,
+        nav_label: "Firewall pages",
+        nav: &nav,
+        foot: &foot,
         body,
+        head: "",
         tail,
-    )
+    })
 }
 
-/// `fwContent(body, width)`: the page's column.
+/// `fwContent(body, width)`: the page's column, as the agent pages' `BoxPageBody` puts it.
 pub fn fw_content(body: &str, width: &str) -> String {
     let max = match width {
         "narrow" => "max-w-[860px]",
         "wide" => "max-w-[1180px]",
-        _ => "max-w-none",
+        _ => "max-w-[1100px]",
     };
-    format!(r#"<div class="mx-auto w-full {max} min-w-0 px-4 pt-6 pb-16 md:px-9">{body}</div>"#)
+    format!(r#"<div class="mx-auto w-full {max} min-w-0 px-4 pt-6 pb-16 md:px-9 md:pt-8">{body}</div>"#)
+}
+
+/// The line under a minimal page: served by this firewall, never through ControlClaw.
+fn minimal_foot(st: &FwShellState) -> String {
+    match st.hostname.as_deref().filter(|h| !h.is_empty()) {
+        Some(h) => {
+            cc_shell::shell_minimal_foot("Served by your firewall, ", h, ". It never passes through ControlClaw.")
+        }
+        None => cc_shell::shell_minimal_foot("Served by your firewall. It never passes through ControlClaw.", "", ""),
+    }
 }
 
 pub fn fw_minimal_page(title: &str, body: &str, tail: &str) -> String {
-    shell_minimal_frame(title, &fw_shell_assets(), body, tail)
+    let (css, js) = assets();
+    cc_shell::shell_minimal_frame(
+        title,
+        &Assets { css: &css, js: &js },
+        body,
+        "",
+        tail,
+        &minimal_foot(&state()),
+    )
 }
 
-/// `fwNotice`: a minimal page that only says something.
+/// `fwNotice`: a minimal page that only says something. With a script it is a page on its way
+/// somewhere ("Opening…"), drawn with a spinner; without, it says why a page did not open, with a
+/// way back to the console (or the panel).
 pub fn fw_notice(title: &str, heading: Option<&str>, text: &str, id: Option<&str>, script: Option<&str>) -> String {
+    fw_notice_in(title, heading, text, id, script, &state())
+}
+
+fn fw_notice_in(
+    title: &str,
+    heading: Option<&str>,
+    text: &str,
+    id: Option<&str>,
+    script: Option<&str>,
+    st: &FwShellState,
+) -> String {
+    let busy = script.is_some();
+    let mark = if busy {
+        r#"<span aria-hidden="true" class="grid h-11 w-11 place-items-center rounded-full bg-brand-soft"><span class="h-5 w-5 rounded-full border-2 border-brand/30 border-t-brand motion-safe:animate-spin"></span></span>"#.to_string()
+    } else {
+        format!(
+            r#"<span aria-hidden="true" class="grid h-11 w-11 place-items-center rounded-full bg-bg-2 text-ink-2">{}</span>"#,
+            cc_shell::icon("info", "h-5 w-5")
+        )
+    };
     let h = heading
         .map(|h| {
             format!(
-                r#"<h1 class="text-[16px] font-semibold tracking-[-0.01em] text-ink mb-2">{}</h1>"#,
+                r#"<h1 class="text-[17px] font-semibold tracking-[-0.01em] text-ink">{}</h1>"#,
                 escape_html(h)
             )
         })
         .unwrap_or_default();
-    let id = id.map(|i| format!(r#" id="{i}""#)).unwrap_or_default();
+    let id = id.map(|i| format!(r#" id="{}""#, escape_html(i))).unwrap_or_default();
+    let back = match (&st.console_origin, busy) {
+        (Some(o), false) => format!(
+            r#"<a href="{}" class="mt-1 inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink shadow-sm hover:bg-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">{}{}</a>"#,
+            escape_html(&if st.standalone {
+                format!("{o}/")
+            } else {
+                format!("{o}/dashboard")
+            }),
+            if st.standalone {
+                "Open the panel"
+            } else {
+                "Open the console"
+            },
+            cc_shell::icon("external", "h-3.5 w-3.5 text-ink-2")
+        ),
+        _ => String::new(),
+    };
     let body = format!(
-        r#"{h}<p{id} class="text-[14px] text-ink-2" role="status">{}</p>"#,
+        r#"<div class="flex flex-col items-center gap-3 py-2 text-center">{mark}{h}<p{id} class="max-w-[46ch] text-[14px] text-pretty text-ink-2" role="status">{}</p>{back}</div>"#,
         escape_html(text)
     );
     let tail = script
         .map(|s| format!(r#"<script src="{}"></script>"#, escape_html(s)))
         .unwrap_or_default();
-    fw_minimal_page(title, &body, &tail)
+    let (css, js) = assets();
+    cc_shell::shell_minimal_frame(
+        title,
+        &Assets { css: &css, js: &js },
+        &body,
+        "",
+        &tail,
+        &minimal_foot(st),
+    )
 }
 
 #[cfg(test)]
@@ -580,54 +589,99 @@ mod tests {
             hostname: Some("mitm-1.ccl.bot".into()),
             console_origin: Some("https://console.example".into()),
             firewall_id: "fw_1".into(),
-            pages: [FwPage::Logs, FwPage::Doctor, FwPage::Logins, FwPage::Content]
-                .into_iter()
-                .map(|p| (p, true))
-                .collect(),
+            pages: ALL.into_iter().map(|p| (p, true)).collect(),
+            ..FwShellState::default()
         }
     }
 
-    fn pairs(n: &[ShellNavItem]) -> Vec<(&'static str, Option<String>)> {
-        n.iter().map(|i| (i.label, i.href.clone())).collect()
+    fn pairs(n: &[NavItem]) -> Vec<(String, Option<String>)> {
+        n.iter().map(|i| (i.label.clone(), i.href.clone())).collect()
+    }
+
+    fn s(x: &str) -> Option<String> {
+        Some(x.to_string())
     }
 
     #[test]
     fn the_sidebar_goes_through_the_console() {
-        let s = |x: &str| Some(x.to_string());
+        let want = |v: Vec<(&str, Option<String>)>| v.into_iter().map(|(l, h)| (l.to_string(), h)).collect::<Vec<_>>();
         assert_eq!(
             pairs(&fw_shell_nav(None, &st())),
-            vec![
+            want(vec![
                 ("Logs", s("https://console.example/dashboard/firewall/logs/open")),
-                ("Doctor", s("https://console.example/dashboard/doctor/firewall?vm=fw_1")),
-                ("Website logins", s("https://console.example/logins/open")),
                 (
                     "Content rules",
                     s("https://console.example/dashboard/firewall/content-rules/open")
                 ),
-            ]
+                ("Website logins", s("https://console.example/logins/open")),
+                ("Doctor", s("https://console.example/dashboard/doctor/firewall?vm=fw_1")),
+            ])
         );
+        let groups: Vec<_> = fw_shell_nav(None, &st()).iter().map(|i| i.group).collect();
+        assert_eq!(groups, [None, None, Some("Set up"), Some("Help")]);
+        // AI review is listed only while it is open: the console opens it per agent.
+        let on = fw_shell_nav(Some(FwPage::AiReview), &st());
+        assert_eq!(on[2].label, "AI review");
+        assert_eq!(on[2].href, s("./"));
+        assert!(on[2].active);
         let mut some = st();
         some.pages.insert(FwPage::Doctor, false);
         some.pages.insert(FwPage::Content, false);
         let on = fw_shell_nav(Some(FwPage::Logins), &some);
         assert_eq!(
             pairs(&on),
-            vec![
+            want(vec![
                 ("Logs", s("https://console.example/dashboard/firewall/logs/open")),
                 ("Website logins", s("/__cc/logins/"))
-            ]
+            ])
         );
         assert!(on[1].active);
         let mut alone = st();
         alone.console_origin = None;
         assert_eq!(
             pairs(&fw_shell_nav(Some(FwPage::Doctor), &alone)),
-            vec![("Doctor", None)]
+            want(vec![("Doctor", None)])
         );
         let page = fw_shell_page("x", Some(FwPage::Doctor), "", None, "", Some(&alone));
         assert!(page.contains(r#"<span aria-current="page" class="#));
         assert!(!page.contains("<a "));
         assert!(fw_shell_nav(None, &alone).is_empty());
+    }
+
+    #[test]
+    fn a_standalone_sidebar_goes_through_the_panel() {
+        let mut p = st();
+        p.standalone = true;
+        p.console_origin = s("http://localhost:8800");
+        let want: Vec<(String, Option<String>)> = vec![
+            ("Logs".into(), s("http://localhost:8800/open/firewall-logs")),
+            ("Content rules".into(), s("http://localhost:8800/open/content-rules")),
+            ("Website logins".into(), s("/__cc/logins/")),
+        ];
+        // Doctor and the AI review history are not on a standalone firewall.
+        assert_eq!(pairs(&fw_shell_nav(Some(FwPage::Logins), &p)), want);
+        let page = fw_shell_page("x", Some(FwPage::Logins), "", Some(None), "", Some(&p));
+        assert!(page.contains(r#"<a href="http://localhost:8800/logins""#) && page.contains("Back to console"));
+        let page = fw_shell_page("x", Some(FwPage::Content), "", Some(s("https://c/x")), "", Some(&p));
+        assert!(page.contains(r#"<a href="http://localhost:8800/security""#));
+        assert_eq!(fw_console_url("vm_2", &p), s("http://localhost:8800/"));
+    }
+
+    #[test]
+    fn badges_and_the_status_line() {
+        let mut b = st();
+        b.badges.insert(FwPage::Content, ("2 held".into(), Tone::Ask));
+        b.status = s("Running · 1.58.2");
+        let nav = fw_shell_nav(Some(FwPage::Logs), &b);
+        assert_eq!(nav[1].badge.as_deref(), Some("2 held"));
+        assert_eq!(nav[1].badge_tone, Some(Tone::Ask));
+        let page = fw_shell_page("x", Some(FwPage::Logs), "", None, "", Some(&b));
+        assert!(page.contains("text-ask-fg") && page.contains(">2 held</span>"));
+        assert!(page.contains("Running · 1.58.2"));
+        // A member (no write) does not see the held count; an owner or admin does.
+        let member = for_viewer(b.clone(), false);
+        assert!(!fw_shell_page("x", Some(FwPage::Logs), "", None, "", Some(&member)).contains("2 held"));
+        assert!(fw_shell_page("x", Some(FwPage::Logs), "", None, "", Some(&for_viewer(b, true))).contains("2 held"));
     }
 
     #[test]
@@ -649,6 +703,10 @@ mod tests {
         assert!(p.contains(r#"<a href="https://console.example/dashboard/firewall""#) && p.contains("Back to console"));
         let p = fw_shell_page("x", Some(FwPage::Logs), "", Some(None), "", Some(&st()));
         assert!(!p.contains("Back to console"));
+        let p = fw_shell_page("x", Some(FwPage::AiReview), "", None, "", Some(&st()));
+        assert!(
+            p.contains(r#"<span aria-current="page" class="truncate font-medium text-ink">AI review history</span>"#)
+        );
     }
 
     #[test]
@@ -668,35 +726,35 @@ mod tests {
         ));
         assert!(page.ends_with(r#"<script src="app.js"></script></body></html>"#));
         assert!(!page.contains("<b>") && !page.contains("<t>") && !page.contains("style="));
-        let notice = fw_notice(
-            "Logins",
-            Some("It <failed>"),
-            "Try & again",
-            Some("s"),
-            Some("/__cc/logins/open.js"),
-        );
-        assert!(notice.contains(
-            r#"It &lt;failed&gt;</h1><p id="s" class="text-[14px] text-ink-2" role="status">Try &amp; again</p>"#
-        ));
-        assert!(notice.contains(r#"<script src="/__cc/logins/open.js"></script></body>"#));
+        let notice = fw_notice_in("Logins", Some("It <failed>"), "Try & again", Some("s"), None, &s);
+        assert!(notice.contains(r#"It &lt;failed&gt;</h1><p id="s" class="#));
+        assert!(notice.contains(r#"role="status">Try &amp; again</p>"#));
+        assert!(notice.contains(r#"href="https://console.example/dashboard""#) && notice.contains("Open the console"));
+        assert!(notice.contains("Served by your firewall, <span class=\"font-mono\">&lt;b&gt;.ccl.bot</span>"));
+        let opening = fw_notice_in("Logins", None, "Opening…", Some("s"), Some("/__cc/logins/open.js"), &s);
+        assert!(opening.contains(r#"<script src="/__cc/logins/open.js"></script></body>"#));
+        assert!(opening.contains("animate-spin") && !opening.contains("Open the console"));
     }
 
     #[test]
     fn assets_are_served_without_a_grant() {
         set_fw_shell_css(Some("body{color:red}"));
-        let a = fw_shell_assets();
-        assert!(owns_fw_ui_path(&a.css) && owns_fw_ui_path(&a.js));
+        let (css, js) = assets();
+        assert!(owns_fw_ui_path(&css) && owns_fw_ui_path(&js) && owns_fw_ui_path(fw_kit_src()));
         assert!(!owns_fw_ui_path("/__cc/doctor/logs/"));
-        let (s, ty, body, cache) = serve_fw_ui("GET", &a.css);
+        let (s, ty, body, cache) = serve_fw_ui("GET", &css);
         assert_eq!((s, ty, body.as_str()), (200, "text/css", "body{color:red}"));
         assert!(cache.contains("immutable"));
         let (s, _, body, cache) = serve_fw_ui("GET", &format!("{FW_UI_ROOT}/shell-000000000000.css"));
         assert_eq!((s, body.as_str(), cache), (200, "body{color:red}", "no-store"));
-        let (s, ty, body, _) = serve_fw_ui("GET", &a.js);
+        let (s, ty, body, _) = serve_fw_ui("GET", &js);
         assert_eq!((s, ty), (200, "text/javascript"));
         assert!(body.contains("prefers-color-scheme: dark"));
+        let (s, ty, body, cache) = serve_fw_ui("GET", fw_kit_src());
+        assert_eq!((s, ty), (200, "text/javascript"));
+        assert!(body.contains("ccKit") && cache.contains("immutable"));
         assert_eq!(serve_fw_ui("GET", &format!("{FW_UI_ROOT}/other.css")).0, 404);
-        assert_eq!(serve_fw_ui("POST", &a.css).0, 405);
+        assert_eq!(serve_fw_ui("POST", &css).0, 405);
         set_fw_shell_css(None);
     }
 }

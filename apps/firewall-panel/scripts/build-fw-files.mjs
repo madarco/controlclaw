@@ -73,6 +73,7 @@ const SOURCES = [
   `${UI}/firewall/change/RecoveryKeyConfirm.tsx`,
   `${UI}/kit/RecoveryKeyInput.tsx`,
   `${UI}/kit/JsonFileDrop.tsx`,
+  `${UI}/kit/box-kit.tsx`,
   `${UI}/ui`,
   `${UI}/firewall/logs`,
   "packages/cc-shell/src/index.ts",

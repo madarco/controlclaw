@@ -86,6 +86,15 @@ do this, the same as reading the setup token from the log.
 
 A page whose API the firewall does not have says "Coming soon".
 
+**Logs** on the Overview opens the firewall's own Logs page (what each service wrote; in the Docker
+image, which has no system journal, that page says to use `docker compose logs firewall`, or `podman compose logs firewall` under Podman; a standalone firewall without the log reader says to use `journalctl` on its machine, never to press Update).
+
+`/open/<page>` (`firewall-logs`, `logins`, `content-rules`) is not in the sidebar: it is where the
+firewall's own pages link to each other on a standalone firewall. It asks the firewall for a one-time
+link (`POST /api/open`) and goes on to the page in the same tab, so it needs the panel's sign-in.
+Those pages have the console's look (header, sidebar, Back to console, which comes back here); see
+[the firewall's pages](../../apps/saas/docs/features/agent-pages.md#the-firewalls-pages).
+
 **Stop** in the header stops every agent (no model calls, no web, no channels) after you type STOP.
 A red line across the top says so until you press **Start again**.
 

@@ -300,8 +300,13 @@ How to set it up: [`desktop-app.md`](desktop-app.md).
 
 ## Opening a page
 
-Two of the firewall's own pages open this way: `firewall-logs` and `logins`. The content rules are
-set through the panel's API (`panel-api.md`). AI review is an agent's page.
+Three of the firewall's own pages open this way: `firewall-logs`, `logins` and `content-rules` (what
+the content rules held and stopped; the rules themselves are set through the panel's API,
+`panel-api.md`). Doctor and the AI review history are not on a standalone firewall.
+
+Once one is open, its sidebar opens the others through the panel (`<panel>/open/<page>`, which asks
+for a link the same way), and Back to console goes to the panel. The panel's address is
+`LOCAL_PANEL_URL`, else `http://localhost:<port of LOCAL_PANEL_BIND>`.
 
 On the firewall, as the user that reads `KEYS_DIR`, run:
 

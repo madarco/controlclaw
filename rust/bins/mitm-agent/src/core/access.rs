@@ -356,6 +356,7 @@ pub fn open_code_message(
             .filter(|e| !e.is_empty())
             .map(|e| {
                 vec![TypedLine {
+                    whole: false,
                     label: "ControlClaw says this is".into(),
                     text: e.into(),
                     more: None,

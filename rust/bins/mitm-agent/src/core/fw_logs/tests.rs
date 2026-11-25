@@ -113,6 +113,8 @@ fn reader(run: Run, helper: bool, update: Value) -> FwLogsReader {
         hostname: Arc::new(|| Some("fw.example.com".into())),
         run,
         helper_present: Arc::new(move || helper),
+        in_container: Arc::new(|| false),
+        standalone: false,
         update: Arc::new(move || update.clone()),
     }
 }
@@ -290,6 +292,8 @@ async fn the_page_behind_its_door() {
             })
         }),
         helper_present: Arc::new(|| true),
+        in_container: Arc::new(|| false),
+        standalone: false,
         update: Arc::new(|| Value::Null),
     });
     let page = FwLogsPage::new(
@@ -379,7 +383,7 @@ async fn the_page_behind_its_door() {
         .await;
     assert_eq!(html.status, 200);
     assert!(h(&html, "content-security-policy").contains("script-src 'self'"));
-    assert!(html.body.contains(r#"<div id="root"></div>"#));
+    assert!(html.body.contains(r#"<div id="root" data-firewall-url="#));
     assert!(html.body.contains("https://console.example.com/dashboard/firewall"));
     let grant_only = set.split(';').next().expect("c").to_string();
     assert_eq!(
@@ -450,4 +454,40 @@ async fn the_page_behind_its_door() {
             .status,
         403
     );
+}
+
+#[tokio::test]
+async fn a_firewall_in_a_container_says_where_its_log_is_and_reads_nothing() {
+    let calls: Arc<Mutex<Vec<String>>> = Arc::default();
+    let c = calls.clone();
+    let run: Run = Arc::new(move |cmd: &str, _args: Vec<String>| {
+        c.lock().expect("lock").push(cmd.to_string());
+        Box::pin(async { Err("no systemd".to_string()) })
+    });
+    let mut r = reader(run, false, Value::Null);
+    r.in_container = Arc::new(|| true);
+    let v = r.read("1h", "all").await;
+    assert!(v["warning"].as_str().is_some_and(|w| w.contains("runs in a container")));
+    assert_eq!(v["lines"], json!([]));
+    // Only the services' state was asked for: no sudo, no journal.
+    assert!(!calls.lock().expect("lock").iter().any(|c| c == "sudo"));
+}
+
+#[tokio::test]
+async fn a_standalone_firewall_is_never_sent_to_an_update_button() {
+    let run: Run = Arc::new(|_: &str, _: Vec<String>| Box::pin(async { Err("no".to_string()) }));
+    let mut r = reader(run, false, Value::Null);
+    r.standalone = true;
+    let w = r.read("1h", "all").await["warning"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    assert!(w.contains("journalctl") && !w.contains("Update"), "{w}");
+    // The console's firewall without the helper is on an old build: it says to press Update.
+    let run: Run = Arc::new(|_: &str, _: Vec<String>| Box::pin(async { Err("no".to_string()) }));
+    let w = reader(run, false, Value::Null).read("1h", "all").await["warning"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    assert!(w.contains("Press Update"), "{w}");
 }

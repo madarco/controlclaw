@@ -2,6 +2,7 @@ import type { Schemas } from "@controlclaw/fw-api";
 import { agentmailError } from "@controlclaw/console-ui/lib/agentmail-words";
 import { FwApiError, fw } from "./client";
 import { send } from "./changes";
+import type { FirewallPageName } from "./firewall-pages";
 
 /**
  * Google, AgentMail and Website logins on the firewall's API (cc-local `api/accounts.rs`). Their
@@ -185,8 +186,10 @@ export async function disconnectOnePassword(): Promise<void> {
   await send(() => fw.post("/api/logins/1password/disconnect", { body: {} }));
 }
 
+export { FIREWALL_PAGES, type FirewallPageName } from "./firewall-pages";
+
 /** A one-time link to one of the firewall's own pages (60 seconds), where passwords are typed. */
-export async function openFirewallPage(page: "logins" | "firewall-logs"): Promise<string> {
+export async function openFirewallPage(page: FirewallPageName): Promise<string> {
   const res = (await send(() => fw.post("/api/open", { body: { page } }))) as { url?: string };
   if (!res.url) throw new Error("The firewall gave no link");
   return res.url;

@@ -931,6 +931,19 @@ fn credentials_follow_the_cli_the_included_list_and_never_hand_out_a_refresh_tok
             .expect_err("refused")
             .contains("not included")
     );
+    // An AI Gateway key as the console stores it on a real firewall: OpenClaw's provider name.
+    let mut gw = c.clone();
+    gw["provider"] = json!("vercel-ai-gateway");
+    let g = r(Cli::Claude, &gw, "anthropic/claude-haiku-4.5").expect("a gateway key runs Claude Code");
+    assert_eq!(
+        (g.provider, g.env["ANTHROPIC_BASE_URL"].as_str()),
+        ("gateway", "https://ai-gateway.vercel.sh")
+    );
+    assert_eq!(
+        r(Cli::Codex, &gw, "openai/gpt-5.4-mini").expect("and Codex").env["OPENAI_BASE_URL"],
+        "https://ai-gateway.vercel.sh/v1"
+    );
+    assert!(r(Cli::Claude, &gw, "openai/gpt-5.4-mini").is_err());
     let mut openai = c.clone();
     openai["provider"] = json!("openai");
     for m in ["gpt-6.1-sol", "gpt-6-astra", "gpt-5.6-terra"] {

@@ -619,6 +619,7 @@ fn typed_lines(p: &Proposal) -> Vec<TypedLine> {
         };
         if clean_line(filled_name).0 != agent.name {
             lines.push(TypedLine {
+                whole: false,
                 label: if one {
                     "Name in the template's files".into()
                 } else {
@@ -634,6 +635,7 @@ fn typed_lines(p: &Proposal) -> Vec<TypedLine> {
         }
         if !note.is_empty() {
             lines.push(TypedLine {
+                whole: false,
                 label: if one {
                     "Note".into()
                 } else {
@@ -675,12 +677,14 @@ fn auto_lines(p: &Proposal) -> Vec<TypedLine> {
     for a in &p.agents {
         for r in &a.auto {
             lines.push(TypedLine {
+                whole: false,
                 label: format!("Auto approve rule for {}", a.name),
                 text: r.name.clone(),
                 more: None,
             });
             if let Some(t) = r.title() {
                 lines.push(TypedLine {
+                    whole: false,
                     label: format!("Its text ({})", if r.exact() { "exactly" } else { "contains" }),
                     text: t.to_string(),
                     more: None,

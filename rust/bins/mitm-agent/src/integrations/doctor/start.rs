@@ -353,12 +353,14 @@ impl DoctorStart {
         let console = super::chat::fw_console_url(&self.app, "");
         let tail = r#"<script type="module" src="app.js"></script>"#;
         match self.app.contracts.fw_shell.get() {
-            Some(s) => s.shell_page(
+            // Only an owner or admin opens this page.
+            Some(s) => s.shell_page_as(
                 "Agent Doctor",
                 "doctor",
                 r#"<div id="root"></div>"#,
                 console.as_deref(),
                 tail,
+                true,
             ),
             None => format!(
                 r#"<!doctype html><meta charset="utf-8"><title>Agent Doctor</title><div id="root"></div>{tail}"#

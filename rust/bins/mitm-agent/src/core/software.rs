@@ -76,12 +76,18 @@ fn features(markers: &Path) -> Vec<String> {
     f
 }
 
+/// The release file the Ansible role writes (`RELEASE_FILE` moves it, for tests).
+pub fn release_file() -> std::path::PathBuf {
+    std::env::var("RELEASE_FILE")
+        .unwrap_or_else(|_| "/etc/controlclaw/release.json".into())
+        .into()
+}
+
 /// `boxSoftware`.
 pub fn box_software() -> Value {
-    let release = std::env::var("RELEASE_FILE").unwrap_or_else(|_| "/etc/controlclaw/release.json".into());
     json!({
         "agent": build(),
-        "release": read_release(Path::new(&release)),
+        "release": read_release(&release_file()),
         "rebootRequired": Path::new("/var/run/reboot-required").exists(),
         "bootedAt": *BOOTED_AT,
         "features": features(Path::new(cc_store::RUNTIME_MARKERS_DIR)),

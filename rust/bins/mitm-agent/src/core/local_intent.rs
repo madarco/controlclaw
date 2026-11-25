@@ -1,3 +1,6 @@
+//! Twin: `PAGES` is repeated as `FIREWALL_PAGES` in apps/firewall-panel/src/api/firewall-pages.ts
+//! (its test checks the names match): change both together.
+//!
 //! A standalone firewall's own Open links. In the SaaS the console signs an intent (`open-intent`,
 //! 60 s) with the organization's key and the firewall checks it against `saas_public_key.pem`. With
 //! no console, the firewall signs the same intent with a key of its own, made at the first start,
@@ -25,11 +28,12 @@ pub const LOCAL_USER: &str = "local-admin";
 pub const IDENTITY_FILE: &str = "local_intent_identity.json";
 
 /// The firewall's own pages that run with no control plane, and the path each one's Open starts
-/// at (as `open-link.server.ts` builds them). Content rules and AI review are not here yet: the
-/// first starts only with a control channel, the second is an agent's page.
+/// at (as `open-link.server.ts` builds them). The AI review history is not here: it is one agent's
+/// page, opened from the console. Doctor needs the console too.
 pub const PAGES: &[(&str, &str)] = &[
     ("firewall-logs", "/__cc/doctor/logs/open"),
     ("logins", "/__cc/logins/open"),
+    ("content-rules", "/__cc/doctor/content-rules/open"),
 ];
 
 /// The brain's pages (docs/plans/standalone-brain.md, "the brain's own pages"): a local link enrolls
@@ -133,6 +137,6 @@ mod tests {
             Some("https://fw.example.com/__cc/local/open#i=x")
         );
         assert_eq!(link("fw.example.com", "chat", "x"), None);
-        assert_eq!(link("fw.example.com", "content-rules", "x"), None);
+        assert_eq!(link("fw.example.com", "doctor-start", "x"), None);
     }
 }

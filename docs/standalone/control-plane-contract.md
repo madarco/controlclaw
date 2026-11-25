@@ -382,7 +382,7 @@ The field types and the `kind` values of each family are in its file under
 | `auto-update.propose`, `.confirm`, `.cancel`, `.disable` | Updates through our Ansible. | `core/auto_update.rs` |
 | `backup.run`, `backup.firewall-run`, `backup.restore.{propose,confirm,cancel}`, `backup.recovery.{propose,confirm,cancel,rebind}`, `backup.firewall-restore`, `backup.firewall-restore.{confirm,cancel}` | Backups to our S3. | `core/backup.rs` |
 | `devices.propose`, `.confirm`, `.cancel` | The Mac app's devices, through the console. | `core/devices.rs` |
-| `doctor.propose`, `.confirm`, `.stop` | Doctor (later, with the user's own key). | `integrations/doctor/firewall.rs` |
+| `doctor.propose`, `.confirm`, `.stop` | Doctor (later, with the user's own key). A `finding` session's encrypted part may carry `findingNotes` and `findingQuestion` (the person's question, at most 1,000 characters, shown in the code message; feature `doctor_finding_question`). | `integrations/doctor/firewall.rs` |
 | `firewall-update.propose`, `.confirm`, `.cancel` | Updates through our Ansible. | `core/firewall_update.rs` |
 | `gbrain.client.propose`, `.confirm`, `.disconnect` | Outside AI apps on the brain's MCP address. | `core/gbrain.rs` |
 | `meetings.propose`, `.confirm`, `.cancel`, `.push` | Meetings (later: needs speech keys without our billing). | `channels/meetings.rs` |

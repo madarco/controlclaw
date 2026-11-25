@@ -324,6 +324,11 @@ fn features(app: &Arc<App>, checks: bool, firewall: bool, terminal: bool) {
     core.beat.feature("template_repair", page(app));
     core.beat.feature("template_capture", page(app));
     core.beat.feature("doctor_finding", page(app));
+    // A finding's session takes the person's question (`findingQuestion`).
+    core.beat.feature("doctor_finding_question", page(app));
+    // Doctor takes an AI Gateway key as the console stores it (`vercel-ai-gateway`): before this, every
+    // session with one was refused, so the console offers a gateway key only to a firewall that says so.
+    core.beat.feature("doctor_gateway_key", || true);
     core.beat.feature("doctor_chat", page(app));
     core.beat.feature("doctor_start", page(app));
     if firewall {

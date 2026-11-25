@@ -409,11 +409,16 @@ impl DoctorChat {
     fn page(&self, g: &Grant) -> String {
         let console = self.console_url(&g.vm_id);
         match self.app.contracts.fw_shell.get() {
+            // The page kit first: `chat.js` draws with it.
             Some(s) => {
                 let body = s.content(BODY);
-                s.shell_page("Agent Doctor chat", "doctor", &body, console.as_deref(), TAIL)
+                let tail = format!("{}{TAIL}", crate::core::fw_shell::fw_kit_tag());
+                s.shell_page_as("Doctor chat", "doctor", &body, console.as_deref(), &tail, g.can_write)
             }
-            None => format!("<!doctype html><meta charset=\"utf-8\"><title>Agent Doctor chat</title>{BODY}{TAIL}"),
+            None => format!(
+                "<!doctype html><meta charset=\"utf-8\"><title>Doctor chat</title>{BODY}{}{TAIL}",
+                crate::core::fw_shell::fw_kit_tag()
+            ),
         }
     }
 
@@ -510,6 +515,11 @@ impl DoctorChat {
                 let mut data = crate::integrations::as_map(json!({
                     "events": events, "state": state, "busy": record["busy"], "canWrite": grant.can_write, "retainUntil": record["retainUntil"],
                 }));
+                for k in ["agent", "cli", "model", "expiresAt"] {
+                    if let Some(v) = record.get(k) {
+                        data.insert(k.into(), v.clone());
+                    }
+                }
                 if let Some(m) = mark("repair") {
                     data.insert("repair".into(), m);
                 }

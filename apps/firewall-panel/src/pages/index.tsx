@@ -14,6 +14,7 @@ import { OauthCallbackPage } from "./OauthCallback";
 import { LoginsPage } from "./Logins";
 import { GooglePage } from "./Google";
 import { AgentMailPage } from "./AgentMail";
+import { OpenFirewallPage } from "./OpenFirewallPage";
 
 export interface PanelPage {
   path: string;
@@ -39,9 +40,11 @@ export const NAV: PanelPage[] = [
   { path: "/settings", title: "Settings", icon: Settings, component: SettingsPage },
 ];
 
-/** Pages with no place in the sidebar: where providers send the person back after a sign-in. */
+/** Pages with no place in the sidebar: where providers send the person back after a sign-in, and the door to the firewall's own pages. */
 export const HIDDEN: PanelPage[] = [
   { path: "/oauth/callback", title: "Signing in", icon: Plug, component: OauthCallbackPage },
   { path: "/integrations/google", title: "Google", icon: Plug, component: GooglePage },
   { path: "/integrations/agentmail", title: "AgentMail", icon: Plug, component: AgentMailPage },
+  // The firewall's own pages link to each other through here (their sidebar on a standalone firewall).
+  { path: "/open/$page", title: "Opening", icon: Plug, component: OpenFirewallPage },
 ];
